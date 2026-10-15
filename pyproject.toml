@@ -40,6 +40,7 @@ spike = [
     "soxr",
     "psutil",
     "requests",
+    "audiomentations>=0.43.1",
 ]
 
 [build-system]

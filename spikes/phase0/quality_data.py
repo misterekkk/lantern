@@ -191,3 +191,33 @@ QUERIES = [
     ("wygrana drużyny po rzucie karnym", "pl_dlugie", "mecz"),
     ("sadzenie pomidorów w szklarni i ślimaki", "pl_dlugie", "ogrod"),
 ]
+
+# Recordings with one incidental keyword (spikes/phase0/data/keyword, rendered with the Zosia voice).
+KEYWORD_RECORDINGS = {
+    "kw_krowa": (
+        "Wracając z pracy utknąłem w korku na obwodnicy, bo remontują wiadukt. Radio mówiło, że potrwa to do grudnia. "
+        "W końcu zjechałem na boczną drogę przez wieś i musiałem się zatrzymać, bo jakaś krowa stała na środku "
+        "jezdni. Potem pojechałem do sklepu po zakupy na weekend, kupiłem chleb, masło i kawę. Wieczorem oglądaliśmy "
+        "film i wcześnie poszliśmy spać, bo jutro rano mamy wizytę u dentysty."
+    ),
+    "kw_rower": (
+        "Na zebraniu wspólnoty mieszkaniowej omawialiśmy podwyżkę opłat za ogrzewanie i wymianę domofonu. Pani "
+        "z trzeciego piętra skarżyła się, że ktoś ukradł jej rower z piwnicy, więc zdecydowaliśmy się zamontować "
+        "kamerę przy wejściu. Następnie zarządca przedstawił plan malowania klatki schodowej na wiosnę oraz budżet "
+        "na naprawę dachu. Głosowanie przełożono na przyszły miesiąc."
+    ),
+    "kw_parasol": (
+        "Rozmowa z klientem dotyczyła migracji systemu księgowego do chmury. Klient pytał głównie o bezpieczeństwo "
+        "danych i koszty licencji. Pod koniec spotkania zaczęło mocno padać, a ja zostawiłem parasol w samochodzie, "
+        "więc wróciłem do biura kompletnie przemoczony. Ustaliliśmy, że do piątku wyślemy wycenę i harmonogram "
+        "wdrożenia."
+    ),
+}
+KEYWORD_QUERIES = [
+    ("krowa", "kw_krowa", None),
+    ("krowy na drodze", "kw_krowa", None),
+    ("kradzież roweru", "kw_rower", None),
+    ("rower", "kw_rower", None),
+    ("parasol", "kw_parasol", None),
+    ("zapomniany parasol i deszcz", "kw_parasol", None),
+]
