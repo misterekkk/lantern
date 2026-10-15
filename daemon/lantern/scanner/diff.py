@@ -16,7 +16,7 @@ from pathlib import Path
 
 from lantern.config import MASS_DELETE_FRACTION, MASS_DELETE_MIN_FILES, PARTIAL_HASH_BYTES
 from lantern.queue import jobs
-from lantern.scanner.walk import FileEntry, iter_files
+from lantern.scanner.walk import FileEntry, WalkReport, iter_files
 from lantern.store import db
 
 
@@ -38,6 +38,8 @@ class ScanResult:
     moved: list[tuple[str, str]] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
     unchanged: int = 0
+    unreadable: list[str] = field(default_factory=list)  # folders without read permission (entries kept)
+    cloud_only: int = 0  # iCloud files/folders not on the disk (skipped; entries kept)
 
 
 _SAMPLE = 4 * 1024 * 1024
@@ -64,13 +66,16 @@ def root_available(root: Path) -> bool:
     return root.is_dir() and os.access(root, os.R_OK | os.X_OK)
 
 
-def scan_root(conn: sqlite3.Connection, root: Path, *, force: bool = False) -> ScanResult:
+def scan_root(
+    conn: sqlite3.Connection, root: Path, *, force: bool = False, excludes: list[str] | tuple[str, ...] = ()
+) -> ScanResult:
     root = root.expanduser().resolve()
     if not root_available(root):
         raise RootUnavailable(f"root not available: {root}")
 
     root_id = db.ensure_root(conn, root)
-    disk: dict[str, FileEntry] = {str(e.path): e for e in iter_files(root)}
+    report = WalkReport()
+    disk: dict[str, FileEntry] = {str(e.path): e for e in iter_files(root, report, excludes)}
     indexed = {
         r["path"]: r
         for r in conn.execute("SELECT id, path, size, mtime_ns, content_hash FROM files WHERE root_id = ?", (root_id,))
@@ -80,11 +85,12 @@ def scan_root(conn: sqlite3.Connection, root: Path, *, force: bool = False) -> S
     if not root_available(root):
         raise RootUnavailable(f"root disappeared during scan: {root}")
 
-    missing = {p: r for p, r in indexed.items() if p not in disk}
+    # Not seen on disk, and not merely unreadable or evicted to iCloud: really gone.
+    missing = {p: r for p, r in indexed.items() if p not in disk and not report.protects(p)}
     if not force and len(missing) >= MASS_DELETE_MIN_FILES and len(missing) > MASS_DELETE_FRACTION * len(indexed):
         raise MassDeletionRefused(len(missing), len(indexed))
 
-    result = ScanResult()
+    result = ScanResult(unreadable=[str(p) for p in report.unreadable], cloud_only=report.cloud_only)
     missing_by_hash: dict[str, list[sqlite3.Row]] = {}
     for row in missing.values():
         missing_by_hash.setdefault(row["content_hash"], []).append(row)
