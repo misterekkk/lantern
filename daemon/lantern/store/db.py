@@ -11,8 +11,21 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SCHEMA = Path(__file__).with_name("schema.sql")
+
+# Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
+_MIGRATIONS: dict[int, list[str]] = {
+    1: [
+        "ALTER TABLE files ADD COLUMN pipeline_version INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE files ADD COLUMN model_id INTEGER",
+        "INSERT INTO chunks_fts(chunks_fts, rank) VALUES ('secure-delete', 1)",
+    ],
+}
+
+# Auto-compaction threshold: free pages as a share of the file.
+COMPACT_FREE_RATIO = 0.25
+COMPACT_MIN_PAGES = 1000
 
 
 @dataclass(frozen=True)
@@ -48,8 +61,15 @@ def connect(path: Path) -> sqlite3.Connection:
     if version == 0:
         conn.executescript(_SCHEMA.read_text())
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    elif version != SCHEMA_VERSION:
-        raise RuntimeError(f"index schema version {version} is not supported (expected {SCHEMA_VERSION})")
+    elif version > SCHEMA_VERSION:
+        raise RuntimeError(f"index schema version {version} is newer than this Lantern ({SCHEMA_VERSION})")
+    else:
+        with transaction(conn):
+            while version < SCHEMA_VERSION:
+                for statement in _MIGRATIONS[version]:
+                    conn.execute(statement)
+                version += 1
+                conn.execute(f"PRAGMA user_version = {version}")
     return conn
 
 
@@ -141,6 +161,7 @@ def replace_file_chunks(
     chunks: Sequence[ChunkRecord],
     vectors: np.ndarray,
     model_id: int,
+    pipeline_version: int,
 ) -> None:
     """Idempotent re-index of one file: drop old chunks, insert new chunks, FTS rows and vectors."""
     if len(chunks) != len(vectors):
@@ -162,8 +183,9 @@ def replace_file_chunks(
             (chunk_id, np.asarray(vec, dtype=np.float32).tobytes()),
         )
     conn.execute(
-        "UPDATE files SET status = 'indexed', error = NULL, indexed_at = ? WHERE id = ?",
-        (now(), file_id),
+        "UPDATE files SET status = 'indexed', error = NULL, indexed_at = ?, pipeline_version = ?, model_id = ? "
+        "WHERE id = ?",
+        (now(), pipeline_version, model_id, file_id),
     )
 
 
@@ -174,3 +196,33 @@ def update_file_path(conn: sqlite3.Connection, file_id: int, new_path: str, new_
         "UPDATE chunks_fts SET path = ? WHERE rowid IN (SELECT id FROM chunks WHERE file_id = ?)",
         (fold(new_rel_path), file_id),
     )
+
+
+def remove_root(conn: sqlite3.Connection, root_id: int) -> int:
+    """Drop a root folder and everything derived from its files (call inside a transaction)."""
+    ids = [r[0] for r in conn.execute("SELECT id FROM files WHERE root_id = ?", (root_id,))]
+    delete_files(conn, ids)
+    conn.execute("DELETE FROM roots WHERE id = ?", (root_id,))
+    return len(ids)
+
+
+def free_ratio(conn: sqlite3.Connection) -> tuple[float, int]:
+    pages = conn.execute("PRAGMA page_count").fetchone()[0]
+    free = conn.execute("PRAGMA freelist_count").fetchone()[0]
+    return (free / pages if pages else 0.0), pages
+
+
+def compact(conn: sqlite3.Connection) -> None:
+    """Make deleted data physically disappear: merge FTS segments, rebuild the file, truncate the WAL."""
+    conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES ('optimize')")
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.execute("VACUUM")
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
+def maybe_compact(conn: sqlite3.Connection) -> bool:
+    ratio, pages = free_ratio(conn)
+    if pages >= COMPACT_MIN_PAGES and ratio >= COMPACT_FREE_RATIO:
+        compact(conn)
+        return True
+    return False
