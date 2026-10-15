@@ -40,11 +40,13 @@ class ModelInfo:
 @dataclass(frozen=True)
 class ChunkRecord:
     ord: int
-    kind: str
-    text: str
+    kind: str  # text | code | audio | transcript
+    text: str | None  # None for audio windows (vector only)
     start_line: int | None = None
     end_line: int | None = None
     symbol: str | None = None
+    start_ms: int | None = None
+    end_ms: int | None = None
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -138,10 +140,15 @@ def _delete_chunk_rows(conn: sqlite3.Connection, chunk_ids: Sequence[int]) -> No
         conn.execute(f"DELETE FROM chunks WHERE id IN ({marks})", batch)
 
 
-def delete_file_chunks(conn: sqlite3.Connection, file_id: int) -> None:
-    """Remove all chunks of a file with their FTS rows and vectors (call inside a transaction)."""
-    ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE file_id = ?", (file_id,))]
-    _delete_chunk_rows(conn, ids)
+def delete_file_chunks(conn: sqlite3.Connection, file_id: int, kinds: Iterable[str] | None = None) -> None:
+    """Remove a file's chunks (optionally only some kinds) with their FTS rows and vectors (inside a transaction)."""
+    if kinds is None:
+        rows = conn.execute("SELECT id FROM chunks WHERE file_id = ?", (file_id,))
+    else:
+        kinds = list(kinds)
+        marks = ",".join("?" * len(kinds))
+        rows = conn.execute(f"SELECT id FROM chunks WHERE file_id = ? AND kind IN ({marks})", (file_id, *kinds))
+    _delete_chunk_rows(conn, [r[0] for r in rows])
 
 
 def delete_files(conn: sqlite3.Connection, file_ids: Iterable[int]) -> int:
@@ -162,21 +169,34 @@ def replace_file_chunks(
     vectors: np.ndarray,
     model_id: int,
     pipeline_version: int,
+    kinds: Iterable[str] | None = None,
 ) -> None:
-    """Idempotent re-index of one file: drop old chunks, insert new chunks, FTS rows and vectors."""
+    """Idempotent re-index of one file: drop its old chunks (only `kinds` if given), insert new chunks, FTS rows
+    and vectors. Audio windows (text None) get an FTS row with an empty text, so the file name stays searchable."""
     if len(chunks) != len(vectors):
         raise ValueError("chunks and vectors length mismatch")
-    delete_file_chunks(conn, file_id)
+    delete_file_chunks(conn, file_id, kinds)
     table = vec_table(model_id)
     for chunk, vec in zip(chunks, vectors, strict=True):
         cur = conn.execute(
-            "INSERT INTO chunks(file_id, ord, kind, start_line, end_line, symbol, text) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (file_id, chunk.ord, chunk.kind, chunk.start_line, chunk.end_line, chunk.symbol, chunk.text),
+            "INSERT INTO chunks(file_id, ord, kind, start_line, end_line, start_ms, end_ms, symbol, text) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                file_id,
+                chunk.ord,
+                chunk.kind,
+                chunk.start_line,
+                chunk.end_line,
+                chunk.start_ms,
+                chunk.end_ms,
+                chunk.symbol,
+                chunk.text,
+            ),  # fmt: skip
         )
         chunk_id = cur.lastrowid
         conn.execute(
             "INSERT INTO chunks_fts(rowid, text, path, symbol) VALUES (?, ?, ?, ?)",
-            (chunk_id, fold(chunk.text), fold(rel_path), fold(chunk.symbol or "")),
+            (chunk_id, fold(chunk.text or ""), fold(rel_path), fold(chunk.symbol or "")),
         )
         conn.execute(
             f"INSERT INTO {table}(chunk_id, embedding) VALUES (?, ?)",
