@@ -227,3 +227,30 @@ def test_files_left_waiting_by_an_earlier_run_are_asked_about_after_restart(star
     assert wait_until(lambda: not protocol.running())
     start_daemon(mode="ask")  # nothing new on disk, but 3 files still wait
     assert protocol.call("status")["awaiting_approval"]
+
+
+def test_opened_result_is_recorded(start_daemon, project):
+    start_daemon(mode="auto")
+    protocol.call("index", {"path": str(project)})
+    assert wait_until(lambda: files_by_status().get("indexed") == 3)
+    r = protocol.call("search", {"query": "backoff_wrapper"})
+    protocol.call("opened", {"event_id": r["event_id"], "chunk_id": r["results"][0]["chunk_id"]})
+    conn = db.connect(Path(os.environ["LANTERN_HOME"]) / "index.db")
+    assert conn.execute("SELECT opened_chunk_id FROM search_events WHERE id = ?", (r["event_id"],)).fetchone()[0]
+
+
+def test_daemon_exits_when_its_parent_app_dies(sock, lantern_home, project):
+    """Started by the menu bar app with LANTERN_EXIT_WITH_PARENT=1: no orphan after an app crash."""
+    settings.save(settings.Settings(notify=False))
+    env = {**os.environ, "LANTERN_EXIT_WITH_PARENT": "1", "LANTERN_EMBEDDER": "fake", "LANTERN_SOCKET": str(sock)}
+    # A short-lived "app" process starts the daemon, waits until it serves, then dies.
+    launcher = (
+        "import os, subprocess, sys, time; "
+        "subprocess.Popen([sys.executable, '-m', 'lantern.cli', 'daemon', 'run']); "
+        "t = time.time()\n"
+        "while not os.path.exists(os.environ['LANTERN_SOCKET']) and time.time() - t < 30: time.sleep(0.1)\n"
+        "sys.exit(0 if os.path.exists(os.environ['LANTERN_SOCKET']) else 3)"
+    )
+    started = subprocess.run([sys.executable, "-c", launcher], env=env, timeout=60)
+    assert started.returncode == 0, "daemon did not start"
+    assert wait_until(lambda: not sock.exists(), timeout=30), "daemon kept running after its parent exited"

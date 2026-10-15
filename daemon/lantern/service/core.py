@@ -24,7 +24,7 @@ from pathlib import Path
 from lantern import config
 from lantern.api import protocol
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
-from lantern.search.hybrid import clear_history, search
+from lantern.search.hybrid import clear_history, mark_opened, search
 from lantern.service import notify as notify_mod
 from lantern.service import power as power_mod
 from lantern.service import settings as settings_mod
@@ -77,6 +77,8 @@ class Daemon:
         self.watcher = None
         self.server: socketserver.ThreadingUnixStreamServer | None = None
         self._last_power_check = 0.0
+        # Started by the menu bar app: exit if the app goes away (crash, force quit) instead of staying orphaned.
+        self.parent_pid = os.getppid() if os.environ.get("LANTERN_EXIT_WITH_PARENT") == "1" else None
 
     # ---------- helpers ----------
 
@@ -88,7 +90,8 @@ class Daemon:
             self.warnings = (self.warnings + [f"{time.strftime('%H:%M:%S')} {message}"])[-20:]
 
     def _notify(self, message: str) -> None:
-        if self.settings.notify:
+        # LANTERN_NOTIFY=0: a client (the menu bar app) shows its own notifications.
+        if self.settings.notify and os.environ.get("LANTERN_NOTIFY") != "0":
             notify_mod.notify("Lantern", message)
 
     def _queued(self, conn) -> dict[str, int]:
@@ -314,6 +317,15 @@ class Daemon:
             "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms,
         }  # fmt: skip
 
+    def api_opened(self, event_id: int, chunk_id: int) -> dict:
+        """Record which result of a search the user opened (training data for a future reranker)."""
+        conn = self._conn()
+        try:
+            mark_opened(conn, int(event_id), int(chunk_id))
+        finally:
+            conn.close()
+        return {"ok": True}
+
     def api_index(self, path: str, force: bool = False) -> dict:
         root = str(Path(path).expanduser().resolve())
         if not root_available(Path(root)):
@@ -380,6 +392,8 @@ class Daemon:
             settings_mod.save(self.settings)
             if key in ("pause_on_battery", "pause_on_thermal"):
                 self._last_power_check = 0.0
+        # Started by the menu bar app: exit if the app goes away (crash, force quit) instead of staying orphaned.
+        self.parent_pid = os.getppid() if os.environ.get("LANTERN_EXIT_WITH_PARENT") == "1" else None
         return asdict(self.settings)
 
     def api_exclude(self, action: str, pattern: str) -> dict:
@@ -487,6 +501,9 @@ class Daemon:
 
         try:
             while not self.stopping.is_set():
+                if self.parent_pid is not None and os.getppid() != self.parent_pid:
+                    self._warn("parent app exited; stopping")
+                    break
                 if self.watcher:
                     for root in self.watcher.take_quiet(self.settings.debounce_s):
                         self.scan(root)
