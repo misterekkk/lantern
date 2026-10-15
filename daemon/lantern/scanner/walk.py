@@ -31,7 +31,7 @@ BUNDLE_SUFFIXES = frozenset(
         ".app", ".photoslibrary", ".musiclibrary", ".tvlibrary", ".imovielibrary", ".fcpbundle", ".logicx", ".band",
         ".xcarchive", ".framework", ".bundle", ".plugin", ".kext", ".pkg", ".mpkg", ".dsym", ".xcassets",
         ".xcodeproj", ".xcworkspace", ".photolibrary", ".aplibrary", ".migratedphotolibrary", ".vmwarevm", ".utm",
-        ".pvm", ".sparsebundle", ".sparseimage", ".dmg", ".numbers", ".pages", ".key", ".rtfd", ".scriptd",
+        ".pvm", ".theater", ".sparsebundle", ".sparseimage", ".dmg", ".numbers", ".pages", ".key", ".rtfd", ".scriptd",
     }
 )  # fmt: skip
 ICLOUD_DRIVE = Path("Library") / "Mobile Documents" / "com~apple~CloudDocs"

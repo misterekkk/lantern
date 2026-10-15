@@ -39,6 +39,7 @@ EXCLUDED_DIRS = frozenset(
         "__pycache__",
         ".venv",
         "venv",
+        "renv",  # R package library (like a virtualenv)
         ".tox",
         ".mypy_cache",
         ".pytest_cache",
