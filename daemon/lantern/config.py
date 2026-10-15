@@ -103,6 +103,17 @@ SECRET_PATTERNS = (
 
 MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 
+# Audio / video soundtrack (Phase 4, ADR-003).
+AUDIO_SAMPLE_RATE = 16_000
+AUDIO_WINDOW_S = 30  # EmbeddingGemma 2 audio window; the processor cap is always set explicitly
+AUDIO_HOP_S = 25  # 5 s overlap so a phrase on a window boundary is not lost
+AUDIO_MIN_WINDOW_S = 1.0
+TRANSCRIPT_CHUNK_S = 20  # Whisper segments grouped into ~20 s chunks (tighter timestamps in results)
+MAX_TRANSCRIBE_S = 4 * 3600  # Whisper decodes the whole file into memory (~230 MB per hour)
+
+# Media files above this size are hashed by samples (size + head/middle/tail), not in full.
+PARTIAL_HASH_BYTES = 64 * 1024 * 1024
+
 # Generated files with no search value (exact names).
 GENERATED_FILES = frozenset(
     {
