@@ -11,12 +11,14 @@
     <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
-    <key>NSHumanReadableCopyright</key><string>Lantern — lokalne wyszukiwanie, bez wysyłania danych.</string>
-    <key>NSDesktopFolderUsageDescription</key><string>Lantern indeksuje pliki z Biurka lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
-    <key>NSDocumentsFolderUsageDescription</key><string>Lantern indeksuje Dokumenty lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
-    <key>NSDownloadsFolderUsageDescription</key><string>Lantern indeksuje Pobrane lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
-    <key>NSRemovableVolumesUsageDescription</key><string>Lantern może indeksować foldery na dyskach zewnętrznych, które wskażesz.</string>
-    <key>NSNetworkVolumesUsageDescription</key><string>Lantern może indeksować foldery na dyskach sieciowych, które wskażesz.</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key><array><string>en</string><string>pl</string></array>
+    <key>NSHumanReadableCopyright</key><string>Lantern — local search, no data leaves your Mac.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Lantern indexes files on your Desktop locally so you can search them by meaning. Files are only read.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Lantern indexes your Documents locally so you can search them by meaning. Files are only read.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Lantern indexes your Downloads locally so you can search them by meaning. Files are only read.</string>
+    <key>NSRemovableVolumesUsageDescription</key><string>Lantern can index folders on external drives that you choose.</string>
+    <key>NSNetworkVolumesUsageDescription</key><string>Lantern can index folders on network drives that you choose.</string>
     <key>LanternPython</key><string>__PYTHON__</string>
 </dict>
 </plist>

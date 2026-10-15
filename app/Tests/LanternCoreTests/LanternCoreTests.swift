@@ -27,7 +27,7 @@ import Testing
         let r = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
         #expect(r.results.first?.isMedia == true && r.eventId == 5)
         #expect(Format.title(r.results[0]) == "vlog.mp4  ·  1:48")
-        #expect(Format.sources(r.results[0]) == "znaczenie i słowa")
+        #expect(Format.sources(r.results[0]) == "meaning and words")  // English source; Polish comes from pl.lproj
     }
 }
 

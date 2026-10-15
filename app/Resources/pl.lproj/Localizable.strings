@@ -1,0 +1,93 @@
+/* Lantern — Polish UI. Keys are the English source strings (SwiftUI LocalizedStringKey / String(localized:)). */
+
+/* Menu */
+"Starting…" = "Uruchamianie…";
+"Off" = "Wyłączony";
+"Paused: battery" = "Pauza: bateria";
+"Paused: heat" = "Pauza: temperatura";
+"Paused" = "Wstrzymany";
+"Waiting for approval" = "Czeka na zgodę";
+"Indexing" = "Indeksuje";
+"Ready" = "Gotowy";
+"Index Now" = "Zaindeksuj";
+"Later" = "Później";
+"Indexing files" = "Indeksowanie";
+"Transcribing" = "Transkrypcja";
+"files" = "pliki";
+"chunks" = "fragmenty";
+"memory" = "pamięć";
+"Search…" = "Szukaj…";
+"Resume Indexing" = "Wznów indeksowanie";
+"Pause Indexing" = "Wstrzymaj indeksowanie";
+"Add Folder…" = "Dodaj folder…";
+"Settings…" = "Ustawienia…";
+"Quit Lantern" = "Zakończ Lantern";
+"code" = "kod";
+"text" = "tekst";
+"audio" = "audio";
+"video" = "wideo";
+"photos" = "zdjęcia";
+"transcription" = "transkrypcja";
+
+/* Messages and notifications */
+"Removed %@ from the index." = "Usunięto %@ z indeksu.";
+"Search history deleted." = "Historia wyszukiwań została usunięta.";
+"Index compacted." = "Indeks został zagęszczony.";
+"Index" = "Indeksuj";
+"Choose a folder for Lantern to search." = "Wybierz folder, który Lantern ma przeszukiwać.";
+"Could not change launch at login: %@" = "Nie udało się zmienić uruchamiania przy logowaniu: %@";
+"Added %@. Indexing runs in the background." = "Dodano %@. Indeksowanie idzie w tle.";
+"Lantern's Python was not found (LanternPython in Info.plist). Build the app with app/build.sh." = "Nie znaleziono Pythona Lanterna (LanternPython w Info.plist). Zbuduj aplikację przez app/build.sh.";
+"Could not start the daemon: %@" = "Nie udało się uruchomić demona: %@";
+"The daemon keeps exiting with an error (code %d). Details: logs/daemon.log" = "Demon kończy się z błędem (kod %d). Szczegóły: logs/daemon.log";
+"The ⌥Space shortcut is used by another app." = "Skrót ⌥Space jest zajęty przez inną aplikację.";
+"The Lantern daemon is not running." = "Demon Lanterna nie działa.";
+"Daemon communication error: %@" = "Błąd komunikacji z demonem: %@";
+
+/* Search panel */
+"Search Lantern — by meaning, in code, recordings…" = "Szukaj w Lantern — po znaczeniu, w kodzie, nagraniach…";
+"No results for “%@”." = "Brak wyników dla „%@”.";
+"open" = "otwórz";
+"show in Finder" = "pokaż w Finderze";
+"select" = "wybierz";
+"close" = "zamknij";
+"meaning and words" = "znaczenie i słowa";
+"meaning" = "znaczenie";
+"words" = "słowa";
+"%@  —  lines %lld–%lld" = "%@  —  linie %lld–%lld";
+
+/* Settings */
+"Lantern Settings" = "Ustawienia Lantern";
+"General" = "Ogólne";
+"Folders" = "Foldery";
+"Privacy" = "Prywatność";
+"About" = "Informacje";
+"Open Lantern at login" = "Uruchamiaj Lantern przy logowaniu";
+"Search shortcut" = "Skrót wyszukiwania";
+"Indexing options" = "Indeksowanie";
+"New and changed files" = "Nowe i zmienione pliki";
+"Ask before indexing" = "Pytaj przed indeksowaniem";
+"Index automatically" = "Indeksuj automatycznie";
+"Transcribe recordings and videos (Whisper)" = "Transkrypcja nagrań i filmów (Whisper)";
+"Pause on battery power" = "Wstrzymuj na zasilaniu z baterii";
+"Pause when the Mac is hot" = "Wstrzymuj przy wysokiej temperaturze";
+"Connecting to the daemon…" = "Łączenie z demonem…";
+"Searched folders" = "Przeszukiwane foldery";
+"unavailable" = "niedostępny";
+"Remove the folder and its data from the index" = "Usuń folder i jego dane z indeksu";
+"e.g. ~/Downloads/archive or *.csv" = "np. ~/Downloads/archiwum albo *.csv";
+"Add" = "Dodaj";
+"Exclusions" = "Wykluczenia";
+"Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files not on this Mac." = "Zawsze pomijane: ~/Library (poza iCloud Drive), pliki z sekretami, .git, node_modules, pliki iCloud nieobecne na tym Macu.";
+"Everything runs locally and offline. Lantern sends no data." = "Wszystko działa lokalnie i offline. Lantern nie wysyła żadnych danych.";
+"Indexed files are only read, never changed." = "Indeksowane pliki są tylko czytane, nigdy zmieniane.";
+"Data" = "Dane";
+"Clear Search History" = "Wyczyść historię wyszukiwań";
+"Compact Index (erase deleted data)" = "Zagęść indeks (fizycznie usuń skasowane dane)";
+"Show Data Folder in Finder" = "Pokaż folder danych w Finderze";
+"File access" = "Dostęp do plików";
+"Desktop, Documents, Downloads and iCloud Drive need macOS permission. Folders without access are skipped, and their previously indexed files are kept." = "Biurko, Dokumenty, Pobrane i iCloud Drive wymagają zgody macOS. Foldery bez dostępu są pomijane, a ich wcześniej zaindeksowane pliki zostają.";
+"Open Privacy Settings" = "Otwórz ustawienia prywatności";
+"Local search by meaning in files, code and recordings." = "Lokalne wyszukiwanie po znaczeniu w plikach, kodzie i nagraniach.";
+"Daemon: pid %lld, %lld MB · %lld files, %lld chunks" = "Demon: pid %lld, %lld MB · plików: %lld, fragmentów: %lld";
+"Version %@" = "Wersja %@";

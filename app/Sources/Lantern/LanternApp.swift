@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         MainActor.assumeIsolated {
             AppState.shared.start()
             hotKey = HotKey { Task { @MainActor in SearchPanelController.shared.toggle() } }
-            if hotKey == nil { AppState.shared.lastMessage = "Skrót ⌥Space jest zajęty przez inną aplikację." }
+            if hotKey == nil { AppState.shared.lastMessage = String(localized: "The ⌥Space shortcut is used by another app.") }
             handleLaunchArguments()
         }
     }
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return NSApp.windows.lazy.compactMap { find($0.contentView) }.first
     }
 
-    // Notification buttons: "Zaindeksuj" / "Później".
+    // Notification buttons: "Index Now" / "Later".
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completion: @escaping () -> Void) {
         let action = response.actionIdentifier

@@ -27,7 +27,11 @@ LANTERN_HOME=/tmp/x LANTERN_SOCKET=/tmp/l.sock LANTERN_PANEL_PINNED=1 \
 
 - Swift 5 language mode, macOS 14+; Liquid Glass (`glassEffect`) behind `#available(macOS 26, *)` with a material
   fallback. The Xcode toolchain is selected with `DEVELOPER_DIR` (Command Line Tools ship an older SDK).
-- UI strings are Polish (user-facing); code, comments and identifiers English.
+- Localization follows the macOS language (English source strings as keys, `Resources/<lang>.lproj`:
+  `Localizable.strings`, `Localizable.stringsdict` for plurals — Polish has one/few/many — and `InfoPlist.strings`
+  for permission prompts). SwiftUI `Text`/`Button`/`Label` literals localize automatically; plain `String` values must
+  use `String(localized:)`, and view parameters that hold UI text should be `LocalizedStringKey`. Adding a language =
+  a new `.lproj` folder + its code in `CFBundleLocalizations`. Test another language with `-AppleLanguages "(en)"`.
 - Animations: short and quiet (`.snappy`/`.smooth`, ≤ 0.3 s), no bouncing; respect the system look.
 - When the daemon API changes, update the models here and the decoding tests in `Tests/LanternCoreTests`.
 - Signing: `build.sh` uses the first "Apple Development" identity (stable signature keeps macOS permissions across

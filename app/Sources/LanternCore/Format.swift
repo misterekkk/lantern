@@ -25,16 +25,16 @@ public enum Format {
     /// Folder (and line range) shown under the title.
     public static func subtitle(_ r: SearchResult) -> String {
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)
-        if let start = r.startLine, let end = r.endLine { return "\(folder)  —  linie \(start)–\(end)" }
+        if let start = r.startLine, let end = r.endLine { return String(localized: "\(folder)  —  lines \(start)–\(end)") }
         return folder
     }
 
     /// Where the match comes from: meaning (embeddings), words (BM25) or both.
     public static func sources(_ r: SearchResult) -> String {
         switch (r.vectorRank, r.keywordRank) {
-        case (.some, .some): "znaczenie i słowa"
-        case (.some, .none): "znaczenie"
-        case (.none, .some): "słowa"
+        case (.some, .some): String(localized: "meaning and words")
+        case (.some, .none): String(localized: "meaning")
+        case (.none, .some): String(localized: "words")
         default: ""
         }
     }

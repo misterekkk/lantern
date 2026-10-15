@@ -17,6 +17,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build -c release --show-bin-path)/Lantern" "$APP/Contents/MacOS/Lantern"
 sed -e "s#__PYTHON__#$REPO/.venv/bin/python#" -e "s#__VERSION__#$VERSION#" -e "s#__BUILD__#$(date +%Y%m%d%H%M)#" \
     Resources/Info.plist.template > "$APP/Contents/Info.plist"
+cp -R Resources/*.lproj "$APP/Contents/Resources/"   # localizations (the system language picks one)
 
 IDENTITY="$(security find-identity -v -p codesigning | grep -m1 'Apple Development' | sed -E 's/.*"(.*)"/\1/' || true)"
 if [[ -n "$IDENTITY" ]]; then

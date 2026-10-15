@@ -1,0 +1,7 @@
+/* Polish texts of the macOS permission prompts */
+"NSDesktopFolderUsageDescription" = "Lantern indeksuje pliki z Biurka lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.";
+"NSDocumentsFolderUsageDescription" = "Lantern indeksuje Dokumenty lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.";
+"NSDownloadsFolderUsageDescription" = "Lantern indeksuje Pobrane lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.";
+"NSRemovableVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach zewnętrznych, które wskażesz.";
+"NSNetworkVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach sieciowych, które wskażesz.";
+"NSHumanReadableCopyright" = "Lantern — lokalne wyszukiwanie, bez wysyłania danych.";

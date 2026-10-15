@@ -97,20 +97,20 @@ final class AppState: ObservableObject {
     func setConfig(_ key: String, _ value: String) { run("config_set", ["key": key, "value": value]) }
     func addExclude(_ pattern: String) { run("exclude", ["action": "add", "pattern": pattern]) }
     func removeExclude(_ pattern: String) { run("exclude", ["action": "remove", "pattern": pattern]) }
-    func removeFolder(_ path: String) { run("remove", ["path": path], message: "Usunięto \(Format.shortPath(path)) z indeksu.") }
-    func clearHistory() { run("clear_history", message: "Historia wyszukiwań została usunięta.") }
-    func compact() { run("compact", message: "Indeks został zagęszczony.") }
+    func removeFolder(_ path: String) { run("remove", ["path": path], message: String(localized: "Removed \(Format.shortPath(path)) from the index.")) }
+    func clearHistory() { run("clear_history", message: String(localized: "Search history deleted.")) }
+    func compact() { run("compact", message: String(localized: "Index compacted.")) }
 
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Indeksuj"
-        panel.message = "Wybierz folder, który Lantern ma przeszukiwać."
+        panel.prompt = String(localized: "Index")
+        panel.message = String(localized: "Choose a folder for Lantern to search.")
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK, let url = panel.url {
-            run("index", ["path": url.path], message: "Dodano \(Format.shortPath(url.path)). Indeksowanie idzie w tle.")
+            run("index", ["path": url.path], message: String(localized: "Added \(Format.shortPath(url.path)). Indexing runs in the background."))
         }
     }
 
@@ -122,7 +122,7 @@ final class AppState: ObservableObject {
             do {
                 if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             } catch {
-                lastMessage = "Nie udało się zmienić uruchamiania przy logowaniu: \(error.localizedDescription)"
+                lastMessage = String(localized: "Could not change launch at login: \(error.localizedDescription)")
             }
             objectWillChange.send()
         }
@@ -132,8 +132,8 @@ final class AppState: ObservableObject {
 
     private func setUpNotifications() {
         let center = UNUserNotificationCenter.current()
-        let index = UNNotificationAction(identifier: "approve", title: "Zaindeksuj", options: [])
-        let later = UNNotificationAction(identifier: "decline", title: "Później", options: [])
+        let index = UNNotificationAction(identifier: "approve", title: String(localized: "Index Now"), options: [])
+        let later = UNNotificationAction(identifier: "decline", title: String(localized: "Later"), options: [])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: "approval", actions: [index, later], intentIdentifiers: [])
         ])
@@ -143,7 +143,7 @@ final class AppState: ObservableObject {
     private func notifyApprovalNeeded(_ s: DaemonStatus) {
         let content = UNMutableNotificationContent()
         content.title = "Lantern"
-        content.body = "Znaleziono \(s.queuedTotal) nowych lub zmienionych plików. Zaindeksować je teraz?"
+        content.body = String(localized: "Found \(s.queuedTotal) new or changed files. Index them now?")
         content.categoryIdentifier = "approval"
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "approval", content: content, trigger: nil))
     }

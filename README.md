@@ -21,6 +21,7 @@ open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
 - **⌥Space** otwiera panel wyszukiwania (jak Spotlight): ↑↓ wybór, ↩ otwórz, ⌘↩ pokaż w Finderze, Esc zamknij.
   Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`).
 - **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
+- **Język** aplikacji jest zgodny z językiem macOS (polski lub angielski).
 - **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, pauza na baterii/temperaturze,
   foldery, wykluczenia, wyczyszczenie historii, zagęszczenie indeksu.
 - **Aplikacja sama uruchamia demona** (proces potomny), więc zgody macOS na Biurko, Dokumenty i Pobrane dotyczą

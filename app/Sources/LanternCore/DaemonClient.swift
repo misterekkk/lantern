@@ -8,8 +8,8 @@ public enum DaemonError: Error, Equatable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .notRunning: "Demon Lanterna nie działa."
-        case .protocolError(let detail): "Błąd komunikacji z demonem: \(detail)"
+        case .notRunning: String(localized: "The Lantern daemon is not running.")
+        case .protocolError(let detail): String(localized: "Daemon communication error: \(detail)")
         case .remote(_, let message): message
         }
     }

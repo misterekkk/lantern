@@ -30,7 +30,7 @@ final class DaemonSupervisor {
 
     private func launch() {
         guard let python, FileManager.default.isExecutableFile(atPath: python) else {
-            mode = .failed("Nie znaleziono Pythona Lanterna (LanternPython w Info.plist). Zbuduj aplikację przez app/build.sh.")
+            mode = .failed(String(localized: "Lantern's Python was not found (LanternPython in Info.plist). Build the app with app/build.sh."))
             return
         }
         let logs = URL(fileURLWithPath: DaemonClient.dataDirectory).appendingPathComponent("logs")
@@ -65,7 +65,7 @@ final class DaemonSupervisor {
             process = p
             mode = .child
         } catch {
-            mode = .failed("Nie udało się uruchomić demona: \(error.localizedDescription)")
+            mode = .failed(String(localized: "Could not start the daemon: \(error.localizedDescription)"))
         }
     }
 
@@ -74,7 +74,7 @@ final class DaemonSupervisor {
         guard !quitting else { return }
         restarts += 1
         if restarts > 5 {
-            mode = .failed("Demon kończy się z błędem (kod \(status)). Szczegóły: logs/daemon.log")
+            mode = .failed(String(localized: "The daemon keeps exiting with an error (code \(status)). Details: logs/daemon.log"))
             return
         }
         let delay = UInt64(min(30, 1 << restarts)) * 1_000_000_000

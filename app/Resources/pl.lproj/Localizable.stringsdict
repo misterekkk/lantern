@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Found %lld new or changed files</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Znaleziono %lld nowy lub zmieniony plik</string>
+			<key>few</key>
+			<string>Znaleziono %lld nowe lub zmienione pliki</string>
+			<key>many</key>
+			<string>Znaleziono %lld nowych lub zmienionych plików</string>
+			<key>other</key>
+			<string>Znaleziono %lld nowych lub zmienionych plików</string>
+		</dict>
+	</dict>
+	<key>Found %lld new or changed files. Index them now?</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Znaleziono %lld nowy lub zmieniony plik. Zaindeksować go teraz?</string>
+			<key>few</key>
+			<string>Znaleziono %lld nowe lub zmienione pliki. Zaindeksować je teraz?</string>
+			<key>many</key>
+			<string>Znaleziono %lld nowych lub zmienionych plików. Zaindeksować je teraz?</string>
+			<key>other</key>
+			<string>Znaleziono %lld nowych lub zmienionych plików. Zaindeksować je teraz?</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

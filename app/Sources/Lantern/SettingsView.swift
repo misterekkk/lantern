@@ -12,7 +12,7 @@ final class SettingsWindowController {
         if window == nil {
             let host = NSHostingController(rootView: SettingsView().environmentObject(AppState.shared))
             let w = NSWindow(contentViewController: host)
-            w.title = "Ustawienia Lantern"
+            w.title = String(localized: "Lantern Settings")
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.isReleasedWhenClosed = false
             w.center()
@@ -29,10 +29,10 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            GeneralTab().tabItem { Label("Ogólne", systemImage: "gearshape") }
-            FoldersTab().tabItem { Label("Foldery", systemImage: "folder") }
-            PrivacyTab().tabItem { Label("Prywatność", systemImage: "hand.raised") }
-            AboutTab().tabItem { Label("Informacje", systemImage: "info.circle") }
+            GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
+            FoldersTab().tabItem { Label("Folders", systemImage: "folder") }
+            PrivacyTab().tabItem { Label("Privacy", systemImage: "hand.raised") }
+            AboutTab().tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 560, height: 420)
         .task { await state.loadSettings() }
@@ -45,26 +45,26 @@ private struct GeneralTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Uruchamiaj Lantern przy logowaniu", isOn: Binding(
+                Toggle("Open Lantern at login", isOn: Binding(
                     get: { state.launchAtLogin }, set: { state.launchAtLogin = $0 }))
-                LabeledContent("Skrót wyszukiwania") { Text("⌥ Space").font(.system(.body, design: .rounded)) }
+                LabeledContent("Search shortcut") { Text("⌥ Space").font(.system(.body, design: .rounded)) }
             }
             if let s = state.settings {
-                Section("Indeksowanie") {
-                    Picker("Nowe i zmienione pliki", selection: Binding(
+                Section("Indexing options") {
+                    Picker("New and changed files", selection: Binding(
                         get: { s.indexMode }, set: { state.setConfig("index_mode", $0) })) {
-                        Text("Pytaj przed indeksowaniem").tag("ask")
-                        Text("Indeksuj automatycznie").tag("auto")
+                        Text("Ask before indexing").tag("ask")
+                        Text("Index automatically").tag("auto")
                     }
-                    Toggle("Transkrypcja nagrań i filmów (Whisper)", isOn: Binding(
+                    Toggle("Transcribe recordings and videos (Whisper)", isOn: Binding(
                         get: { s.transcribe }, set: { state.setConfig("transcribe", $0 ? "true" : "false") }))
-                    Toggle("Wstrzymuj na zasilaniu z baterii", isOn: Binding(
+                    Toggle("Pause on battery power", isOn: Binding(
                         get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") }))
-                    Toggle("Wstrzymuj przy wysokiej temperaturze", isOn: Binding(
+                    Toggle("Pause when the Mac is hot", isOn: Binding(
                         get: { s.pauseOnThermal }, set: { state.setConfig("pause_on_thermal", $0 ? "true" : "false") }))
                 }
             } else {
-                Text(state.connectionError ?? "Łączenie z demonem…").foregroundStyle(.secondary)
+                Text(state.connectionError ?? String(localized: "Connecting to the daemon…")).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -77,20 +77,20 @@ private struct FoldersTab: View {
 
     var body: some View {
         Form {
-            Section("Przeszukiwane foldery") {
+            Section("Searched folders") {
                 ForEach(state.status?.roots ?? []) { root in
                     HStack {
                         Image(systemName: root.available ? "folder.fill" : "externaldrive.badge.xmark")
                             .foregroundStyle(root.available ? Color.accentColor : .secondary)
                         Text(Format.shortPath(root.path)).lineLimit(1).truncationMode(.middle)
-                        if !root.available { Text("niedostępny").font(.caption).foregroundStyle(.secondary) }
+                        if !root.available { Text("unavailable").font(.caption).foregroundStyle(.secondary) }
                         Spacer()
                         Button(role: .destructive) { state.removeFolder(root.path) } label: { Image(systemName: "minus.circle") }
                             .buttonStyle(.borderless)
-                            .help("Usuń folder i jego dane z indeksu")
+                            .help("Remove the folder and its data from the index")
                     }
                 }
-                Button("Dodaj folder…") { state.chooseFolder() }
+                Button("Add Folder…") { state.chooseFolder() }
             }
             Section {
                 ForEach(state.settings?.exclude ?? [], id: \.self) { pattern in
@@ -102,17 +102,17 @@ private struct FoldersTab: View {
                     }
                 }
                 HStack {
-                    TextField("np. ~/Downloads/archiwum albo *.csv", text: $newPattern)
-                    Button("Dodaj") {
+                    TextField("e.g. ~/Downloads/archive or *.csv", text: $newPattern)
+                    Button("Add") {
                         state.addExclude(newPattern)
                         newPattern = ""
                     }
                     .disabled(newPattern.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             } header: {
-                Text("Wykluczenia")
+                Text("Exclusions")
             } footer: {
-                Text("Zawsze pomijane: ~/Library (poza iCloud Drive), pliki z sekretami, .git, node_modules, pliki iCloud nieobecne na dysku.")
+                Text("Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files not on this Mac.")
                     .font(.caption)
             }
         }
@@ -126,21 +126,21 @@ private struct PrivacyTab: View {
     var body: some View {
         Form {
             Section {
-                Label("Wszystko działa lokalnie i offline. Lantern nie wysyła żadnych danych.", systemImage: "lock.shield")
-                Label("Indeksowane pliki są tylko czytane, nigdy zmieniane.", systemImage: "doc.text.magnifyingglass")
+                Label("Everything runs locally and offline. Lantern sends no data.", systemImage: "lock.shield")
+                Label("Indexed files are only read, never changed.", systemImage: "doc.text.magnifyingglass")
             }
-            Section("Dane") {
-                Button("Wyczyść historię wyszukiwań") { state.clearHistory() }
-                Button("Zagęść indeks (fizycznie usuń skasowane dane)") { state.compact() }
-                Button("Pokaż folder danych w Finderze") {
+            Section("Data") {
+                Button("Clear Search History") { state.clearHistory() }
+                Button("Compact Index (erase deleted data)") { state.compact() }
+                Button("Show Data Folder in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: DaemonClient.dataDirectory)])
                 }
             }
-            Section("Dostęp do plików") {
-                Text("Biurko, Dokumenty, Pobrane i iCloud Drive wymagają zgody macOS. Foldery bez dostępu są pomijane, a ich wcześniej zaindeksowane pliki zostają.")
+            Section("File access") {
+                Text("Desktop, Documents, Downloads and iCloud Drive need macOS permission. Folders without access are skipped, and their previously indexed files are kept.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Button("Otwórz ustawienia prywatności") {
+                Button("Open Privacy Settings") {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 }
             }
@@ -158,17 +158,17 @@ private struct AboutTab: View {
                 .font(.system(size: 48, weight: .semibold))
                 .foregroundStyle(.tint)
             Text("Lantern").font(.title2.weight(.semibold))
-            Text("Lokalne wyszukiwanie po znaczeniu w plikach, kodzie i nagraniach.")
+            Text("Local search by meaning in files, code and recordings.")
                 .foregroundStyle(.secondary)
             Text("Model: EmbeddingGemma 2 (MLX, 8-bit) · Whisper large-v3-turbo")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let s = state.status {
-                Text("Demon: pid \(s.pid), \(s.memoryMb) MB · \(s.indexedFiles) plików, \(s.chunks) fragmentów")
+                Text("Daemon: pid \(s.pid), \(s.memoryMb) MB · \(s.indexedFiles) files, \(s.chunks) chunks")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("Wersja \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev")")
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev")")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }

@@ -139,7 +139,7 @@ final class SearchModel: ObservableObject {
                 results = resp.results
                 eventId = resp.eventId
                 selection = 0
-                message = resp.results.isEmpty ? "Brak wyników dla „\(q)”." : nil
+                message = resp.results.isEmpty ? String(localized: "No results for “\(q)”.") : nil
             } catch {
                 results = []
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -217,11 +217,11 @@ struct SearchView: View {
                 }
                 Divider().opacity(0.5)
                 HStack(spacing: 14) {
-                    Hint(keys: "↩", label: "otwórz")
-                    Hint(keys: "⌘↩", label: "pokaż w Finderze")
-                    Hint(keys: "↑↓", label: "wybierz")
+                    Hint(keys: "↩", label: "open")
+                    Hint(keys: "⌘↩", label: "show in Finder")
+                    Hint(keys: "↑↓", label: "select")
                     Spacer()
-                    Hint(keys: "esc", label: "zamknij")
+                    Hint(keys: "esc", label: "close")
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -252,7 +252,7 @@ struct SearchView: View {
 private struct QueryField: View {
     @ObservedObject var model: SearchModel
     var focused: FocusState<Bool>.Binding
-    private let prompt = "Szukaj w Lantern — po znaczeniu, w kodzie, nagraniach…"
+    private let prompt: LocalizedStringKey = "Search Lantern — by meaning, in code, recordings…"
 
     var body: some View {
         if #available(macOS 15.0, *) {
@@ -267,7 +267,7 @@ private struct QueryField: View {
 private struct SelectionAwareField: View {
     @ObservedObject var model: SearchModel
     var focused: FocusState<Bool>.Binding
-    let prompt: String
+    let prompt: LocalizedStringKey
     @State private var selection: TextSelection?
 
     var body: some View {
@@ -345,7 +345,7 @@ private struct ResultRow: View {
 
 private struct Hint: View {
     let keys: String
-    let label: String
+    let label: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: 4) {

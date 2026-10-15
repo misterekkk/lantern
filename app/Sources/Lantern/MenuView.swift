@@ -60,15 +60,15 @@ struct MenuView: View {
         }
     }
 
-    private var phaseLabel: String {
+    private var phaseLabel: LocalizedStringKey {
         switch state.phase {
-        case .starting: "Uruchamianie…"
-        case .offline: "Wyłączony"
+        case .starting: "Starting…"
+        case .offline: "Off"
         case .paused:
-            state.status?.paused == "battery" ? "Pauza: bateria" : state.status?.paused == "thermal" ? "Pauza: temperatura" : "Wstrzymany"
-        case .awaitingApproval: "Czeka na zgodę"
-        case .indexing: "Indeksuje"
-        case .idle: "Gotowy"
+            state.status?.paused == "battery" ? "Paused: battery" : state.status?.paused == "thermal" ? "Paused: heat" : "Paused"
+        case .awaitingApproval: "Waiting for approval"
+        case .indexing: "Indexing"
+        case .idle: "Ready"
         }
     }
 
@@ -84,16 +84,16 @@ struct MenuView: View {
 
     private func approvalCard(_ s: DaemonStatus) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Znaleziono \(s.queuedTotal) nowych lub zmienionych plików")
+            Text("Found \(s.queuedTotal) new or changed files")
                 .font(.callout.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
             Text(s.queued.sorted { $0.key < $1.key }.map { "\(kindLabel($0.key)): \($0.value)" }.joined(separator: " · "))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Zaindeksuj") { state.approve() }
+                Button("Index Now") { state.approve() }
                     .buttonStyle(.borderedProminent)
-                Button("Później") { state.decline() }
+                Button("Later") { state.decline() }
             }
         }
         .padding(12)
@@ -106,7 +106,7 @@ struct MenuView: View {
             if let done = w.done, let total = w.total, total > 0 {
                 ProgressView(value: Double(done), total: Double(total))
                     .animation(.smooth(duration: 0.4), value: done)
-                Text("\(w.stage == "transcribe" ? "Transkrypcja" : "Indeksowanie") \(done)/\(total) · \((w.path.map { ($0 as NSString).lastPathComponent }) ?? "")")
+                Text("\(w.stage == "transcribe" ? String(localized: "Transcribing") : String(localized: "Indexing files")) \(done)/\(total) · \((w.path.map { ($0 as NSString).lastPathComponent }) ?? "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -119,38 +119,38 @@ struct MenuView: View {
 
     private func stats(_ s: DaemonStatus) -> some View {
         HStack(spacing: 18) {
-            Stat(value: "\(s.indexedFiles)", label: "plików")
-            Stat(value: "\(s.chunks)", label: "fragmentów")
-            Stat(value: "\(s.memoryMb) MB", label: "pamięć")
+            Stat(value: "\(s.indexedFiles)", label: "files")
+            Stat(value: "\(s.chunks)", label: "chunks")
+            Stat(value: "\(s.memoryMb) MB", label: "memory")
         }
     }
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            MenuButton(title: "Szukaj…", systemImage: "magnifyingglass", shortcut: "⌥Space") {
+            MenuButton(title: "Search…", systemImage: "magnifyingglass", shortcut: "⌥Space") {
                 SearchPanelController.shared.show()
             }
             if state.status?.paused == "manual" {
-                MenuButton(title: "Wznów indeksowanie", systemImage: "play.fill") { state.resume() }
+                MenuButton(title: "Resume Indexing", systemImage: "play.fill") { state.resume() }
             } else {
-                MenuButton(title: "Wstrzymaj indeksowanie", systemImage: "pause.fill") { state.pause() }
+                MenuButton(title: "Pause Indexing", systemImage: "pause.fill") { state.pause() }
                     .disabled(state.status == nil)
             }
-            MenuButton(title: "Dodaj folder…", systemImage: "folder.badge.plus") { state.chooseFolder() }
+            MenuButton(title: "Add Folder…", systemImage: "folder.badge.plus") { state.chooseFolder() }
                 .disabled(state.status == nil)
-            MenuButton(title: "Ustawienia…", systemImage: "gearshape") { SettingsWindowController.shared.show() }
-            MenuButton(title: "Zakończ Lantern", systemImage: "power") { NSApp.terminate(nil) }
+            MenuButton(title: "Settings…", systemImage: "gearshape") { SettingsWindowController.shared.show() }
+            MenuButton(title: "Quit Lantern", systemImage: "power") { NSApp.terminate(nil) }
         }
     }
 
     private func kindLabel(_ kind: String) -> String {
-        ["code": "kod", "text": "tekst", "audio": "audio", "video": "wideo", "transcribe": "transkrypcja"][kind] ?? kind
+        ["code": String(localized: "code"), "text": String(localized: "text"), "audio": String(localized: "audio"), "video": String(localized: "video"), "image": String(localized: "photos"), "transcribe": String(localized: "transcription")][kind] ?? kind
     }
 }
 
 private struct Stat: View {
     let value: String
-    let label: String
+    let label: LocalizedStringKey
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -164,7 +164,7 @@ private struct Stat: View {
 }
 
 private struct MenuButton: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
     var shortcut: String? = nil
     let action: () -> Void
