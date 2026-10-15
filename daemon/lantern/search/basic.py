@@ -22,6 +22,9 @@ class Hit:
     symbol: str | None
     score: float  # cosine similarity (vector) or -bm25 (keyword); higher is better
     preview: str
+    kind: str = "text"
+    start_ms: int | None = None  # audio windows and transcript chunks
+    end_ms: int | None = None
 
 
 def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit]:
@@ -31,7 +34,8 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
     rows = {
         r["id"]: r
         for r in conn.execute(
-            f"SELECT c.id, c.start_line, c.end_line, c.symbol, c.text, f.path FROM chunks c "
+            f"SELECT c.id, c.start_line, c.end_line, c.symbol, c.text, c.kind, c.start_ms, c.end_ms, f.path "
+            f"FROM chunks c "
             f"JOIN files f ON f.id = c.file_id WHERE c.id IN ({marks})",
             [cid for cid, _ in scored],
         )
@@ -41,9 +45,35 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
         r = rows.get(cid)
         if r is None:
             continue
-        preview = " ".join((r["text"] or "").split())[:160]
-        out.append(Hit(cid, r["path"], r["start_line"], r["end_line"], r["symbol"], score, preview))
+        text = r["text"] if r["text"] is not None else _transcript_at(conn, cid, r["start_ms"], r["end_ms"])
+        preview = " ".join((text or "").split())[:160]
+        out.append(
+            Hit(
+                cid,
+                r["path"],
+                r["start_line"],
+                r["end_line"],
+                r["symbol"],
+                score,
+                preview,
+                r["kind"],
+                r["start_ms"],
+                r["end_ms"],
+            )  # fmt: skip
+        )
     return out
+
+
+def _transcript_at(conn: sqlite3.Connection, chunk_id: int, start_ms: int | None, end_ms: int | None) -> str:
+    """Preview for an audio-window match: the transcript text spoken in the same time range, if any."""
+    if start_ms is None:
+        return ""
+    rows = conn.execute(
+        "SELECT t.text FROM chunks a JOIN chunks t ON t.file_id = a.file_id AND t.kind = 'transcript' "
+        "WHERE a.id = ? AND t.end_ms > ? AND t.start_ms < ? ORDER BY t.start_ms",
+        (chunk_id, start_ms, end_ms),
+    ).fetchall()
+    return " ".join(r[0] for r in rows)
 
 
 def _best_per_file(hits: list[Hit], limit: int) -> list[Hit]:

@@ -11,6 +11,18 @@ from pathlib import Path
 from lantern import __version__, config
 
 
+def _transcriber(enabled: bool):
+    if not enabled:
+        return None
+    if os.environ.get("LANTERN_EMBEDDER") == "fake":
+        from lantern.transcription.whisper import FakeTranscriber
+
+        return FakeTranscriber(os.environ.get("LANTERN_FAKE_TRANSCRIPT", "fake transcript"))
+    from lantern.transcription.whisper import WhisperTranscriber
+
+    return WhisperTranscriber()
+
+
 def _embedder():
     # LANTERN_EMBEDDER=fake is for tests and demos without the model; never the default.
     if os.environ.get("LANTERN_EMBEDDER") == "fake":
@@ -28,10 +40,17 @@ def _connect():
     return db.connect(config.db_path())
 
 
-def _location(path: str, start_line: int | None, end_line: int | None, symbol: str | None) -> str:
-    lines = f":{start_line}-{end_line}" if start_line else ""
-    sym = f"  [{symbol}]" if symbol else ""
-    return f"{path}{lines}{sym}"
+def _clock(ms: int) -> str:
+    s = ms // 1000
+    return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+
+
+def _location(r) -> str:
+    if r.start_ms is not None:
+        return f"{r.path} @ {_clock(r.start_ms)}–{_clock(r.end_ms)}"
+    lines = f":{r.start_line}-{r.end_line}" if r.start_line else ""
+    sym = f"  [{r.symbol}]" if r.symbol else ""
+    return f"{r.path}{lines}{sym}"
 
 
 def _sources(r) -> str:
@@ -65,13 +84,14 @@ def cmd_index(args: argparse.Namespace) -> int:
         f"({time.perf_counter() - t0:.1f}s)"
     )
 
-    def progress(done: int, total: int, path: str) -> None:
+    def progress(stage: str, done: int, total: int, path: str) -> None:
         if sys.stderr.isatty():
+            label = "indexing" if stage == "index" else "transcribing"
             name = Path(path).name[:40]
-            print(f"\r  indexing {done}/{total} {name:<40}", end="", file=sys.stderr, flush=True)
+            print(f"\r  {label} {done}/{total} {name:<40}", end="", file=sys.stderr, flush=True)
 
     t1 = time.perf_counter()
-    stats = run_queue(conn, _embedder(), progress)
+    stats = run_queue(conn, _embedder(), progress, _transcriber(not args.no_transcribe))
     if sys.stderr.isatty():
         print("\r" + " " * 70 + "\r", end="", file=sys.stderr)
     stale = f", {stats.stale} re-indexed after a pipeline/model change" if stats.stale else ""
@@ -79,6 +99,8 @@ def cmd_index(args: argparse.Namespace) -> int:
         f"indexed {stats.indexed} files ({stats.chunks} chunks) in {time.perf_counter() - t1:.1f}s, "
         f"skipped {stats.skipped}, failed {stats.failed}{stale}"
     )
+    if stats.media or stats.transcribed:
+        print(f"audio/video: {stats.media} files, {stats.audio_windows} audio windows, {stats.transcribed} transcribed")
     for path, msg in stats.errors[:10]:
         print(f"  failed: {path}: {msg}", file=sys.stderr)
     if scan.deleted and db.maybe_compact(conn):
@@ -96,8 +118,8 @@ def cmd_search(args: argparse.Namespace) -> int:
     resp = search(conn, embedder, args.query, args.limit, log=not args.no_log)
     print(f"{len(resp.results)} results ({resp.vector_ms + resp.keyword_ms:.0f} ms)")
     for i, r in enumerate(resp.results, 1):
-        print(f"  {i:2d}. {_location(r.path, r.start_line, r.end_line, r.symbol)}   ({_sources(r)})")
-        print(f"      {r.preview}")
+        print(f"  {i:2d}. {_location(r)}   ({_sources(r)})")
+        print(f"      {r.preview or '(audio match)'}")
     if resp.results and resp.event_id:
         print("open a result with: lantern open <number>")
     return 0
@@ -115,7 +137,8 @@ def cmd_open(args: argparse.Namespace) -> int:
     hit = results[args.number - 1]
     mark_opened(conn, event["id"], hit["chunk_id"])
     if args.print:
-        print(hit["path"] + (f":{hit['start_line']}" if hit["start_line"] else ""))
+        where = f" @ {_clock(hit['start_ms'])}" if hit.get("start_ms") is not None else ""
+        print(hit["path"] + (f":{hit['start_line']}" if hit["start_line"] else "") + where)
         return 0
     if not Path(hit["path"]).exists():
         print(f"error: file no longer exists: {hit['path']}", file=sys.stderr)
@@ -194,6 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("index", help="index a folder or update it (read-only access to files)")
     p.add_argument("path", help="folder to index")
     p.add_argument("--force", action="store_true", help="allow removing more than half of a folder's entries")
+    p.add_argument("--no-transcribe", action="store_true", help="index audio/video without Whisper transcription")
     p.set_defaults(func=cmd_index)
 
     p = sub.add_parser("search", help="search by meaning and keywords (one fused ranking)")

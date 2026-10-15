@@ -31,6 +31,9 @@ class Result:
     vector_score: float | None
     keyword_rank: int | None
     keyword_score: float | None
+    kind: str = "text"
+    start_ms: int | None = None
+    end_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,9 @@ def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> l
                 vector_score=round(v[1].score, 4) if v else None,
                 keyword_rank=kw[0] if kw else None,
                 keyword_score=round(kw[1].score, 4) if kw else None,
+                kind=best.kind,
+                start_ms=best.start_ms,
+                end_ms=best.end_ms,
             )
         )
     fused.sort(key=lambda r: (-r.score, r.vector_rank or 10**6))
