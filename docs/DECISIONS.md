@@ -299,6 +299,39 @@ Wnioski (hipotezy):
 
 ---
 
+## Etap „cały komputer” (po Fazie 5, 2026-10-15)
+
+Suchy przebieg na prawdziwym katalogu domowym (`lantern index ~ --dry-run`, tylko metadane, 5,5 s):
+5789 plików tekstu i kodu (119 MB), 3 pliki audio/wideo, 405 zdjęć, 4 elementy tylko w iCloud. Po dwóch przykładowych
+wykluczeniach w `~/Downloads` (rozpakowane źródła biblioteki, zbiór JSON): ~1900 plików, szacunek pierwszego
+indeksowania ~1,2 h w tle.
+
+Decyzje:
+1. **Polityka katalogu domowego:** pomijany `~/Library` (z wyjątkiem iCloud Drive), `~/Applications`, biblioteka
+   muzyki Apple, pakiety macOS (`*.app`, `*.photoslibrary`, iWork, obrazy VM, `.dmg`…) i ukryte katalogi/pliki
+   (z wyjątkiem `.github`). Biurko i Dokumenty w iCloud Drive to dowiązania do `~/Desktop` i `~/Documents`, a skaner nie
+   podąża za dowiązaniami, więc nie ma duplikatów.
+2. **iCloud „tylko w chmurze”** (`SF_DATALESS`): pomijane, bo odczyt pobrałby plik. Zaindeksowany plik przeniesiony
+   do chmury zostaje w indeksie (nadal istnieje; otwarcie go pobierze).
+3. **Brak uprawnień** (prywatność macOS, chmod): folder pomijany, a jego wpisy **chronione przed usunięciem**.
+   Wcześniej `os.walk` pomijał taki folder po cichu, co usunęłoby jego pliki z indeksu.
+4. **Własne wykluczenia** (`lantern exclude add/remove/list`, lista `exclude` w `config.toml`): ścieżki bezwzględne
+   (`~` dozwolone) albo wzorce jak w `.gitignore`. Zamyka otwarte pytanie 16.
+5. **Skala (`spikes/scale/scale_eval.py`):** zostajemy przy pełnych wektorach `float[768]`.
+
+| Fragmentów | float[768] | int8[768] | bit[768] + doprecyzowanie top 200 | float[256] |
+|---|---|---|---|---|
+| 100 tys. | 70 ms | 55 ms | 53 ms | 21 ms |
+| 300 tys. | 220 ms | 168 ms | 124 ms | 67 ms |
+| 1 mln | 743 ms | 558 ms | 337 ms | 229 ms |
+| zgodność top 10 z dokładnym (projekty / zdjęcia) | 100% | 95% / 95% | 97% / 99,8% | 78% / 80% |
+
+   Matryoshka 256 traci wyraźnie (wbrew „prawie bez strat” z karty modelu) i odpada. Bity z doprecyzowaniem to plan
+   na indeksy > ~300 tys. fragmentów (dodatkowa tabela `bit[768]` obok `float[768]`, wypełniana jednym zapytaniem SQL
+   przez `vec_quantize_binary`). Dziś niepotrzebne: katalog domowy to ~kilkadziesiąt tysięcy fragmentów (~20–50 ms).
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -386,5 +419,6 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 14. Jakość wyszukiwania audio na prawdziwych nagraniach użytkownika (szum, wielu mówców, akcenty): potrzebny zestaw
     kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
 15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
-16. Własne wykluczenia i foldery w `config.toml` (obecnie: domyślne wykluczenia + `.gitignore`, foldery przez `lantern index`).
+16. ~~Własne wykluczenia~~ — rozwiązane (`lantern exclude`).
 17. Strumień zdarzeń z API (postęp, „znaleziono N plików”) dla aplikacji w pasku menu zamiast odpytywania `status` (Faza 6).
+18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).

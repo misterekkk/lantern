@@ -162,15 +162,39 @@ uv run lantern daemon stop | uninstall
 
 ## Foldery i wykluczenia
 
-- Folder dodajesz przez `lantern index <folder>`. Każde kolejne wywołanie dla tego folderu aktualizuje indeks.
-- Domyślne wykluczenia (zawsze aktywne), lista w `daemon/lantern/config.py`:
+- Folder dodajesz przez `lantern index <folder>`. Możesz też dodać cały katalog domowy: `lantern index ~`.
+  Najpierw warto zrobić suchy przebieg `lantern index ~ --dry-run`, który tylko liczy pliki i szacuje czas, niczego
+  nie czytając z treści i niczego nie zapisując.
+- **Zasady dla katalogu domowego** (zawsze aktywne):
+  - pomijany jest `~/Library` (poczta, cache, dane aplikacji), z wyjątkiem **iCloud Drive**,
+  - pomijane są `~/Applications`, biblioteka muzyki Apple i wszystkie pakiety macOS (`*.app`, `*.photoslibrary`,
+    pakiety iWork `*.pages/*.numbers/*.key`, obrazy maszyn wirtualnych, `.dmg` itd.),
+  - pomijane są ukryte katalogi i pliki (`~/.ssh`, `~/.aws`, `~/.config`, dotfiles), z wyjątkiem `.github`.
+- **iCloud:** pliki, które iCloud trzyma tylko w chmurze („optymalizuj miejsce”), są pomijane, bo ich odczyt
+  pobrałby je z sieci. Trafią do indeksu, gdy będą na dysku. Plik już zaindeksowany, który iCloud przeniósł do chmury,
+  zostaje w indeksie: wyszukiwanie go znajdzie, a otwarcie pobierze.
+- **Uprawnienia macOS:** do Biurka, Dokumentów, Pobranych i iCloud Drive proces potrzebuje zgody (Ustawienia
+  systemowe → Prywatność i ochrona → Pliki i foldery albo Pełny dostęp do dysku). Folder bez dostępu jest pomijany,
+  a jego wcześniej zaindeksowane pliki **nie są usuwane**; `lantern status` pokazuje ostrzeżenie. Wygodne nadawanie
+  uprawnień przyjdzie z aplikacją (Faza 6).
+- Domyślne wykluczenia (lista w `daemon/lantern/config.py` i `scanner/walk.py`):
   - katalogi: `.git`, `node_modules`, `.venv`/`venv`, `__pycache__`, `build`, `dist`, `target`, `out`, `.cache`,
     `DerivedData`, `Pods` i inne katalogi buildów oraz cache,
   - pliki z sekretami: `.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, certyfikaty, klucze SSH `id_*`, `.netrc`, `.npmrc`,
     `credentials*`, `secrets.*`, `*secret*.json|yaml`, `*token*.json|txt`, `*.tfstate`, `*.tfvars` i inne,
-  - wszystko, co wykluczają pliki `.gitignore` (także zagnieżdżone),
+  - lockfile'y (`package-lock.json`, `uv.lock`, `Cargo.lock` …), wszystko z plików `.gitignore` (także zagnieżdżonych),
   - linki symboliczne (nigdy nie wychodzimy poza wskazany folder).
-- Własne wykluczenia w `config.toml` są na liście otwartych pytań (na razie: domyślne + `.gitignore`).
+- **Własne wykluczenia:**
+
+  ```bash
+  uv run lantern exclude add ~/Downloads/commons-math3-3.6.1   # konkretny folder lub plik
+  uv run lantern exclude add "*.csv"                           # wzorzec jak w .gitignore (w każdym folderze)
+  uv run lantern exclude list
+  uv run lantern exclude remove "*.csv"
+  ```
+
+  Zmiana działa przy następnym skanie (demon skanuje od razu); pasujące, już zaindeksowane pliki są wtedy usuwane
+  z indeksu.
 
 ## Gdzie są dane i jak wykluczyć je z Time Machine
 

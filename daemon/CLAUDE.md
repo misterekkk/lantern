@@ -24,6 +24,9 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
   across models; switching model means reindexing into a new table.
 - Change detection: (path, size, mtime_ns) first; `content_hash` only when those differ or for move detection.
 - Before purging missing files, check that the root exists and is readable. If not, skip the purge.
+- `scanner/walk.py` reports unreadable folders and iCloud-only (`SF_DATALESS`) items in `WalkReport`; their indexed
+  files are kept (`report.protects`). Never read a dataless file (it would download it). Home-folder policy, bundles,
+  hidden folders and user excludes (`settings.exclude`) are applied there too.
 
 ## Job queue rules
 

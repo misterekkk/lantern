@@ -15,7 +15,9 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
 6. **Usunięte znaczy usunięte:** fragmenty, FTS i wektory kasowane w jednej transakcji; `PRAGMA secure_delete`,
    FTS5 `secure-delete`, a po usunięciach `optimize` + `VACUUM` + checkpoint WAL (`lantern compact`, automatycznie
    po dużych usunięciach i po `lantern remove`). Test sprawdza brak usuniętego tekstu w surowych bajtach pliku bazy.
-7. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
+7. **iCloud i uprawnienia:** pliki iCloud nieobecne na dysku nie są czytane (odczyt pobrałby je z chmury);
+   `~/Library` (poczta, dane aplikacji) jest pomijany; folder bez uprawnień macOS jest pomijany bez usuwania jego wpisów.
+8. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
    plików. `lantern search --no-log` pomija zapis, `lantern clear-history` usuwa całą historię i zagęszcza bazę.
 
 ## Gdzie są dane
