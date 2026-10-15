@@ -1,0 +1,21 @@
+{
+ "projects_overlap@10": {
+  "f768": 1.0,
+  "f256": 0.78,
+  "int8": 0.95,
+  "bit+rerank": 0.974
+ },
+ "projects_chunks": 5186,
+ "flickr_overlap@10": {
+  "f768": 1.0,
+  "f256": 0.8,
+  "int8": 0.953,
+  "bit+rerank": 0.998
+ },
+ "flickr_caption_R@1": {
+  "f768": 0.862,
+  "f256": 0.841,
+  "int8": 0.863,
+  "bit+rerank": 0.862
+ }
+}
