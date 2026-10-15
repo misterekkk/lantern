@@ -1,7 +1,7 @@
 """User settings in config.toml (data directory). Missing keys fall back to defaults."""
 
 import tomllib
-from dataclasses import asdict, dataclass, fields  # noqa: F401 - asdict re-exported for the CLI
+from dataclasses import asdict, dataclass, field, fields  # noqa: F401 - asdict re-exported for the CLI
 from pathlib import Path
 
 from lantern.config import lantern_home
@@ -17,6 +17,8 @@ class Settings:
     transcribe: bool = True
     notify: bool = True
     debounce_s: float = 3.0  # file events are grouped for this long before a rescan
+    # Extra exclusions: absolute paths (~ allowed) or .gitignore-style patterns matched inside every indexed folder.
+    exclude: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         if self.index_mode not in INDEX_MODES:
@@ -35,7 +37,11 @@ def load() -> Settings:
         data = tomllib.loads(path().read_text())
         for f in fields(Settings):
             if f.name in data:
-                setattr(settings, f.name, type(getattr(settings, f.name))(data[f.name]))
+                current = getattr(settings, f.name)
+                value = data[f.name]
+                setattr(
+                    settings, f.name, [str(v) for v in value] if isinstance(current, list) else type(current)(value)
+                )
     settings.validate()
     return settings
 
@@ -47,11 +53,17 @@ def save(settings: Settings) -> None:
         if isinstance(value, bool):
             lines.append(f"{key} = {'true' if value else 'false'}")
         elif isinstance(value, str):
-            lines.append(f'{key} = "{value}"')
+            lines.append(f"{key} = {_toml_str(value)}")
+        elif isinstance(value, list):
+            lines.append(f"{key} = [" + ", ".join(_toml_str(v) for v in value) + "]")
         else:
             lines.append(f"{key} = {value}")
     path().parent.mkdir(parents=True, exist_ok=True)
     path().write_text("\n".join(lines) + "\n")
+
+
+def _toml_str(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def update(settings: Settings, key: str, raw: str) -> Settings:
@@ -60,6 +72,8 @@ def update(settings: Settings, key: str, raw: str) -> Settings:
     if key not in names:
         raise KeyError(f"unknown setting {key!r}; known: {', '.join(names)}")
     current = getattr(settings, key)
+    if isinstance(current, list):
+        raise ValueError(f"{key} is a list; use `lantern exclude add/remove`")
     if isinstance(current, bool):
         if raw.lower() not in ("true", "false", "1", "0", "yes", "no"):
             raise ValueError(f"{key} expects true/false")
@@ -68,4 +82,17 @@ def update(settings: Settings, key: str, raw: str) -> Settings:
         value = type(current)(raw)
     setattr(settings, key, value)
     settings.validate()
+    return settings
+
+
+def add_exclude(settings: Settings, pattern: str) -> Settings:
+    if pattern not in settings.exclude:
+        settings.exclude.append(pattern)
+    return settings
+
+
+def remove_exclude(settings: Settings, pattern: str) -> Settings:
+    if pattern not in settings.exclude:
+        raise KeyError(f"{pattern!r} is not in the exclude list")
+    settings.exclude.remove(pattern)
     return settings

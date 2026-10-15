@@ -124,7 +124,7 @@ class Daemon:
         with self.scan_lock:
             conn = self._conn()
             try:
-                result = scan_root(conn, Path(root), force=force)
+                result = scan_root(conn, Path(root), force=force, excludes=self.settings.exclude)
             except RootUnavailable as exc:
                 self._warn(f"{exc}; nothing removed")
                 return {"root": root, "error": "unavailable"}
@@ -134,11 +134,17 @@ class Daemon:
                     f"{exc.missing} files missing in {Path(root).name}; nothing removed. Use `lantern index --force`."
                 )
                 return {"root": root, "error": "mass_deletion_refused", "missing": exc.missing, "total": exc.total}
+            if result.unreadable:
+                self._warn(
+                    f"no access to {len(result.unreadable)} folder(s) in {root} (e.g. {result.unreadable[0]}); "
+                    "their indexed files are kept. Grant access in System Settings > Privacy & Security."
+                )
             if result.deleted and db.maybe_compact(conn):
                 self._warn(f"compacted the index after removing {len(result.deleted)} files")
             summary = {
                 "root": root, "new": len(result.new), "changed": len(result.changed), "moved": len(result.moved),
                 "removed": len(result.deleted), "unchanged": result.unchanged + len(result.touched),
+                "unreadable": result.unreadable[:20], "cloud_only": result.cloud_only,
             }  # fmt: skip
             self._after_scan(conn, bool(result.new or result.changed))
             conn.close()
@@ -375,6 +381,14 @@ class Daemon:
             if key in ("pause_on_battery", "pause_on_thermal"):
                 self._last_power_check = 0.0
         return asdict(self.settings)
+
+    def api_exclude(self, action: str, pattern: str) -> dict:
+        with self.lock:
+            fn = settings_mod.add_exclude if action == "add" else settings_mod.remove_exclude
+            fn(self.settings, pattern)
+            settings_mod.save(self.settings)
+        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        return {"exclude": list(self.settings.exclude)}
 
     def api_compact(self) -> dict:
         with self.worker_suspended(), self.scan_lock:

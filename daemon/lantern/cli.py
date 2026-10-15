@@ -22,6 +22,12 @@ def _connect():
     return db.connect(config.db_path())
 
 
+def _excludes() -> list[str]:
+    from lantern.service import settings as settings_mod
+
+    return settings_mod.load().exclude
+
+
 def _daemon() -> bool:
     return protocol.running()
 
@@ -68,7 +74,48 @@ def _print_scan(s: dict) -> None:
 # ---------- index / search ----------
 
 
+# Rough rates measured on an M4 (DECISIONS.md, phases 2-4): text/code ~17 chunks/s of ~1000 characters;
+# audio/video ~10x real time including transcription (~1 MB per minute of compressed audio as a size proxy).
+_TEXT_BYTES_PER_S = 17_000
+_MEDIA_BYTES_PER_S = 1024 * 1024 * 10 / 60
+
+
+def cmd_index_dry_run(root: Path) -> int:
+    from collections import Counter
+
+    from lantern.config import MAX_TEXT_FILE_BYTES
+    from lantern.scanner.walk import WalkReport, iter_files
+
+    report = WalkReport()
+    counts, sizes = Counter(), Counter()
+    t0 = time.perf_counter()
+    for entry in iter_files(root, report, _excludes()):
+        counts[entry.kind] += 1
+        if entry.kind in ("text", "code"):
+            sizes[entry.kind] += min(entry.size, MAX_TEXT_FILE_BYTES)
+        else:
+            sizes[entry.kind] += entry.size
+    print(f"dry run for {root} ({time.perf_counter() - t0:.1f}s, nothing read or written):")
+    for kind in ("code", "text", "audio", "video"):
+        if counts[kind]:
+            print(f"  {kind:6s} {counts[kind]:7d} files  {sizes[kind] / 2**20:9.1f} MB")
+    text_s = (sizes["code"] + sizes["text"]) / _TEXT_BYTES_PER_S
+    media_s = (sizes["audio"] + sizes["video"]) / _MEDIA_BYTES_PER_S
+    print(
+        f"  skipped: {report.cloud_only} iCloud items not on this disk, {len(report.unreadable)} folders without access"
+    )
+    for p in report.unreadable[:10]:
+        print(f"    no access: {p}")
+    if report.images:
+        print(f"  photos: {report.images} (searchable from Phase 7)")
+    print(f"  rough first-index time: text/code ~{text_s / 3600:.1f} h, audio/video ~{media_s / 3600:.1f} h "
+          "(later runs only process changes)")  # fmt: skip
+    return 0
+
+
 def cmd_index(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        return cmd_index_dry_run(Path(args.path).expanduser().resolve())
     if _daemon():
         try:
             summary = protocol.call("index", {"path": args.path, "force": args.force}, timeout=600)
@@ -91,7 +138,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     root = Path(args.path).expanduser().resolve()
     t0 = time.perf_counter()
     try:
-        scan = scan_root(conn, root, force=args.force)
+        scan = scan_root(conn, root, force=args.force, excludes=_excludes())
     except RootUnavailable as exc:
         print(f"error: {exc}. Nothing was removed from the index.", file=sys.stderr)
         return 1
@@ -366,6 +413,28 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_exclude(args: argparse.Namespace) -> int:
+    from lantern.service import settings as settings_mod
+
+    if args.action == "list" or args.pattern is None:
+        current = protocol.call("config_get")["exclude"] if _daemon() else settings_mod.load().exclude
+        print("\n".join(current) if current else "no extra exclusions (defaults and .gitignore still apply)")
+        return 0
+    try:
+        if _daemon():
+            protocol.call("exclude", {"action": args.action, "pattern": args.pattern})
+        else:
+            s = settings_mod.load()
+            (settings_mod.add_exclude if args.action == "add" else settings_mod.remove_exclude)(s, args.pattern)
+            settings_mod.save(s)
+    except (KeyError, protocol.DaemonError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    verb = "excluded" if args.action == "add" else "no longer excluded"
+    print(f"{verb}: {args.pattern} (applied at the next scan; already indexed matches are then removed)")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lantern", description="Local, offline semantic file search.")
     parser.add_argument("--version", action="version", version=f"lantern {__version__}")
@@ -375,6 +444,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path", help="folder to index")
     p.add_argument("--force", action="store_true", help="allow removing more than half of a folder's entries")
     p.add_argument("--no-transcribe", action="store_true", help="index audio/video without Whisper (no daemon)")
+    p.add_argument("--dry-run", action="store_true", help="only count what would be indexed and estimate the time")
     p.set_defaults(func=cmd_index)
 
     p = sub.add_parser("search", help="search by meaning and keywords (one fused ranking)")
@@ -417,6 +487,11 @@ def build_parser() -> argparse.ArgumentParser:
     ]:
         p = sub.add_parser(name, help=help_text)
         p.set_defaults(func=_simple(method, message))
+
+    p = sub.add_parser("exclude", help="manage extra exclusions (paths or .gitignore-style patterns)")
+    p.add_argument("action", choices=["add", "remove", "list"])
+    p.add_argument("pattern", nargs="?")
+    p.set_defaults(func=cmd_exclude)
 
     p = sub.add_parser("config", help="show or change settings (index_mode ask|auto, pause_on_battery, ...)")
     p.add_argument("key", nargs="?")
