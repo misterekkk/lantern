@@ -56,13 +56,14 @@ class MLXEmbedder:
 
     def _load_model(self, with_audio: bool) -> None:
         import mlx.core as mx
-        from mlx_vlm.embedding_loader import load_embedding_model
+
+        from lantern.embedding.mlx_loader import load_embedding_gemma2
 
         mx.set_memory_limit(MEMORY_LIMIT)
         mx.set_cache_limit(CACHE_LIMIT)
         self._model = None
         gc.collect()
-        model = load_embedding_model(self._snapshot(), lazy=True)
+        model = load_embedding_gemma2(self._snapshot(), lazy=True)
         if not with_audio:  # drop towers before their weights are materialised
             model.audio_tower = model.embed_audio = None
         model.vision_tower = model.embed_vision = None
