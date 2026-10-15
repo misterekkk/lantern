@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>com.lantern.app</string>
+    <key>CFBundleName</key><string>Lantern</string>
+    <key>CFBundleDisplayName</key><string>Lantern</string>
+    <key>CFBundleExecutable</key><string>Lantern</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>__BUILD__</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHumanReadableCopyright</key><string>Lantern — lokalne wyszukiwanie, bez wysyłania danych.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Lantern indeksuje pliki z Biurka lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Lantern indeksuje Dokumenty lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Lantern indeksuje Pobrane lokalnie, aby można je było wyszukiwać po znaczeniu. Pliki są tylko czytane.</string>
+    <key>NSRemovableVolumesUsageDescription</key><string>Lantern może indeksować foldery na dyskach zewnętrznych, które wskażesz.</string>
+    <key>NSNetworkVolumesUsageDescription</key><string>Lantern może indeksować foldery na dyskach sieciowych, które wskażesz.</string>
+    <key>LanternPython</key><string>__PYTHON__</string>
+</dict>
+</plist>
