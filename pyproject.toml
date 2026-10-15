@@ -1,0 +1,65 @@
+[project]
+name = "lantern"
+version = "0.0.1"
+description = "Local, offline semantic search over files (text, code, audio) on macOS."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Embedding backend (ADR-001): MLX + pinned mlx-vlm branch with EmbeddingGemma 2.
+    "mlx>=0.32.3",
+    "mlx-vlm @ git+https://github.com/Blaizzy/mlx-vlm.git@3d87e88402f307efbf68e568971aa887ee7d9ed0",
+    # Preprocessing via the official HF processor (needs torch/torchvision/pillow for now, see ADR-001).
+    "transformers>=5.19",
+    "torch>=2.14",
+    "torchvision>=0.29",
+    "pillow>=12",
+    "numpy>=2",
+    "soundfile>=0.14",
+    # Store (ADR-002).
+    "sqlite-vec>=0.1.9",
+    "pathspec>=1.1.1",
+    "tree-sitter-language-pack>=1.22.1",
+    "charset-normalizer>=3.5.2",
+    "tokenizers>=0.23.3",
+]
+
+[project.optional-dependencies]
+# Fallback backend behind the same Embedder interface.
+st = ["sentence-transformers>=6.1", "torchaudio", "soxr"]
+
+[project.scripts]
+lantern = "lantern.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.14"]
+# Phase 0 measurement scripts in spikes/phase0 (not part of the app).
+spike = ["sentence-transformers>=6.1", "torchaudio", "soxr", "mlx-whisper", "psutil", "requests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["daemon/lantern"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["model: needs the real embedding model downloaded (slow)"]
+addopts = "-m 'not model'"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["spikes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lantern"]

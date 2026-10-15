@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+spikes/phase0/data/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+.venv-*/
