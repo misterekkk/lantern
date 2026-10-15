@@ -49,6 +49,7 @@ class IndexStats:
     media: int = 0
     audio_windows: int = 0
     transcribed: int = 0
+    stopped: bool = False  # interrupted by should_stop; unprocessed jobs went back to the queue
     errors: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -107,7 +108,9 @@ def run_queue(
     embedder: Embedder,
     progress: Progress | None = None,
     transcriber: Transcriber | None = None,
+    should_stop: Callable[[], bool] = lambda: False,
 ) -> IndexStats:
+    """Process queued jobs; should_stop is checked between files (pause, battery, shutdown)."""
     stats = IndexStats()
     dim = embedder.model_info().dim
     with db.transaction(conn):
@@ -144,6 +147,12 @@ def run_queue(
             jobs.complete(conn, item.job)
         stats.chunks += len(item.records)
 
+    def release(unprocessed: list[Job]) -> None:
+        stats.stopped = True
+        with db.transaction(conn):
+            for job in unprocessed:
+                conn.execute("UPDATE jobs SET status = 'queued' WHERE id = ? AND status = 'running'", (job.id,))
+
     def index_media(job: Job, row: sqlite3.Row) -> None:
         records, vectors, batch, starts = [], [], [], []
 
@@ -178,7 +187,10 @@ def run_queue(
             break
 
         prepared: list[_Prepared] = []
-        for job in claimed:
+        for n, job in enumerate(claimed):
+            if should_stop():
+                release(claimed[n:])  # text files already prepared in this round are still embedded below
+                break
             row = _file_row(conn, job.file_id)
             done += 1
             if row is None:  # file deleted meanwhile; cascade removed the job already
@@ -218,12 +230,14 @@ def run_queue(
             except Exception as exc:
                 failed(item.job, item.file_id, item.path, exc)
             offset += n
+        if stats.stopped:
+            break
 
     if stats.media:
         embedder.unload_audio()
 
     # ---- stage 2: transcribe ----
-    if transcriber is None:
+    if transcriber is None or stats.stopped:
         return stats
     total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued' AND kind = 'transcribe'").fetchone()[0]
     done = 0
@@ -233,7 +247,10 @@ def run_queue(
                 claimed = jobs.claim(conn, "transcribe", FILES_PER_ROUND)
             if not claimed:
                 break
-            for job in claimed:
+            for n, job in enumerate(claimed):
+                if should_stop():
+                    release(claimed[n:])
+                    break
                 row = _file_row(conn, job.file_id)
                 done += 1
                 if row is None:
@@ -259,6 +276,8 @@ def run_queue(
                     stats.errors.append((row["path"], f"transcription skipped: {exc}"))
                 except Exception as exc:
                     failed(job, row["id"], row["path"], exc, mark_file=False)
+            if stats.stopped:
+                break
     finally:
         transcriber.unload()
     return stats

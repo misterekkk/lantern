@@ -56,6 +56,7 @@ def connect(path: Path) -> sqlite3.Connection:
     conn.enable_load_extension(True)
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
+    conn.execute("PRAGMA busy_timeout = 10000")  # daemon and index worker write concurrently (WAL)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA secure_delete = ON")  # overwrite deleted content instead of leaving it in free pages
