@@ -14,6 +14,14 @@ class Embedder(Protocol):
         """Embed already-formatted texts (see format_*). Returns L2-normalised float32 [n, dim]."""
         ...
 
+    def embed_audio(self, windows: list[np.ndarray]) -> np.ndarray:
+        """Embed 16 kHz mono float32 windows (no prompt). Same vector space as text. [n, dim]."""
+        ...
+
+    def unload_audio(self) -> None:
+        """Release audio-only weights when no audio work is pending."""
+        ...
+
 
 # Prompt formats from the model's config_sentence_transformers.json / model card.
 def format_document(title: str | None, text: str) -> str:

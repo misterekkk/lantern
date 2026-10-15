@@ -1,13 +1,17 @@
 """EmbeddingGemma 2 on MLX (ADR-001): mlx-community 8-bit weights via the pinned mlx-vlm branch.
 
-Text tower only in this phase; the audio and vision towers are dropped before their weights are materialised.
-Tokenisation uses `tokenizers` directly with the model's tokenizer.json. Loading is strictly offline: the weights
-must already be in the Hugging Face cache (see README).
+The text tower stays loaded (~275 MB). The audio tower (~0.9 GB) is loaded only for audio jobs and released with
+unload_audio(); the vision tower is never loaded. Text is tokenised with `tokenizers` (tokenizer.json); audio goes
+through the model's own processor (mel features, capped explicitly: the default silently truncates at 30 s).
+Loading is strictly offline: the weights must already be in the Hugging Face cache (see README).
 """
+
+import gc
+from pathlib import Path
 
 import numpy as np
 
-from lantern.config import enforce_offline
+from lantern.config import AUDIO_SAMPLE_RATE, AUDIO_WINDOW_S, enforce_offline
 from lantern.store.db import ModelInfo
 
 REPO = "mlx-community/embeddinggemma-2-8bit"
@@ -27,42 +31,54 @@ class ModelNotDownloaded(RuntimeError):
 class MLXEmbedder:
     def __init__(self, repo: str = REPO, revision: str = REVISION, batch_size: int = BATCH):
         self.repo, self.revision, self.batch_size = repo, revision, batch_size
+        self._path: Path | None = None
         self._model = None
         self._tokenizer = None
+        self._processor = None
+        self._has_audio = False
 
     def model_info(self) -> ModelInfo:
         return ModelInfo(name=self.repo, revision=self.revision, backend="mlx", dtype="8bit", dim=DIM)
 
-    def load(self) -> None:
-        if self._model is not None:
-            return
-        enforce_offline()
-        from pathlib import Path
+    def _snapshot(self) -> Path:
+        if self._path is None:
+            enforce_offline()
+            from huggingface_hub import snapshot_download
+            from huggingface_hub.errors import LocalEntryNotFoundError
 
+            try:
+                self._path = Path(snapshot_download(self.repo, revision=self.revision, local_files_only=True))
+            except LocalEntryNotFoundError as exc:
+                raise ModelNotDownloaded(
+                    f"model {self.repo}@{self.revision[:8]} is not downloaded; see README (hf download ...)"
+                ) from exc
+        return self._path
+
+    def _load_model(self, with_audio: bool) -> None:
         import mlx.core as mx
-        from huggingface_hub import snapshot_download
-        from huggingface_hub.errors import LocalEntryNotFoundError
         from mlx_vlm.embedding_loader import load_embedding_model
-        from tokenizers import Tokenizer
-
-        try:
-            path = Path(snapshot_download(self.repo, revision=self.revision, local_files_only=True))
-        except LocalEntryNotFoundError as exc:
-            raise ModelNotDownloaded(
-                f"model {self.repo}@{self.revision[:8]} is not downloaded; see README (hf download ...)"
-            ) from exc
 
         mx.set_memory_limit(MEMORY_LIMIT)
         mx.set_cache_limit(CACHE_LIMIT)
-        model = load_embedding_model(path, lazy=True)
-        model.audio_tower = model.embed_audio = None
+        self._model = None
+        gc.collect()
+        model = load_embedding_model(self._snapshot(), lazy=True)
+        if not with_audio:  # drop towers before their weights are materialised
+            model.audio_tower = model.embed_audio = None
         model.vision_tower = model.embed_vision = None
         mx.eval(model.parameters())
+        self._model, self._has_audio = model, with_audio
 
-        tok = Tokenizer.from_file(str(path / "tokenizer.json"))
+    def load(self) -> None:
+        if self._model is not None:
+            return
+        from tokenizers import Tokenizer
+
+        self._load_model(with_audio=False)
+        tok = Tokenizer.from_file(str(self._snapshot() / "tokenizer.json"))
         tok.enable_truncation(MAX_TOKENS)
         tok.enable_padding(direction="right", pad_id=tok.token_to_id("<pad>"), pad_token="<pad>")
-        self._model, self._tokenizer = model, tok
+        self._tokenizer = tok
 
     def embed_text(self, texts: list[str]) -> np.ndarray:
         import mlx.core as mx
@@ -80,3 +96,41 @@ class MLXEmbedder:
             out[idx] = np.array(emb.astype(mx.float32))
         mx.clear_cache()
         return out
+
+    def _ensure_audio(self) -> None:
+        self.load()
+        if not self._has_audio:
+            self._load_model(with_audio=True)
+        if self._processor is None:
+            from transformers import AutoProcessor
+
+            self._processor = AutoProcessor.from_pretrained(self._snapshot())
+
+    def embed_audio(self, windows: list[np.ndarray]) -> np.ndarray:
+        import mlx.core as mx
+
+        self._ensure_audio()
+        out = np.zeros((len(windows), DIM), dtype=np.float32)
+        cap = AUDIO_WINDOW_S * AUDIO_SAMPLE_RATE
+        for i, wave in enumerate(windows):
+            inputs = self._processor(
+                text="<|audio|>",
+                audio=[np.asarray(wave, dtype=np.float32)[:cap]],
+                sampling_rate=AUDIO_SAMPLE_RATE,
+                return_tensors="np",
+                audio_kwargs={"max_length": cap, "truncation": True},
+            )
+            emb = self._model(**{k: mx.array(v) for k, v in inputs.items()}).text_embeds
+            mx.eval(emb)
+            out[i] = np.array(emb.astype(mx.float32))[0]
+        mx.clear_cache()
+        return out
+
+    def unload_audio(self) -> None:
+        if self._model is not None and self._has_audio:
+            import mlx.core as mx
+
+            self._model.audio_tower = self._model.embed_audio = None
+            self._has_audio = False
+            gc.collect()
+            mx.clear_cache()
