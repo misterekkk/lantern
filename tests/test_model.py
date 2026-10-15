@@ -94,3 +94,42 @@ def test_whisper_transcribes_polish_offline(monkeypatch):
         t.unload()
     assert "budżet" in text and "czwartek" in text
     assert attempts == []
+
+
+def test_daemon_search_with_mlx_from_api_threads(tmp_path, monkeypatch, lantern_home):
+    """MLX streams are per-thread. As in production (`lantern daemon run`), the daemon runs on the main thread and
+    API requests arrive on server threads: searches must not fail with "There is no Stream(gpu, 0)"."""
+    import tempfile
+    import threading
+    import time
+
+    from lantern.api import protocol
+    from lantern.embedding.mlx_backend import MLXEmbedder
+    from lantern.service import settings
+    from lantern.service.core import Daemon
+    from lantern.service.power import PowerState
+
+    sock = Path(tempfile.mkdtemp(prefix="ln", dir="/tmp")) / "d.sock"
+    monkeypatch.setenv("LANTERN_SOCKET", str(sock))
+    settings.save(settings.Settings(notify=False))
+    root = tmp_path / "repo"
+    write(root, "README.md", "# Projekt\n\nPrzycinanie drzew decyzyjnych i dobór głębokości.\n")
+    d = Daemon(embedder=MLXEmbedder(), watch=False, power_reader=lambda: PowerState())
+    outcome = {}
+
+    def client():
+        try:
+            deadline = time.monotonic() + 60
+            while not protocol.running() and time.monotonic() < deadline:
+                time.sleep(0.2)
+            protocol.call("index", {"path": str(root)})
+            outcome["results"] = protocol.call("search", {"query": "drzewa decyzyjne"}, timeout=60)["results"]
+        except Exception as exc:  # reported in the main thread
+            outcome["error"] = exc
+        finally:
+            d.stopping.set()
+
+    threading.Thread(target=client, daemon=True).start()
+    d.run()  # main thread, like the real daemon
+    assert "error" not in outcome, outcome.get("error")
+    assert isinstance(outcome["results"], list)
