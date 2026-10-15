@@ -22,6 +22,7 @@ dependencies = [
     "charset-normalizer>=3.5.2",
     "tokenizers>=0.23.3",
     "mlx-whisper>=0.4.3",
+    "watchdog>=6.0.0",
 ]
 
 [project.optional-dependencies]
