@@ -40,10 +40,11 @@ Cała logika jest w demonie. Klienci tylko wywołują API.
 | 0 | rozpoznanie backendów, pomiary, test jakości | zrobione (DECISIONS.md) |
 | 1 | szkielet repo i dokumentacja | zrobione |
 | 2 | rdzeń: schemat, skaner, ekstraktor tekstu/kodu, chunker, embedder, CLI `index/search/status` | zrobione |
-| 3 | wyszukiwanie hybrydowe (RRF), higiena indeksu, VACUUM, `search_events`, polska normalizacja FTS | – |
+| 3 | wyszukiwanie hybrydowe (RRF), higiena indeksu, VACUUM, `search_events`, polska normalizacja FTS | zrobione |
 | 4 | audio (także ścieżka dźwiękowa filmów przez ffmpeg): okna, embedding audio, transkrypcja, znaczniki czasu, ocena na prawdziwych nagraniach | – |
-| 5 | demon + API (socket Unix), FSEvents, LaunchAgent, pauza na baterii i przy wysokiej temperaturze | – |
-| 6 | aplikacja Swift w pasku menu, tylko za zgodą | – |
+| 5 | demon + API (socket Unix), FSEvents, LaunchAgent, pauza na baterii i przy wysokiej temperaturze; tryb „pytaj”: po starcie (także po dłuższym wyłączeniu) skan wykrywa nowe i zmienione pliki i pyta, czy je zaindeksować | – |
+| 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | – |
+| 7 | opcjonalnie: wyszukiwanie w zdjęciach i klatkach filmów (ffmpeg → klatki → wieża wizyjna), poprzedzone testem jakości i szybkości | – |
 
 Poza zakresem na razie: reranker LightGBM (najpierw zbieramy `search_events`), podsumowania folderów przez LLM,
 synchronizacja, chmura, wielu użytkowników.

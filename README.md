@@ -4,9 +4,9 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 i nagrania audio. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 2 (rdzeń, CLI).** Działa indeksowanie folderów z tekstem i kodem oraz wyszukiwanie
-> po znaczeniu i po słowach (dwie osobne listy) z linii poleceń. Jeszcze nie ma: połączonego rankingu (Faza 3),
-> PDF i audio (Faza 4), demona działającego w tle (Faza 5) ani aplikacji (Faza 6).
+> **Stan projektu: Faza 3 (wyszukiwanie hybrydowe, CLI).** Działa indeksowanie folderów z tekstem i kodem oraz
+> wyszukiwanie łączące znaczenie i słowa w jeden ranking, z linii poleceń. Jeszcze nie ma: PDF i audio (Faza 4),
+> demona działającego w tle (Faza 5) ani aplikacji (Faza 6).
 > To README opisuje tylko to, co faktycznie działa, a dalsze funkcje oznacza fazą, w której się pojawią.
 
 ## Użycie
@@ -15,15 +15,24 @@ uruchamiany natywnie na Apple Silicon przez MLX.
 uv run lantern index ~/Projekty            # pierwszy raz: skan + indeksowanie; kolejne: tylko zmiany
 uv run lantern search "optymalizacja drzewa decyzyjnego"
 uv run lantern search "backoff_wrapper" -n 5
+uv run lantern open 1                      # otwórz 1. wynik ostatniego wyszukiwania (--reveal: pokaż w Finderze)
 uv run lantern status
+uv run lantern remove ~/Projekty           # usuń folder i wszystkie jego dane z indeksu
+uv run lantern compact                     # fizycznie wymaż usunięte dane z pliku indeksu
+uv run lantern clear-history               # usuń lokalną historię wyszukiwań
 ```
 
 - `index` porównuje folder z indeksem: nowe i zmienione pliki indeksuje, przeniesione rozpoznaje po treści (bez
   ponownego liczenia), usunięte usuwa z indeksu razem z fragmentami i wektorami.
 - Jeśli folder jest niedostępny (odłączony dysk, udział sieciowy), nic nie jest usuwane. Jeśli zniknęłaby ponad połowa
   plików folderu, `index` odmawia i wymaga `--force`.
-- `search` pokazuje dwie listy: **po znaczeniu** (EmbeddingGemma 2) i **po słowach** (dokładne nazwy, komunikaty błędów),
-  z czasem odpowiedzi. Od Fazy 3 będą połączone w jeden ranking.
+- `search` łączy dwie listy w jeden ranking (Reciprocal Rank Fusion): **po znaczeniu** (EmbeddingGemma 2, parafrazy,
+  inne języki) i **po słowach** (dokładne nazwy funkcji, komunikaty błędów). Przy każdym wyniku widać, skąd pochodzi
+  dopasowanie, np. `(meaning #1 · keywords #3)`. Wyszukiwanie po słowach pomija słowa nieistotne („jak”, „się”, „the”)
+  i dopasowuje polską odmianę po rdzeniu („decyzyjnego” znajdzie „decyzyjny”).
+- Każde wyszukiwanie i otwarty wynik (`lantern open`) trafia do **lokalnej** historii w bazie (zapytanie, pozycje
+  wyników, bez treści plików). To dane pod przyszłe uczenie rankingu. `--no-log` pomija zapis, `clear-history` czyści.
+- Zmiana zasad dzielenia plików albo modelu powoduje automatyczny ponowny indeks przy następnym `index`.
 - Indeksowane typy: kod (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP i inne, dzielony na
   funkcje i klasy) oraz tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.). Pliki ponad 2 MB i binarne są pomijane.
 
@@ -137,7 +146,8 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 - Nic nie opuszcza komputera, ale **uzgodnij użycie z działem IT/security** przed indeksowaniem repozytoriów firmowych
   (polityki DLP, szyfrowanie dysku, kopie zapasowe).
 - Zalecenia: FileVault włączony, indeks wykluczony z Time Machine, domyślne wykluczenia sekretów pozostawione.
-- Usunięcie folderu z indeksu usuwa jego fragmenty i wektory, a okresowy `VACUUM` faktycznie czyści je z pliku bazy (od Fazy 3).
+- `lantern remove <folder>` usuwa fragmenty i wektory folderu i od razu zagęszcza bazę (VACUUM). Test automatyczny
+  sprawdza, że usunięty tekst nie występuje w surowych bajtach pliku bazy. Po usunięciu wielu plików `index` sam zagęszcza bazę.
 
 ## Znane ograniczenia i otwarte pytania
 
@@ -147,7 +157,8 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
   W Fazie 5 cel to ~450 MB w spoczynku. Część audio (~0,9 GB) będzie ładowana tylko na czas indeksowania nagrań.
 - CSV/TSV i duże pliki z przewagą liczb są indeksowane tylko od początku (nagłówek i pierwsze wiersze). Lockfile'y
   (`package-lock.json`, `uv.lock` itd.) są pomijane.
-- Lista wyników „po słowach” jest na razie prosta (dowolne ze słów zapytania). Połączony ranking w Fazie 3.
+- Polska odmiana w wyszukiwaniu słów to przybliżenie (prefiks rdzenia), a nie prawdziwy stemmer. Krótkie słowa
+  (do 4 liter, np. „bazą”) muszą pasować dokładnie.
 - Domyślny procesor ucina audio po 30 s bez ostrzeżenia. Lantern zawsze ustawia limit jawnie (okna z nakładką).
 - Polska odmiana i litera „ł” wymagają normalizacji w wyszukiwaniu słów (FTS5). Rozwiązanie w Fazie 3.
 - Pełna lista otwartych pytań: [docs/DECISIONS.md](docs/DECISIONS.md#otwarte-pytania).

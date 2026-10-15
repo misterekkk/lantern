@@ -6,15 +6,17 @@ All indexing and search logic lives here. Clients (CLI, Swift app) never touch t
 
 ```bash
 uv run lantern index <path>     # scan + index changes (--force to allow purging > 50% of a root)
-uv run lantern search "<query>" # vector list + keyword list (RRF fusion in Phase 3)
-uv run lantern status
+uv run lantern search "<query>" # fused vector + keyword ranking (--no-log skips history)
+uv run lantern open <n>         # open result n of the last search, records the choice
+uv run lantern remove <path> | compact | clear-history | status
 LANTERN_HOME=/tmp/x LANTERN_EMBEDDER=fake uv run lantern index <path>   # isolated DB, no model
 uv run pytest tests/            # from repo root
 ```
 
 ## Database
 
-Schema: `lantern/store/schema.sql` (version in `PRAGMA user_version`; bump + migrate on change). Single SQLite file, WAL mode, `sqlite-vec` loaded per connection.
+Schema: `lantern/store/schema.sql` (version in `PRAGMA user_version`). On change: bump `SCHEMA_VERSION`, update
+schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `store/db.py`. Single SQLite file, WAL mode, `sqlite-vec` loaded per connection.
 
 - `roots` → `files` → `chunks` (ON DELETE CASCADE). `chunks_fts` (FTS5) and `vec_chunks_<model_id>` (vec0) are
   virtual tables without FK support: **delete their rows explicitly in the same transaction** as the chunks.
@@ -34,7 +36,13 @@ Schema: `lantern/store/schema.sql` (version in `PRAGMA user_version`; bump + mig
 
 scan (`scanner/diff.py`) enqueues jobs → `run_queue` claims up to 32 files → extract + chunk each → one embedding call
 for all their chunks → one transaction per file. Data-like files (CSV/TSV, mostly numbers) are indexed head-only;
-lockfiles are excluded (`config.py`). Changing chunking rules does not re-index existing files yet (open question 12).
+lockfiles are excluded (`config.py`). **Bump `PIPELINE_VERSION` in `indexer.py` whenever chunking rules or prompt
+formats change**: files store `pipeline_version` and `model_id`, and `run_queue` re-queues mismatches automatically.
+
+## Search (`lantern/search/`)
+
+`basic.py` builds two file-level candidate lists (vector KNN, FTS5 BM25 with column weights); `hybrid.py` fuses them
+with RRF (k = 60) and logs every search to `search_events` (features only, never file content).
 
 ## Adding an extractor
 

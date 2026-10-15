@@ -11,14 +11,18 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
 4. **API** tylko przez socket Unix z uprawnieniami `0600` (Faza 5).
 5. **Domyślne wykluczenia sekretów:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, klucze SSH `id_*`, pliki tokenów
    i poświadczeń, katalogi `.git`, `node_modules`, buildy, cache. Respektowany jest `.gitignore` (Faza 2).
-6. **Usunięte znaczy usunięte:** fragmenty, FTS i wektory kasowane w jednej transakcji, okresowy `VACUUM` (Faza 3).
+6. **Usunięte znaczy usunięte:** fragmenty, FTS i wektory kasowane w jednej transakcji; `PRAGMA secure_delete`,
+   FTS5 `secure-delete`, a po usunięciach `optimize` + `VACUUM` + checkpoint WAL (`lantern compact`, automatycznie
+   po dużych usunięciach i po `lantern remove`). Test sprawdza brak usuniętego tekstu w surowych bajtach pliku bazy.
+7. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
+   plików. `lantern search --no-log` pomija zapis, `lantern clear-history` usuwa całą historię i zagęszcza bazę.
 
 ## Gdzie są dane
 
 | Dane | Lokalizacja | Uwagi |
 |---|---|---|
 | Indeks (SQLite) | `~/Library/Application Support/Lantern/index.db` | poza iCloud; wyklucz z Time Machine (README) |
-| Konfiguracja | `~/Library/Application Support/Lantern/config.toml` | od Fazy 2 |
+| Konfiguracja | `~/Library/Application Support/Lantern/config.toml` | od Fazy 5 |
 | Logi demona | `~/Library/Logs/Lantern/` | od Fazy 5; bez treści plików i zapytań |
 | Modele | `~/.cache/huggingface/hub/` | publiczne wagi, bez danych użytkownika |
 

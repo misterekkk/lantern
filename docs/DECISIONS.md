@@ -154,6 +154,34 @@ Ustalenia:
 
 ---
 
+## Faza 3: wyniki (2026-10-15)
+
+| Pomiar | Wynik |
+|---|---|
+| czas zapytania hybrydowego (embedding + KNN + FTS + RRF + zapis historii) | 29–39 ms |
+| migracja istniejącej bazy v1 → v2 | automatyczna; 631 plików przeindeksowanych po zmianie wersji potoku (287 s) |
+| szczyt pamięci przy reindeksie | 2,04 GB |
+| usunięcie folderu + `compact` | usunięty tekst nie występuje w surowych bajtach pliku bazy (test automatyczny) |
+
+Decyzje:
+1. **RRF na poziomie plików** (k = 60, po 50 kandydatów z każdej listy). Plik znaleziony przez obie listy wygrywa,
+   a dokładny identyfikator z samej listy słów nadal trafia do wyników. Wynik pokazuje źródło („meaning #1 · keywords #3”).
+2. **Słowa pomijalne PL/EN + prefiks rdzenia** zamiast stemmera: słowa ≥ 7 liter tracą 3 ostatnie znaki, 5–6 liter tracą 2,
+   minimum 4 znaki („decyzyjnego” → `decyzyjn*`). Identyfikatory i liczby dopasowywane dokładnie.
+   Wagi kolumn BM25: tekst 1, ścieżka 1,5, symbol 3.
+3. **`search_events`** zapisuje zapytanie i dla każdego wyniku pozycje i wyniki z obu list oraz RRF, bez treści plików.
+   `lantern open N` zapisuje wybrany wynik. To dane pod reranker (Treelite/LightGBM nadal poza zakresem).
+4. **`pipeline_version` i `model_id` przy pliku** (schemat v2): zmiana zasad dzielenia lub modelu powoduje
+   automatyczny reindeks. Zamyka otwarte pytanie 12.
+5. **Wymazywanie danych:** `secure_delete`, FTS5 `secure-delete`, a przy `compact` FTS `optimize` + `VACUUM` +
+   checkpoint WAL. Automatyczne zagęszczanie po `index`, gdy wolne strony przekraczają 25% pliku.
+
+Obserwacje:
+- Krótkie fragmenty (2–3 linie kodu z komentarzem) potrafią wygrać wektorowo z dłuższymi opisami. Kandydat do
+  rerankera albo do łączenia bardzo krótkich fragmentów z sąsiadami (do obserwacji).
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -216,14 +244,25 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 6. Ollama audio: przyczyna awarii przy ≥ ~230 s (pamięć? limit runnera MLX?). Nieistotne przy oknach 30 s.
 7. Nieoficjalny port Swift MLX (`Obscyra-app/EmbeddingGemma2Swift`) jako potencjalny backend dla aplikacji Swift w Fazie 6.
 10. Integracja z wyszukiwaniem systemowym (Cmd+Space). Spotlight nie pozwala podpiąć własnego rankingu znaczeniowego
-    (Core Spotlight dopasowuje po swoich słowach kluczowych). Kierunek do weryfikacji w Fazie 6: własny panel pod globalnym
-    skrótem (np. ⌥Space) jako główny interfejs, plus akcja App Intents w Spotlight (macOS 26) jako dodatek. Wymóg dla
-    demona już teraz: czas odpowiedzi na zapytanie ~100–200 ms (wieża tekstowa stale w pamięci).
+    (Core Spotlight dopasowuje po swoich słowach kluczowych). **Kierunek przyjęty przez użytkownika (2026-10-15):** własny
+    panel (NSPanel + SwiftUI) wyglądający jak Spotlight, pod globalnym skrótem. Użytkownik może wyłączyć skrót Spotlight
+    w Ustawieniach systemowych → Klawiatura → Skróty i przypisać ⌘Space Lanternowi (tak robią Raycast i Alfred).
+    W panelu ewentualne prefiksy poleceń (np. „lantern search: kot w butach”, „audio:”, „kod:”). Akcja App Intents
+    w Spotlight jako dodatek. Do weryfikacji w Fazie 6. Wymóg dla demona już teraz: zapytanie w ~100–200 ms (spełnione: 25–29 ms).
 11. Wyszukiwanie po obrazie: zdjęcia oraz klatki filmów (ffmpeg → klatki → wieża wizyjna, +~0,35 GB na czas zadań).
     Model to obsługuje, ale jakość obrazów i wideo w benchmarkach jest wyraźnie niższa niż tekstu, a na tym Macu
-    nic nie mierzyłem. Kierunek: opcjonalna faza po Fazie 4, poprzedzona krótkim testem. Dźwięk z filmów (ffmpeg)
-    wchodzi do Fazy 4.
-12. Wersjonowanie chunkera: zmiana zasad dzielenia (jak w Fazie 2) nie powoduje dziś ponownego indeksowania
-    istniejących plików. Potrzebne pole `chunker_version` w `files` i reindeks przy zmianie (Faza 3).
+    nic nie mierzyłem. **Użytkownik chce tej opcji (2026-10-15):** Faza 7, poprzedzona krótkim testem. Dźwięk z filmów
+    (ffmpeg, znaczniki czasu wypowiedzi) wchodzi do Fazy 4.
+    Szkic potoku klatek (propozycje użytkownika, do weryfikacji w teście Fazy 7):
+    - wykrywanie zmian scen w ffmpeg (`select='gt(scene,T)'` + `showinfo` dla znaczników czasu), z dolnym limitem
+      częstotliwości (np. min. 1 klatka na 30–60 s, bo wykrywanie scen gubi wolne zmiany, np. wykład ze slajdami),
+    - deduplikacja podobnych klatek hashem percepcyjnym (dHash/pHash, odległość Hamminga poniżej progu) **przed**
+      embeddingiem; zachowana klatka reprezentuje odcinek [start, koniec] aż do następnej zachowanej,
+    - zysk: mniej obliczeń GPU i mniejsza baza. Szczyt RAM się nie zmienia, bo zależy od wielkości partii, a nie od liczby klatek,
+    - progi (scena T, Hamming) dobrać w teście na kilku typach nagrań (film, wykład ze slajdami, nagranie z telefonu).
+    Model dla obrazów do porównania w teście: wieża wizyjna EmbeddingGemma 2 (jedna przestrzeń z tekstem i audio)
+    vs **SigLIP 2** (osobny model obraz–tekst, wielojęzyczny, wersje MLX dostępne). SigLIP oznacza osobny `model_id`
+    i osobną tabelę wektorów, łączoną z resztą przez RRF na poziomie plików. Wektorów nie mieszamy.
+12. ~~Wersjonowanie chunkera~~ — rozwiązane w Fazie 3 (`pipeline_version`, `model_id`).
 13. Pamięć w spoczynku ~790 MB: usunięcie importu torch (własny loader zamiast `mlx_vlm.__init__`) da ~450 MB.
     Alternatywa: zwalnianie modelu po bezczynności (~50–100 MB, pierwsze zapytanie +0,5–2,5 s). Decyzja w Fazie 5.
