@@ -65,3 +65,32 @@ def test_semantic_search_finds_paraphrase(conn, tmp_path, mlx_embedder):
     run_queue(conn, mlx_embedder)
     assert vector_search(conn, mlx_embedder, "optymalizacja drzewa decyzyjnego")[0].path.endswith("ml/README.md")
     assert vector_search(conn, mlx_embedder, "retry failed network requests")[0].path.endswith("retry.py")
+
+
+def test_audio_matches_sentence_transformers_reference(mlx_embedder):
+    import soundfile as sf
+
+    wave, sr = sf.read(Path(__file__).parent / "data" / "speech_pl.wav", dtype="float32")
+    ref = np.load(Path(__file__).parent / "data" / "speech_pl_st_ref.npy")
+    vec = mlx_embedder.embed_audio([wave])[0]
+    assert sr == 16000 and float(vec @ ref) >= 0.999
+    mlx_embedder.unload_audio()
+    assert mlx_embedder.embed_text(["task: search result | query: test"]).shape == (1, 768)  # text still works
+
+
+def test_whisper_transcribes_polish_offline(monkeypatch):
+    import soundfile as sf
+
+    from lantern.transcription.whisper import WhisperTranscriber
+
+    attempts = []
+    real_connect = socket.socket.connect
+    monkeypatch.setattr(socket.socket, "connect", lambda self, a: (attempts.append(a), real_connect(self, a))[1])
+    wave, _ = sf.read(Path(__file__).parent / "data" / "speech_pl.wav", dtype="float32")
+    t = WhisperTranscriber()
+    try:
+        text = " ".join(s.text for s in t.transcribe(wave)).lower()
+    finally:
+        t.unload()
+    assert "budżet" in text and "czwartek" in text
+    assert attempts == []

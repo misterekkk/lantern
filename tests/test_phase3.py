@@ -3,7 +3,7 @@ import json
 from conftest import write
 
 from lantern.embedding.fake import FakeEmbedder
-from lantern.indexer import run_queue
+from lantern.indexer import PIPELINE_VERSIONS, run_queue
 from lantern.scanner.diff import scan_root
 from lantern.search.basic import Hit
 from lantern.search.hybrid import fuse, last_event, mark_opened, search
@@ -70,9 +70,9 @@ def test_pipeline_version_change_reindexes(conn, project, embedder, monkeypatch)
     run_queue(conn, embedder)
     before = embedder.texts_embedded
     assert run_queue(conn, embedder).indexed == 0  # nothing stale
-    monkeypatch.setattr("lantern.indexer.PIPELINE_VERSION", 99)
+    monkeypatch.setitem(PIPELINE_VERSIONS, "text", 99)  # only text files: code files are not touched
     stats = run_queue(conn, embedder)
-    assert stats.stale == 3 and stats.indexed == 3 and embedder.texts_embedded > before
+    assert stats.stale == 2 and stats.indexed == 2 and embedder.texts_embedded > before
 
 
 def test_model_change_reindexes_into_new_table(conn, project, embedder):
