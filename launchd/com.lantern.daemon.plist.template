@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- TEMPLATE (Phase 5). Not installed by anything yet. Replace {{...}} placeholders before use. -->
+<!-- Reference only: `lantern daemon install` generates and loads this plist (service/launchagent.py);
+     `lantern daemon install --print` shows the exact file for this machine. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -7,8 +8,11 @@
     <string>com.lantern.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{{PROJECT_DIR}}/.venv/bin/lantern</string>
+        <string>{{PROJECT_DIR}}/.venv/bin/python</string>
+        <string>-m</string>
+        <string>lantern.cli</string>
         <string>daemon</string>
+        <string>run</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -16,6 +20,7 @@
         <key>TRANSFORMERS_OFFLINE</key><string>1</string>
         <key>HF_HUB_DISABLE_TELEMETRY</key><string>1</string>
         <key>DO_NOT_TRACK</key><string>1</string>
+        <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
@@ -29,10 +34,10 @@
     <key>LowPriorityIO</key>
     <true/>
     <key>Nice</key>
-    <integer>10</integer>
+    <integer>5</integer>
     <key>StandardOutPath</key>
-    <string>{{HOME}}/Library/Logs/Lantern/daemon.log</string>
+    <string>{{HOME}}/Library/Application Support/Lantern/logs/daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>{{HOME}}/Library/Logs/Lantern/daemon.err.log</string>
+    <string>{{HOME}}/Library/Application Support/Lantern/logs/daemon.err.log</string>
 </dict>
 </plist>

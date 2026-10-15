@@ -8,7 +8,8 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
    Potem biblioteki działają z `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
 2. **Tylko odczyt plików użytkownika.** Żadnych zapisów, przeniesień ani usunięć w indeksowanych folderach.
 3. **Brak telemetrii** w kodzie Lanterna: żadnych analityk, raportów awarii ani połączeń wychodzących.
-4. **API** tylko przez socket Unix z uprawnieniami `0600` (Faza 5).
+4. **API** tylko przez socket Unix z uprawnieniami `0600`, w katalogu danych z uprawnieniami `0700` (zrobione w Fazie 5,
+   sprawdzane testem). Brak portu sieciowego.
 5. **Domyślne wykluczenia sekretów:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, klucze SSH `id_*`, pliki tokenów
    i poświadczeń, katalogi `.git`, `node_modules`, buildy, cache. Respektowany jest `.gitignore` (Faza 2).
 6. **Usunięte znaczy usunięte:** fragmenty, FTS i wektory kasowane w jednej transakcji; `PRAGMA secure_delete`,
@@ -22,8 +23,9 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
 | Dane | Lokalizacja | Uwagi |
 |---|---|---|
 | Indeks (SQLite) | `~/Library/Application Support/Lantern/index.db` | poza iCloud; wyklucz z Time Machine (README) |
-| Konfiguracja | `~/Library/Application Support/Lantern/config.toml` | od Fazy 5 |
-| Logi demona | `~/Library/Logs/Lantern/` | od Fazy 5; bez treści plików i zapytań |
+| Konfiguracja | `~/Library/Application Support/Lantern/config.toml` | `lantern config` |
+| Socket API | `~/Library/Application Support/Lantern/lantern.sock` | `0600`, tylko gdy demon działa |
+| Logi demona | `~/Library/Application Support/Lantern/logs/` | ścieżki plików i komunikaty błędów; bez treści plików i zapytań |
 | Modele | `~/.cache/huggingface/hub/` | publiczne wagi, bez danych użytkownika |
 
 Indeks zawiera **dane pochodne**: fragmenty tekstu oraz wektory, z których da się częściowo odtworzyć treść.

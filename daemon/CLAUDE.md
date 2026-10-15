@@ -47,6 +47,20 @@ its chunking rules or prompt formats change**: files store `pipeline_version` an
 `basic.py` builds two file-level candidate lists (vector KNN, FTS5 BM25 with column weights); `hybrid.py` fuses them
 with RRF (k = 60) and logs every search to `search_events` (features only, never file content).
 
+## Service (`lantern/service/`, Phase 5)
+
+- `core.py` — `Daemon`: API server (Unix socket, JSON lines, `api_<method>` handlers), control loop (watcher scans,
+  power policy, worker start/stop), ask/auto approval. The text model lives on **one dedicated thread**
+  (`model_thread`): MLX GPU streams are per-thread, so never call the embedder from API threads directly.
+- `worker.py` — index worker process (`python -m lantern.service.worker`): background priority, drains the queue,
+  exits; SIGTERM = finish current file, return the rest to the queue. Heavy models live only here.
+- `watcher.py` (FSEvents via watchdog, debounce), `power.py` (`pmset` parsers), `settings.py` (`config.toml`),
+  `notify.py` (osascript), `launchagent.py` (plist via plistlib, `launchctl bootstrap gui/<uid>`).
+- Adding an API method: `def api_<name>(self, **params) -> dict` in `Daemon` + CLI client code + a test in
+  `tests/test_daemon.py` (real socket in `/tmp`; macOS limits socket paths to 104 bytes).
+- `embedding/mlx_loader.py` loads EmbeddingGemma 2 without importing torch (package stubs). If a new mlx-vlm version
+  pulls transformers again, check with `python -X importtime` / the stub list.
+
 ## Adding an extractor
 
 1. Add a module in `lantern/extractors/` that turns a path into text (or audio samples) without modifying the file.

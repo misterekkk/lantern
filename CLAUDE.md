@@ -50,6 +50,7 @@ uv run pytest                # fast tests (excludes -m model)
 uv run pytest -m model       # tests with the real embedding model
 uv run ruff check            # lint (ruff format for formatting)
 uv run lantern --help        # CLI
+uv run lantern daemon run    # daemon in the foreground (LANTERN_HOME / LANTERN_SOCKET for an isolated test instance)
 ```
 
 ## Conventions
@@ -57,7 +58,9 @@ uv run lantern --help        # CLI
 - Python 3.12, type hints, stdlib `sqlite3` + `sqlite-vec` (no ORM), `argparse` for the CLI.
 - Embedding backend: MLX via pinned `mlx-vlm` commit + `mlx-community/embeddinggemma-2-8bit` (ADR-001). Text prompts:
   queries `task: search result | query: …`, documents `title: {path or none} | text: …`, code queries `task: code retrieval | query: …`.
-- MLX: always set memory/cache limits at load (unbounded, indexing hit 13 GB on 16 GB RAM).
+- MLX: always set memory/cache limits at load (unbounded, indexing hit 13 GB on 16 GB RAM). MLX GPU streams are
+  per-thread: load and call a model on the same thread (the daemon uses one dedicated model thread).
+- Never install the LaunchAgent or touch `~/Library/LaunchAgents` without the user's explicit approval.
 - Always set the audio `max_length` explicitly (the default processor silently truncates at 30 s). Never use float16.
 - Normalise Polish text (ł→l) before FTS insert and in queries.
 - Tests must not need the network or the real model unless marked `model`; use a deterministic fake embedder.

@@ -1,6 +1,6 @@
 # Plan Fazy 5: demon w tle i API
 
-**Status:** w realizacji.
+**Status:** zrealizowany (2026-10-15), wyniki w DECISIONS.md, sekcja „Faza 5: wyniki”.
 
 ## Cel
 

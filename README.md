@@ -4,10 +4,10 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 i nagrania audio. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 4 (audio i wideo, CLI).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki dźwiękowej
-> filmów oraz wyszukiwanie łączące znaczenie i słowa w jeden ranking, z linii poleceń. Nagrania i filmy są wyszukiwane
-> po tym, co w nich powiedziano, a wynik wskazuje moment (np. `film.mp4 @ 1:48–2:13`). Jeszcze nie ma: demona
-> działającego w tle (Faza 5), aplikacji (Faza 6) ani wyszukiwania po obrazie (Faza 7).
+> **Stan projektu: Faza 5 (demon w tle, CLI).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki dźwiękowej
+> filmów, wyszukiwanie łączące znaczenie i słowa w jeden ranking oraz demon w tle (LaunchAgent), który sam wykrywa
+> zmiany w folderach i w trybie „pytaj” czeka na zgodę przed indeksowaniem. Jeszcze nie ma: aplikacji w pasku menu
+> i panelu wyszukiwania (Faza 6) ani wyszukiwania po obrazie (Faza 7).
 > To README opisuje tylko to, co faktycznie działa, a dalsze funkcje oznacza fazą, w której się pojawią.
 
 ## Użycie
@@ -131,6 +131,35 @@ uv run pytest -m model   # testy z prawdziwym modelem (wymagają pobranego model
 uv run ruff check
 ```
 
+## Demon w tle
+
+```bash
+uv run lantern daemon install     # instaluje i uruchamia LaunchAgent (start przy logowaniu, niski priorytet)
+uv run lantern daemon run         # albo: demon na pierwszym planie (Ctrl+C kończy)
+uv run lantern status             # stan demona, kolejka, pamięć
+uv run lantern pending            # pliki wykryte przez demona, czekające na zgodę
+uv run lantern approve            # zaindeksuj je (albo: lantern decline — zapytaj ponownie przy kolejnych zmianach)
+uv run lantern pause | resume     # wstrzymaj / wznów indeksowanie w tle
+uv run lantern config index_mode auto   # indeksuj od razu, bez pytania (domyślnie: ask)
+uv run lantern daemon stop | uninstall
+```
+
+- **Po starcie** (także po dłuższym wyłączeniu komputera lub demona) demon skanuje wszystkie foldery. Usunięte pliki
+  znikają z indeksu od razu, a nowe i zmienione w trybie `ask` czekają na `lantern approve`. Jeśli `notify = true`,
+  demon wysyła powiadomienie macOS. W trakcie działania zmiany wykrywa obserwator FSEvents (po kilku sekundach ciszy).
+- **Gdy demon działa**, `lantern index/search/status/remove/compact/clear-history` łączą się z nim (wyszukiwanie
+  używa już załadowanego modelu, ~20–90 ms). `lantern index <folder>` z demonem dodaje folder i od razu zatwierdza
+  jego indeksowanie, które idzie w tle.
+- **Indeksowanie w osobnym procesie** z priorytetem tła: modele audio i Whisper żyją tylko w nim i znikają z pamięci
+  po zakończeniu. Demon w spoczynku zajmuje ~490 MB.
+- **Pauza automatyczna** na zasilaniu z baterii i przy ostrzeżeniu termicznym (`pause_on_battery`, `pause_on_thermal`).
+  Bieżący plik jest kończony, reszta wraca do kolejki.
+- **Ustawienia** (`lantern config`): `index_mode` (`ask`/`auto`), `pause_on_battery`, `pause_on_thermal`,
+  `transcribe`, `notify`, `debounce_s`. Zapisane w `~/Library/Application Support/Lantern/config.toml`.
+- **API:** socket Unix `~/Library/Application Support/Lantern/lantern.sock` (`0600`, katalog `0700`), JSON w liniach.
+  Tego samego API użyje aplikacja w pasku menu (Faza 6).
+- **Logi:** `~/Library/Application Support/Lantern/logs/` (ścieżki i błędy, bez treści plików i zapytań).
+
 ## Foldery i wykluczenia
 
 - Folder dodajesz przez `lantern index <folder>`. Każde kolejne wywołanie dla tego folderu aktualizuje indeks.
@@ -141,7 +170,7 @@ uv run ruff check
     `credentials*`, `secrets.*`, `*secret*.json|yaml`, `*token*.json|txt`, `*.tfstate`, `*.tfvars` i inne,
   - wszystko, co wykluczają pliki `.gitignore` (także zagnieżdżone),
   - linki symboliczne (nigdy nie wychodzimy poza wskazany folder).
-- Własna konfiguracja wykluczeń (`~/Library/Application Support/Lantern/config.toml`) pojawi się w Fazie 5.
+- Własne wykluczenia w `config.toml` są na liście otwartych pytań (na razie: domyślne + `.gitignore`).
 
 ## Gdzie są dane i jak wykluczyć je z Time Machine
 
@@ -168,8 +197,8 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 
 - Backend MLX korzysta z **niewydanej gałęzi `mlx-vlm`** (przypięty commit) i społecznościowej konwersji wag
   `mlx-community`. Wektory są zgodne z oryginałem (cos 0,9998), ale to zależność do obserwowania.
-- Pamięć (zmierzone na M4): `lantern search` z załadowanym modelem ~790 MB, indeksowanie tekstu do ~2 GB,
-  indeksowanie nagrań i filmów (embedding audio + Whisper, po kolei) do ~3,9 GB. W Fazie 5 cel to ~450 MB w spoczynku.
+- Pamięć (zmierzone na M4): demon w spoczynku ~490 MB; proces indeksujący do ~2 GB dla tekstu i do ~3,3 GB dla
+  nagrań i filmów (embedding audio, potem Whisper), po czym kończy się i zwalnia pamięć.
 - Transkrypcja obejmuje maksymalnie pierwsze 4 godziny nagrania (Whisper dekoduje całość do pamięci, ~230 MB na godzinę).
   Embedding audio obejmuje całe nagranie.
 - Jakość wyszukiwania audio sprawdzona dotąd na mowie syntetycznej (`say`); prawdziwe nagrania (szum, wielu mówców)

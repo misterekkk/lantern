@@ -237,6 +237,39 @@ Wnioski (hipotezy, mowa syntetyczna + sztuczny szum):
 
 ---
 
+## Faza 5: wyniki (2026-10-15)
+
+| Pomiar | Wynik |
+|---|---|
+| demon w spoczynku (model tekstowy załadowany) | **~455–490 MB** (wcześniej ~790 MB) |
+| wyszukiwanie przez demona | 19–89 ms na zapytanie; cała komenda `lantern search` z CLI 40–110 ms |
+| indeksowanie 42 plików (kod, tekst, nagranie, film) po `approve` | 51 s, 0 błędów; demon przez cały czas 490 MB, proces indeksujący do 3,3 GB, potem kończy się |
+| testy demona | prawdziwy socket, proces roboczy, FSEvents, tryb ask/auto, pauza, bateria, uprawnienia |
+
+Decyzje:
+1. **ADR-004: indeksowanie w osobnym procesie.** Demon trzyma tylko model tekstowy (wyszukiwanie). Proces roboczy
+   (`python -m lantern.service.worker`, priorytet tła `PRIO_DARWIN_BG`) startuje, gdy jest zatwierdzona praca, i kończy
+   się po opróżnieniu kolejki. Wieża audio, Whisper i procesor audio (który importuje torch) nigdy nie zostają w demonie.
+   Wyszukiwanie nie czeka na indeksowanie. Pauza to SIGTERM: bieżący plik jest kończony, reszta wraca do kolejki.
+2. **Ładowanie modelu bez torch** (`embedding/mlx_loader.py`): pakiety `mlx_vlm`, `models/gemma4`, `models/qwen3_5`
+   zastąpione pustymi pakietami zastępczymi, żeby nie wykonywać ich `__init__` (to one ciągną transformers → torch).
+   Zgodność wektorów z referencją bez zmian (testy `-m model`). Zamyka otwarte pytanie 13.
+3. **MLX i wątki:** strumienie GPU są przypisane do wątku. Model jest ładowany i wywoływany w jednym dedykowanym wątku
+   demona (zapytania z wielu wątków API są do niego kolejkowane). Błąd wyszedł dopiero na żywym demonie
+   („There is no Stream(gpu, 0) in current thread”); jest test z prawdziwym modelem w układzie jak produkcja.
+4. **Tryb `ask`:** po starcie (i po zdarzeniach obserwatora, gdy nic nie jest indeksowane) nowe i zmienione pliki czekają
+   na zgodę. Zmiany wykryte w trakcie zatwierdzonej rundy są do niej dołączane. Usunięcia są stosowane od razu.
+   Po restarcie demon pyta także o pliki pozostawione w kolejce przez poprzednie uruchomienie.
+5. **API:** JSON w liniach przez socket Unix (`0600`, katalog danych `0700`), jedno zapytanie na połączenie: proste
+   dla CLI i dla Swift (Network.framework). Gdy demon działa, CLI deleguje do niego zapisy, żeby nigdy dwa procesy
+   nie indeksowały naraz z dwoma modelami w pamięci.
+6. **Pauza na baterii / temperaturze** przez `pmset -g batt` i `pmset -g therm` (co 30 s, bez dodatkowych zależności).
+
+Znalezione na żywo i poprawione: `chmod 0700` na katalogu nadrzędnym socketu (przy `LANTERN_SOCKET=/tmp/...` to byłby
+systemowy `/tmp`); teraz uprawnienia dostaje tylko katalog danych Lanterna.
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -319,8 +352,10 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     vs **SigLIP 2** (osobny model obraz–tekst, wielojęzyczny, wersje MLX dostępne). SigLIP oznacza osobny `model_id`
     i osobną tabelę wektorów, łączoną z resztą przez RRF na poziomie plików. Wektorów nie mieszamy.
 12. ~~Wersjonowanie chunkera~~ — rozwiązane w Fazie 3 (`pipeline_version`, `model_id`).
-13. Pamięć w spoczynku ~790 MB: usunięcie importu torch (własny loader zamiast `mlx_vlm.__init__`) da ~450 MB.
-    Alternatywa: zwalnianie modelu po bezczynności (~50–100 MB, pierwsze zapytanie +0,5–2,5 s). Decyzja w Fazie 5.
+13. ~~Pamięć w spoczynku~~ — rozwiązane w Fazie 5 (~490 MB: loader bez torch + indeksowanie w osobnym procesie).
+    Opcja na przyszłość: zwalnianie modelu po długiej bezczynności (~50–100 MB, pierwsze zapytanie +0,5–1 s).
 14. Jakość wyszukiwania audio na prawdziwych nagraniach użytkownika (szum, wielu mówców, akcenty): potrzebny zestaw
     kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
 15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
+16. Własne wykluczenia i foldery w `config.toml` (obecnie: domyślne wykluczenia + `.gitignore`, foldery przez `lantern index`).
+17. Strumień zdarzeń z API (postęp, „znaleziono N plików”) dla aplikacji w pasku menu zamiast odpytywania `status` (Faza 6).
