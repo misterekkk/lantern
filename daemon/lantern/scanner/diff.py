@@ -14,7 +14,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from lantern.config import MASS_DELETE_FRACTION, MASS_DELETE_MIN_FILES
+from lantern.config import MASS_DELETE_FRACTION, MASS_DELETE_MIN_FILES, PARTIAL_HASH_BYTES
 from lantern.queue import jobs
 from lantern.scanner.walk import FileEntry, iter_files
 from lantern.store import db
@@ -40,11 +40,23 @@ class ScanResult:
     unchanged: int = 0
 
 
+_SAMPLE = 4 * 1024 * 1024
+
+
 def file_hash(path: Path) -> str:
+    """Full content hash; for files above PARTIAL_HASH_BYTES (videos) size + head/middle/tail samples, which is
+    enough for move detection and change detection of media, and avoids reading gigabytes on every scan."""
     h = hashlib.blake2b(digest_size=20)
+    size = path.stat().st_size
     with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
+        if size > PARTIAL_HASH_BYTES:
+            h.update(b"partial:%d:" % size)
+            for offset in (0, size // 2 - _SAMPLE // 2, size - _SAMPLE):
+                f.seek(offset)
+                h.update(f.read(_SAMPLE))
+        else:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
     return h.hexdigest()
 
 
