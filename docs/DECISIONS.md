@@ -270,6 +270,35 @@ systemowy `/tmp`); teraz uprawnienia dostaje tylko katalog danych Lanterna.
 
 ---
 
+## Wstępny test wyszukiwania zdjęć (przed Fazą 7, 2026-10-15)
+
+`spikes/phase7/image_eval.py`. Flickr30k, 1000 zdjęć z 5 opisami angielskimi każde. Zapytania: 12 pojedynczych pojęć
+(EN i PL, np. „dog” / „pies”; zdjęcie trafne, gdy któryś opis wspomina pojęcie), wszystkie 5000 opisów EN oraz 25 opisów
+przetłumaczonych na polski. EmbeddingGemma 2: wieża wizyjna MLX (zgodność z ST fp32: cos 0,9999). SigLIP 2:
+`google/siglip2-base-patch16-256` (transformers, MPS, fp32).
+
+| | EmbeddingGemma 2 | SigLIP 2 base |
+|---|---|---|
+| „dog”, psy w top 10 | 10/10 | 10/10 |
+| „pies”, psy w top 10 | 4/10 (gołe słowo) → **10/10** z kontekstem („pies na zdjęciu”) | 10/10 |
+| pojedyncze pojęcia EN, mAP | 0,862 | 0,856 |
+| pojedyncze pojęcia PL, mAP | 0,649 (gołe słowo) → **0,819** („… na zdjęciu”) | 0,720 |
+| pełne opisy EN, R@1 / R@5 | **0,862 / 0,974** | 0,794 / 0,946 |
+| pełne opisy PL, R@1 / R@5 | **0,88 / 1,00** | 0,64 / 0,92 |
+| szybkość embeddingu zdjęć (M4) | 2 zdj./s (280 tokenów obrazu) | **46 zdj./s** |
+| szczyt pamięci | 1,3 GB | ~1,5 GB (torch) |
+
+Wnioski (hipotezy):
+- **Słabość „pies” to dwuznaczność, nie brak polskiego:** po angielsku „pies” to placki. Jednowyrazowe zapytanie bez
+  kontekstu językowego jest czytane jako angielskie. Dla toru zdjęć Lantern powinien dodawać kontekst
+  (np. „{zapytanie} na zdjęciu” / „photo of {query}”) albo osobny prompt. Do dobrania w Fazie 7.
+- **EmbeddingGemma 2 lepiej rozumie opisy całymi zdaniami** (zwłaszcza po polsku), **SigLIP 2 jest 23× szybszy.**
+  Przy dużych bibliotekach zdjęć szybkość decyduje: 20 tys. zdjęć to ~2,8 h (EG2) vs ~7 min (SigLIP 2).
+- Do sprawdzenia w Fazie 7: EG2 z mniejszym budżetem tokenów obrazu (70–140 zamiast 280; szybciej, jakość?),
+  SigLIP 2 so400m (lepszy, wolniejszy), wersje MLX SigLIP, oraz HEIC i zdjęcia z telefonu.
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -348,8 +377,8 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
       embeddingiem; zachowana klatka reprezentuje odcinek [start, koniec] aż do następnej zachowanej,
     - zysk: mniej obliczeń GPU i mniejsza baza. Szczyt RAM się nie zmienia, bo zależy od wielkości partii, a nie od liczby klatek,
     - progi (scena T, Hamming) dobrać w teście na kilku typach nagrań (film, wykład ze slajdami, nagranie z telefonu).
-    Model dla obrazów do porównania w teście: wieża wizyjna EmbeddingGemma 2 (jedna przestrzeń z tekstem i audio)
-    vs **SigLIP 2** (osobny model obraz–tekst, wielojęzyczny, wersje MLX dostępne). SigLIP oznacza osobny `model_id`
+    Model dla obrazów: wstępny test zrobiony (sekcja „Wstępny test wyszukiwania zdjęć”); decyzja w Fazie 7 między
+    wieżą wizyjną EmbeddingGemma 2 (lepsza na opisach, 2 zdj./s) a **SigLIP 2** (23× szybszy, osobna przestrzeń). SigLIP oznacza osobny `model_id`
     i osobną tabelę wektorów, łączoną z resztą przez RRF na poziomie plików. Wektorów nie mieszamy.
 12. ~~Wersjonowanie chunkera~~ — rozwiązane w Fazie 3 (`pipeline_version`, `model_id`).
 13. ~~Pamięć w spoczynku~~ — rozwiązane w Fazie 5 (~490 MB: loader bez torch + indeksowanie w osobnym procesie).
