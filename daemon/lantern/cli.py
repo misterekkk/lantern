@@ -1,43 +1,36 @@
-"""Command-line interface (single process, no daemon yet)."""
+"""Command-line interface.
+
+When the daemon is running, the CLI is a client of its API (searches use the warm model, writes go through the
+daemon so that only one process indexes). Without the daemon, commands work directly on the index.
+"""
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 from lantern import __version__, config
-
-
-def _transcriber(enabled: bool):
-    if not enabled:
-        return None
-    if os.environ.get("LANTERN_EMBEDDER") == "fake":
-        from lantern.transcription.whisper import FakeTranscriber
-
-        return FakeTranscriber(os.environ.get("LANTERN_FAKE_TRANSCRIPT", "fake transcript"))
-    from lantern.transcription.whisper import WhisperTranscriber
-
-    return WhisperTranscriber()
-
-
-def _embedder():
-    # LANTERN_EMBEDDER=fake is for tests and demos without the model; never the default.
-    if os.environ.get("LANTERN_EMBEDDER") == "fake":
-        from lantern.embedding.fake import FakeEmbedder
-
-        return FakeEmbedder()
-    from lantern.embedding.mlx_backend import MLXEmbedder
-
-    return MLXEmbedder()
+from lantern.api import protocol
 
 
 def _connect():
     from lantern.store import db
 
     return db.connect(config.db_path())
+
+
+def _daemon() -> bool:
+    return protocol.running()
+
+
+def _need_daemon() -> None:
+    if not _daemon():
+        print("error: the daemon is not running (start it with `lantern daemon run` or `lantern daemon install`)",
+              file=sys.stderr)  # fmt: skip
+        raise SystemExit(1)
 
 
 def _clock(ms: int) -> str:
@@ -62,9 +55,36 @@ def _sources(r) -> str:
     return " · ".join(parts)
 
 
+def _print_scan(s: dict) -> None:
+    if "error" in s:
+        print(f"scan {s['root']}: {s['error']}", file=sys.stderr)
+        return
+    print(
+        f"scan {s['root']}: {s['new']} new, {s['changed']} changed, {s['moved']} moved, "
+        f"{s['removed']} removed, {s['unchanged']} unchanged"
+    )
+
+
+# ---------- index / search ----------
+
+
 def cmd_index(args: argparse.Namespace) -> int:
+    if _daemon():
+        try:
+            summary = protocol.call("index", {"path": args.path, "force": args.force}, timeout=600)
+        except protocol.DaemonError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        _print_scan(summary)
+        if summary.get("error") == "mass_deletion_refused":
+            print("check that the folder is complete, then re-run with --force", file=sys.stderr)
+            return 1
+        print("indexing in the background (daemon); follow it with `lantern status`")
+        return 0
+
     from lantern.indexer import run_queue
     from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, scan_root
+    from lantern.service.worker import make_embedder, make_transcriber
     from lantern.store import db
 
     conn = _connect()
@@ -91,7 +111,7 @@ def cmd_index(args: argparse.Namespace) -> int:
             print(f"\r  {label} {done}/{total} {name:<40}", end="", file=sys.stderr, flush=True)
 
     t1 = time.perf_counter()
-    stats = run_queue(conn, _embedder(), progress, _transcriber(not args.no_transcribe))
+    stats = run_queue(conn, make_embedder(), progress, make_transcriber(not args.no_transcribe))
     if sys.stderr.isatty():
         print("\r" + " " * 70 + "\r", end="", file=sys.stderr)
     stale = f", {stats.stale} re-indexed after a pipeline/model change" if stats.stale else ""
@@ -109,18 +129,24 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    from lantern.search.hybrid import search
+    if _daemon():
+        resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log})
+        results = [SimpleNamespace(**r) for r in resp["results"]]
+        took, logged = resp["vector_ms"] + resp["keyword_ms"], resp["event_id"]
+    else:
+        from lantern.search.hybrid import search
+        from lantern.service.worker import make_embedder
 
-    conn = _connect()
-    embedder = _embedder()
-    if hasattr(embedder, "load"):
-        embedder.load()  # keep model loading out of the query timing
-    resp = search(conn, embedder, args.query, args.limit, log=not args.no_log)
-    print(f"{len(resp.results)} results ({resp.vector_ms + resp.keyword_ms:.0f} ms)")
-    for i, r in enumerate(resp.results, 1):
+        embedder = make_embedder()
+        if hasattr(embedder, "load"):
+            embedder.load()  # keep model loading out of the query timing
+        r = search(_connect(), embedder, args.query, args.limit, log=not args.no_log)
+        results, took, logged = r.results, r.vector_ms + r.keyword_ms, r.event_id
+    print(f"{len(results)} results ({took:.0f} ms)")
+    for i, r in enumerate(results, 1):
         print(f"  {i:2d}. {_location(r)}   ({_sources(r)})")
         print(f"      {r.preview or '(audio match)'}")
-    if resp.results and resp.event_id:
+    if results and logged:
         print("open a result with: lantern open <number>")
     return 0
 
@@ -148,44 +174,61 @@ def cmd_open(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_remove(args: argparse.Namespace) -> int:
-    from lantern.store import db
+# ---------- maintenance ----------
 
-    conn = _connect()
+
+def cmd_remove(args: argparse.Namespace) -> int:
     root = str(Path(args.path).expanduser().resolve())
-    row = conn.execute("SELECT id FROM roots WHERE path = ?", (root,)).fetchone()
-    if row is None:
-        print(f"error: {root} is not an indexed folder", file=sys.stderr)
-        return 1
-    with db.transaction(conn):
-        n = db.remove_root(conn, row["id"])
-    db.compact(conn)
+    if _daemon():
+        try:
+            n = protocol.call("remove", {"path": root}, timeout=600)["files"]
+        except protocol.DaemonError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    else:
+        from lantern.store import db
+
+        conn = _connect()
+        row = conn.execute("SELECT id FROM roots WHERE path = ?", (root,)).fetchone()
+        if row is None:
+            print(f"error: {root} is not an indexed folder", file=sys.stderr)
+            return 1
+        with db.transaction(conn):
+            n = db.remove_root(conn, row["id"])
+        db.compact(conn)
     print(f"removed {root} from the index ({n} files) and compacted the database")
     return 0
 
 
 def cmd_compact(args: argparse.Namespace) -> int:
-    from lantern.store import db
+    if _daemon():
+        r = protocol.call("compact", timeout=600)
+        before, after = r["before"], r["after"]
+    else:
+        from lantern.store import db
 
-    conn = _connect()
-    before = config.db_path().stat().st_size
-    db.compact(conn)
-    print(f"compacted: {before / 2**20:.1f} MB -> {config.db_path().stat().st_size / 2**20:.1f} MB")
+        before = config.db_path().stat().st_size
+        db.compact(_connect())
+        after = config.db_path().stat().st_size
+    print(f"compacted: {before / 2**20:.1f} MB -> {after / 2**20:.1f} MB")
     return 0
 
 
 def cmd_clear_history(args: argparse.Namespace) -> int:
-    from lantern.search.hybrid import clear_history
-    from lantern.store import db
+    if _daemon():
+        n = protocol.call("clear_history", timeout=600)["deleted"]
+    else:
+        from lantern.search.hybrid import clear_history
+        from lantern.store import db
 
-    conn = _connect()
-    n = clear_history(conn)
-    db.compact(conn)
+        conn = _connect()
+        n = clear_history(conn)
+        db.compact(conn)
     print(f"deleted {n} search history entries")
     return 0
 
 
-def cmd_status(args: argparse.Namespace) -> int:
+def _print_local_status() -> None:
     from lantern.queue import jobs
     from lantern.store import db
 
@@ -206,6 +249,120 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"search history: {events} searches, {opened} with an opened result")
     for r in conn.execute("SELECT path, error FROM files WHERE status = 'error' LIMIT 5"):
         print(f"  error: {r['path']}: {r['error']}")
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    if not _daemon():
+        print("daemon: not running")
+        _print_local_status()
+        return 0
+    s = protocol.call("status")
+    paused = f", paused ({s['paused']})" if s["paused"] else ""
+    print(f"daemon: running (pid {s['pid']}, {s['memory_mb']} MB), mode {s['mode']}{paused}")
+    w = s["worker"]
+    if w["running"]:
+        stage = w.get("stage", "")
+        where = f" {w.get('done', 0)}/{w.get('total', 0)} {Path(w.get('path', '')).name}" if "done" in w else ""
+        print(f"indexing: {stage}{where}")
+    queued = sum(s["queued"].values())
+    if queued:
+        detail = ", ".join(f"{k} {v}" for k, v in sorted(s["queued"].items()))
+        note = " — waiting for approval (`lantern approve`)" if s["awaiting_approval"] else ""
+        print(f"queued: {queued} ({detail}){note}")
+    files = s["files"]
+    print(f"files: {sum(files.values())} " + " ".join(f"{k}={v}" for k, v in sorted(files.items())))
+    print(f"chunks: {s['chunks']}")
+    for r in s["roots"]:
+        state = "" if r["available"] else "  (not available: disconnected?)"
+        print(f"root: {r['path']}{state}")
+    if s["last_run"]:
+        lr = s["last_run"]
+        print(
+            f"last run {lr['finished']}: {lr['indexed']} indexed, "
+            f"{lr['transcribed']} transcribed, {lr['failed']} failed"
+        )
+    for w in s["warnings"]:
+        print(f"  ! {w}")
+    return 0
+
+
+# ---------- daemon control ----------
+
+
+def cmd_daemon(args: argparse.Namespace) -> int:
+    from lantern.service import launchagent
+
+    if args.action == "run":
+        from lantern.service.core import Daemon
+
+        config.enforce_offline()
+        return Daemon().run()
+    if args.action == "install":
+        if args.print:
+            sys.stdout.write(launchagent.render().decode())
+            return 0
+        path = launchagent.install()
+        print(f"installed and started the LaunchAgent: {path}")
+        return 0
+    if args.action == "uninstall":
+        print("LaunchAgent removed" if launchagent.uninstall() else "LaunchAgent was not installed")
+        return 0
+    if args.action == "stop":
+        if not _daemon():
+            print("daemon is not running")
+            return 0
+        protocol.call("shutdown")
+        print("daemon is stopping (the current file is finished first)")
+        return 0
+    return 2
+
+
+def cmd_pending(args: argparse.Namespace) -> int:
+    _need_daemon()
+    p = protocol.call("pending")
+    queued = sum(p["queued"].values())
+    if not queued:
+        print("nothing waiting")
+        return 0
+    detail = ", ".join(f"{k} {v}" for k, v in sorted(p["queued"].items()))
+    print(
+        f"{queued} files waiting ({detail})" + (" — approve with `lantern approve`" if p["awaiting_approval"] else "")
+    )
+    return 0
+
+
+def _simple(method: str, message: str):
+    def run(args: argparse.Namespace) -> int:
+        _need_daemon()
+        protocol.call(method)
+        print(message)
+        return 0
+
+    return run
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    from lantern.service import settings as settings_mod
+
+    if args.key is None:
+        current = protocol.call("config_get") if _daemon() else settings_mod.asdict(settings_mod.load())
+        for k, v in current.items():
+            print(f"{k} = {json.dumps(v)}")
+        return 0
+    if args.value is None:
+        print("error: missing value", file=sys.stderr)
+        return 1
+    try:
+        if _daemon():
+            protocol.call("config_set", {"key": args.key, "value": args.value})
+        else:
+            s = settings_mod.load()
+            settings_mod.update(s, args.key, args.value)
+            settings_mod.save(s)
+    except (KeyError, ValueError, protocol.DaemonError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"{args.key} = {args.value}")
     return 0
 
 
@@ -217,7 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("index", help="index a folder or update it (read-only access to files)")
     p.add_argument("path", help="folder to index")
     p.add_argument("--force", action="store_true", help="allow removing more than half of a folder's entries")
-    p.add_argument("--no-transcribe", action="store_true", help="index audio/video without Whisper transcription")
+    p.add_argument("--no-transcribe", action="store_true", help="index audio/video without Whisper (no daemon)")
     p.set_defaults(func=cmd_index)
 
     p = sub.add_parser("search", help="search by meaning and keywords (one fused ranking)")
@@ -232,6 +389,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--print", action="store_true", help="only print the path")
     p.set_defaults(func=cmd_open)
 
+    p = sub.add_parser("status", help="show daemon, index and queue status")
+    p.set_defaults(func=cmd_status)
+
     p = sub.add_parser("remove", help="remove a folder and all its data from the index")
     p.add_argument("path")
     p.set_defaults(func=cmd_remove)
@@ -242,8 +402,26 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("clear-history", help="delete the local search history")
     p.set_defaults(func=cmd_clear_history)
 
-    p = sub.add_parser("status", help="show index and queue status")
-    p.set_defaults(func=cmd_status)
+    p = sub.add_parser("daemon", help="run or manage the background daemon")
+    p.add_argument("action", choices=["run", "install", "uninstall", "stop"])
+    p.add_argument("--print", action="store_true", help="install: only print the LaunchAgent plist")
+    p.set_defaults(func=cmd_daemon)
+
+    p = sub.add_parser("pending", help="files found by the daemon that wait for approval")
+    p.set_defaults(func=cmd_pending)
+    for name, method, message, help_text in [
+        ("approve", "approve", "approved: indexing starts in the background", "index the waiting files"),
+        ("decline", "decline", "postponed: asked again after new changes", "do not index the waiting files now"),
+        ("pause", "pause", "indexing paused", "pause background indexing"),
+        ("resume", "resume", "indexing resumed", "resume background indexing"),
+    ]:
+        p = sub.add_parser(name, help=help_text)
+        p.set_defaults(func=_simple(method, message))
+
+    p = sub.add_parser("config", help="show or change settings (index_mode ask|auto, pause_on_battery, ...)")
+    p.add_argument("key", nargs="?")
+    p.add_argument("value", nargs="?")
+    p.set_defaults(func=cmd_config)
     return parser
 
 
