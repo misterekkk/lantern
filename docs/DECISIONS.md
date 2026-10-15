@@ -354,6 +354,43 @@ Decyzje (uzgodnione z użytkownikiem):
 
 ---
 
+## Faza 7: wybór modelu do zdjęć (2026-10-16)
+
+`spikes/phase7/image_bench.py` + `run.sh`: 10 konfiguracji, każda w osobnym procesie, ten sam zbiór (Flickr30k 1k,
+12 pojęć EN/PL, 5000 opisów EN, 25 opisów PL). „PL+ctx” = zapytanie „{słowo} na zdjęciu”. Pamięć: „spoczynek” po
+załadowaniu modelu (zawyżona o ~0,5 GB zdjęć testowych trzymanych w RAM i import torch w procesorze), „szczyt” =
+peak memory footprint procesu.
+
+| Konfiguracja | zdj./s | spoczynek | szczyt | mAP EN | mAP PL | mAP PL+ctx | R@1 EN | R@1 PL | „pies” w top 10 (goły / z kontekstem) |
+|---|---|---|---|---|---|---|---|---|---|
+| EG2 8-bit, 70 tok. | 9,5 | 2,1 GB | 5,9 GB | 0,811 | 0,611 | 0,765 | 0,812 | 0,80 | 6 / 10 |
+| **EG2 8-bit, 140 tok.** | **4,4** | 2,4 GB | 5,8 GB | 0,835 | 0,637 | **0,788** | **0,847** | **0,84** | 6 / 10 |
+| EG2 8-bit, 280 tok. | 2,0 | 2,8 GB | 5,8 GB | 0,862 | 0,648 | 0,819 | 0,862 | 0,88 | 4 / 10 |
+| EG2 8-bit, 560 tok. | 0,8 | 2,6 GB | 5,8 GB | 0,866 | 0,661 | 0,824 | 0,866 | 0,88 | 3 / 10 |
+| EG2 4-bit, 140 tok. | 4,6 | 2,3 GB | 5,9 GB | 0,818 | 0,616 | 0,741 | 0,842 | 0,76 | 4 / 10 |
+| EG2 bf16, 140 tok. | 4,5 | 2,6 GB | 5,8 GB | 0,834 | 0,631 | 0,785 | 0,845 | 0,84 | 6 / 10 |
+| SigLIP 2 base fp32 | 48,4 | 2,7 GB | 3,7 GB | 0,856 | 0,720 | 0,705 | 0,794 | 0,64 | 10 / 10 |
+| SigLIP 2 base fp16 | **57,7** | 2,1 GB | **2,2 GB** | 0,856 | 0,720 | 0,704 | 0,794 | 0,64 | 10 / 10 |
+| SigLIP 2 large fp16 | 18,0 | 2,9 GB | 4,1 GB | 0,847 | 0,675 | 0,677 | 0,818 | 0,76 | 9 / 10 |
+| SigLIP 2 so400m fp16 | 5,7 | 3,6 GB | 4,7 GB | 0,858 | 0,739 | 0,682 | 0,833 | 0,88 | 9 / 10 |
+
+Wnioski:
+1. **Kwantyzacja EG2 nie wpływa na szybkość zdjęć** (wieża wizyjna zawsze bf16); 4-bit wyraźnie traci jakość,
+   bf16 ≈ 8-bit. Zostaje 8-bit (ten sam model co tekst i audio).
+2. **Budżet tokenów to główne pokrętło:** 140 tokenów = 2,2× szybciej niż domyślne 280 przy niewielkiej stracie
+   (mAP PL+ctx 0,788 vs 0,819; R@1 PL 0,84 vs 0,88). 70 tokenów = 4,8× szybciej, nadal lepiej niż SigLIP po polsku.
+3. **SigLIP 2 base fp16 jest 13× szybszy** i ma najmniejszy szczyt pamięci, lepiej łapie gołe jednowyrazowe zapytania
+   (także „pies”), ale słabo rozumie polskie opisy zdaniem (R@1 PL 0,64 vs 0,84) i wymagałby drugiego modelu w demonie
+   do zapytań (osobna przestrzeń wektorów, +RAM na stałe). so400m dorównuje EG2 po polsku, ale jest wolny i ciężki.
+4. **Rekomendacja:** EG2 8-bit, **140 tokenów/zdjęcie**, zapytania do zdjęć z kontekstem językowym. Zero dodatkowej
+   pamięci w spoczynku (zapytania liczy ten sam model tekstowy, który demon już trzyma), jedna przestrzeń wektorów,
+   lepszy polski. 405 zdjęć użytkownika ≈ 1,5 min, 20 tys. ≈ 75 min w tle. SigLIP 2 base fp16 jako możliwy „tryb szybki”
+   dla bardzo dużych bibliotek (otwarte pytanie).
+5. Szczyt ~5,8 GB dla EG2 w tym teście wynika z limitu MLX ustawionego na 4 GB + zdjęć w RAM; w procesie roboczym
+   Lanterna limit to 3 GB, a zdjęcia są przetwarzane po jednym. Do zmierzenia przy wdrożeniu.
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
