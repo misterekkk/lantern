@@ -209,11 +209,31 @@ Decyzje:
 7. **Podgląd trafienia przez okno audio** pokazuje transkrypcję z tego samego odcinka czasu.
 8. **Wersje potoku per rodzaj pliku** (`PIPELINE_VERSIONS`): zmiana zasad audio nie wymusza reindeksu tekstu.
 
-Obserwacje (hipotezy):
-- Przy zapytaniu po polsku o nagranie po angielsku pojedyncze wspólne słowo z innym polskim nagraniem potrafi w RRF
-  przeważyć trafienie wektorowe #1 („rozmowa o pracy z inżynierem Kubernetes”). Kandydat do wag list w RRF albo do
-  rerankera. Nie stroję tego na danych syntetycznych.
-- Wszystko sprawdzone na mowie syntetycznej. Prawdziwe nagrania użytkownika to następny test jakości.
+### Test na zaszumionych nagraniach (`spikes/phase4/noise_eval.py`)
+
+Ten sam korpus (16 nagrań, 28 zapytań) zdegradowany `audiomentations` i ffmpeg, indeksowany prawdziwym potokiem.
+hit@1 / MRR:
+
+| Warunek | Ranking Lanterna | Tylko okna audio | Tylko transkrypcja | Tylko słowa | WER Whispera |
+|---|---|---|---|---|---|
+| czyste | 1,00 / 1,000 | 0,89 / 0,946 | 1,00 / 1,000 | 0,89 / 0,893 | 4% |
+| szum różowy 10 dB | 0,96 / 0,982 | 0,75 / 0,849 | 0,96 / 0,982 | 0,89 / 0,893 | 5% |
+| szum różowy 0 dB | 1,00 / 1,000 | 0,71 / 0,777 | 1,00 / 1,000 | 0,86 / 0,875 | 14% |
+| rozmowy w tle 5 dB | 1,00 / 1,000 | 0,75 / 0,831 | 1,00 / 1,000 | 0,89 / 0,893 | 7% |
+| telefon (300–3400 Hz, szum 15 dB, MP3 32 kb/s) | 1,00 / 1,000 | 0,79 / 0,826 | 1,00 / 1,000 | 0,89 / 0,893 | 8% |
+
+Wnioski (hipotezy, mowa syntetyczna + sztuczny szum):
+- **Whisper jest bardzo odporny** (WER 4% → 14% przy szumie równym mowie). Tor transkrypcji niesie wyszukiwanie audio.
+- **Embedding samego dźwięku słabnie z szumem** (MRR 0,95 → 0,78), ale nadal jest potrzebny bez transkrypcji
+  (`--no-transcribe`) i dla treści niewerbalnych.
+- **Poprawka fuzji wynikła z tego testu.** Przed nią ranking Lanterna miał 0,93 / 0,958 we wszystkich warunkach,
+  czyli gorzej niż sama transkrypcja. Przyczyna: przy zapytaniu w innym języku niż nagranie lista słów łapała inne
+  nagranie po jednym przypadkowym wspólnym słowie („ogrodzie”, „rate”), a RRF nagradza obecność na obu listach.
+  Teraz trafienie po słowach waży w RRF tyle, jaką część słów zapytania pokrywa, a poniżej 50% nie liczy się wcale
+  (`MIN_KEYWORD_COVERAGE`). Zapytania jednowyrazowe i identyfikatory mają pełne pokrycie, więc dokładne trafienia nie tracą.
+  Wyszukiwanie w kodzie i dokumentach na `~/Studia/Projekt` bez pogorszenia.
+- Prawdziwe nagrania (pogłos, wielu mówców naraz, akcenty) nadal są otwartym pytaniem 14. Pogłosu nie testowałem
+  (`RoomSimulator` wymaga `pyroomacoustics`).
 
 ---
 
@@ -303,4 +323,4 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     Alternatywa: zwalnianie modelu po bezczynności (~50–100 MB, pierwsze zapytanie +0,5–2,5 s). Decyzja w Fazie 5.
 14. Jakość wyszukiwania audio na prawdziwych nagraniach użytkownika (szum, wielu mówców, akcenty): potrzebny zestaw
     kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
-15. Wagi list w RRF (np. wektor 1,0, słowa 0,7) albo reranker, gdy zbierze się historia `search_events`.
+15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
