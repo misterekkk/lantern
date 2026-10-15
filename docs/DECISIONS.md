@@ -389,6 +389,30 @@ Wnioski:
 5. Szczyt ~5,8 GB dla EG2 w tym teście wynika z limitu MLX ustawionego na 4 GB + zdjęć w RAM; w procesie roboczym
    Lanterna limit to 3 GB, a zdjęcia są przetwarzane po jednym. Do zmierzenia przy wdrożeniu.
 
+### Para SigLIP 2 + EmbeddingGemma 2 (`fusion_eval.py`, `pair_cost.py`)
+
+Jakość (A = SigLIP 2 base fp16, B = EG2 8-bit 140 tok.; PL pojedyncze słowa: B z kontekstem, A gołe słowo):
+
+| Strategia | mAP EN | mAP PL | R@1 EN | R@5 EN | R@1 PL |
+|---|---|---|---|---|---|
+| tylko A | 0,856 | 0,720 | 0,794 | 0,946 | 0,64 |
+| tylko B | 0,835 | 0,788 | 0,847 | 0,968 | 0,84 |
+| **z-score (znormalizowane wyniki, suma)** | **0,872** | **0,814** | **0,859** | **0,973** | **0,88** |
+| RRF po równo | 0,873 | 0,807 | 0,833 | 0,969 | 0,84 |
+| RRF z wagą od długości zapytania | 0,873 | 0,779 | 0,847 | 0,972 | 0,80 |
+| kaskada: A top 100 → rerank B | 0,812 | 0,746 | 0,847 | 0,969 | 0,84 |
+
+Koszt w demonie (jeden proces, jak demon): EG2 tekst 387 MB → + SigLIP 2 base text encoder fp16 (torch) **2091 MB**
+(+1,7 GB na stałe, w tym ~0,23 GB sam import torch). Zimne ładowanie SigLIP na żądanie: ~4,7 s (import torch 2,5 s +
+model 2,2 s), więc nie nadaje się do ładowania przy otwarciu panelu. Zapytanie (ciepło): EG2 9,5 ms, SigLIP 8,3 ms,
+oba 16,9 ms. Indeksowanie pary: ~4,1 zdj./s (SigLIP dokłada ~0,02 s/zdjęcie do 0,23 s EG2), dwa wektory na zdjęcie.
+
+Wnioski (hipotezy; mały zbiór: 12 pojęć, 25 opisów PL; 5000 opisów EN najbardziej wiarygodne):
+- Para z łączeniem z-score daje +1,2–4 pkt we wszystkich miarach. Kaskada i waga od długości zapytania nie pomagają.
+- Oba modele odpowiadają w < 20 ms łącznie, więc wyniki można łączyć przed wyświetleniem: nie ma „spóźnionych” wyników.
+- Koszt: +1,7 GB RAM w demonie (torch). Do sprawdzenia: SigLIP 2 w MLX 8-bit (`mlx-community/siglip2-base-patch16-224-8bit`),
+  który mógłby obniżyć koszt pary do kilkuset MB bez torch.
+
 ---
 
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
@@ -483,3 +507,8 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 19. Odtwarzanie nagrania/filmu od znacznika czasu po otwarciu wyniku (dziś: otwarcie pliku + znacznik w wyniku).
 20. Zmiana skrótu ⌥Space w ustawieniach (dziś stały).
 18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).
+21. Para modeli do zdjęć: tylko EG2 (0 MB dodatkowo) czy EG2 + SigLIP 2 (z-score, +1,2–4 pkt, +1,7 GB z torch; do sprawdzenia MLX 8-bit).
+22. Wyszukiwanie fraz w nagraniach: nakładanie się fragmentów transkrypcji, znaczniki czasu słów (Whisper word timestamps),
+    tolerancja błędów ASR w FTS (indeks trigramowy FTS5 dla transkrypcji).
+23. Zestaw testowy na danych użytkownika: 50–100 zapytań z ręcznie oznaczonymi odpowiedziami (krótkie, długie, polskie,
+    slang), recall@k i MRR; test termiczny 20+ min; pełna konfiguracja każdego przebiegu zapisywana obok wyników.
