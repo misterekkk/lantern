@@ -413,6 +413,22 @@ Wnioski (hipotezy; mały zbiór: 12 pojęć, 25 opisów PL; 5000 opisów EN najb
 - Koszt: +1,7 GB RAM w demonie (torch). Do sprawdzenia: SigLIP 2 w MLX 8-bit (`mlx-community/siglip2-base-patch16-224-8bit`),
   który mógłby obniżyć koszt pary do kilkuset MB bez torch.
 
+### SigLIP 2 w MLX 8-bit do zapytań (`mlx_siglip.py`)
+
+`mlx-community/siglip2-base-patch16-224-8bit` ładowany kodem `mlx_vlm.models.siglip` (model tylko tekstowy) przez te
+same pakiety zastępcze co EG2: **bez torch**. Wektory zdjęć z oryginalnego `google/siglip2-base-patch16-224` (fp16, torch
+w procesie roboczym, 75,9 zdj./s).
+
+- Zgodność wektorów zapytań MLX 8-bit z torch fp32: cos min 0,9994, średnio 1,0000.
+- Koszt w demonie (jak demon): EG2 tekst 387 MB → + SigLIP tekst MLX **726 MB (+339 MB)**, ładowanie **0,33 s**;
+  zapytanie: EG2 8,4 ms + SigLIP 6,0 ms = 14,3 ms. Po serii zapytań 889 MB (cache MLX, ograniczany limitami).
+- Jakość pary (z-score) SigLIP 224 MLX + EG2 140: mAP EN 0,866, mAP PL 0,814, R@1 EN 0,858, R@1 PL 0,84
+  (samo EG2: 0,835 / 0,788 / 0,847 / 0,84) — praktycznie jak para z torch 256 px, przy ~5× mniejszym koszcie RAM.
+
+Decyzja kierunkowa do Fazy 7: **para EG2 (140 tok.) + SigLIP 2 base 224**, łączenie z-score dla zdjęć; SigLIP tekst
+w demonie ładowany na żądanie (przy otwarciu panelu / pierwszym zapytaniu, 0,33 s) i zwalniany po bezczynności, więc
+w spoczynku demon zostaje przy ~390–450 MB. Wektory zdjęć obu modeli liczy proces roboczy.
+
 ---
 
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
@@ -507,7 +523,7 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 19. Odtwarzanie nagrania/filmu od znacznika czasu po otwarciu wyniku (dziś: otwarcie pliku + znacznik w wyniku).
 20. Zmiana skrótu ⌥Space w ustawieniach (dziś stały).
 18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).
-21. Para modeli do zdjęć: tylko EG2 (0 MB dodatkowo) czy EG2 + SigLIP 2 (z-score, +1,2–4 pkt, +1,7 GB z torch; do sprawdzenia MLX 8-bit).
+21. ~~Para modeli do zdjęć~~ — sprawdzone: SigLIP 2 MLX 8-bit kosztuje +339 MB tylko po załadowaniu (0,33 s, na żądanie).
 22. Wyszukiwanie fraz w nagraniach: nakładanie się fragmentów transkrypcji, znaczniki czasu słów (Whisper word timestamps),
     tolerancja błędów ASR w FTS (indeks trigramowy FTS5 dla transkrypcji).
 23. Zestaw testowy na danych użytkownika: 50–100 zapytań z ręcznie oznaczonymi odpowiedziami (krótkie, długie, polskie,

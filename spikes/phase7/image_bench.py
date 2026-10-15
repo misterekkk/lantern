@@ -35,6 +35,7 @@ REVISIONS = {
     "mlx-community/embeddinggemma-2-8bit": "7505ef2f8ddef45efef6d060865f27989b3c9cec",
     "mlx-community/embeddinggemma-2-bf16": "1a4ffddb7905d3f63486748deabe091a01fb6201",
     "google/siglip2-base-patch16-256": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+    "google/siglip2-base-patch16-224": "75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2",
     "google/siglip2-large-patch16-256": "787800c8990e6f058423089178e718139608408c",
     "google/siglip2-so400m-patch16-384": "dd658faac399427308559e2c3ac1e99cbe43845d",
 }
