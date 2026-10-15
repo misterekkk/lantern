@@ -1,4 +1,4 @@
-"""Phase 2 search: vector KNN and FTS5/BM25 as two separate lists (fused with RRF in Phase 3)."""
+"""Candidate lists for hybrid search: vector KNN and FTS5/BM25, each ranked by file (best chunk per file)."""
 
 import sqlite3
 from dataclasses import dataclass
@@ -8,6 +8,9 @@ import numpy as np
 from lantern.embedding.base import Embedder, format_query
 from lantern.store import db
 from lantern.textnorm import fts_query
+
+# Column weights for bm25(): text, path, symbol. A hit in a function name or path says more than one in a body.
+BM25_WEIGHTS = "1.0, 1.5, 3.0"
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,8 @@ def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> lis
     if expr is None:
         return []
     rows = conn.execute(
-        "SELECT rowid, bm25(chunks_fts) AS s FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
+        f"SELECT rowid, bm25(chunks_fts, {BM25_WEIGHTS}) AS s FROM chunks_fts "
+        "WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
         (expr, limit * 5),
     ).fetchall()
     return _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows]), limit)
