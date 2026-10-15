@@ -46,7 +46,7 @@ Cała logika jest w demonie. Klienci tylko wywołują API.
 | 4 | audio (także ścieżka dźwiękowa filmów przez ffmpeg): okna, embedding audio, transkrypcja, znaczniki czasu, ocena na prawdziwych nagraniach | zrobione (ocena na mowie syntetycznej; prawdziwe nagrania: otwarte pytanie 14) |
 | 5 | demon + API (socket Unix), FSEvents, LaunchAgent, pauza na baterii i przy wysokiej temperaturze; tryb „pytaj”: po starcie (także po dłuższym wyłączeniu) skan wykrywa nowe i zmienione pliki i pyta, czy je zaindeksować | zrobione |
 | 5b | cały komputer: polityka katalogu domowego, iCloud tylko lokalnie, ochrona folderów bez uprawnień, własne wykluczenia, `--dry-run`, test skali | zrobione |
-| 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | – |
+| 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | zrobione |
 | 7 | opcjonalnie: wyszukiwanie w zdjęciach i klatkach filmów (ffmpeg → klatki → wieża wizyjna), poprzedzone testem jakości i szybkości | – |
 
 Poza zakresem na razie: reranker LightGBM (najpierw zbieramy `search_events`), podsumowania folderów przez LLM,

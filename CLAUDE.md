@@ -6,7 +6,7 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 
 ## Working rules
 
-1. Work in phases (see `docs/ARCHITECTURE.md`). After each phase: stop, show results, run tests. Do not start Phase 6 (Swift app) without explicit approval.
+1. Work in phases (see `docs/ARCHITECTURE.md`). After each phase: stop, show results, run tests. Do not start Phase 7 (photos/frames) without explicit approval.
 2. Do not assume what new libraries/models can do: verify, and record unverifiable things as open questions in `docs/DECISIONS.md`.
 3. Install nothing globally without documenting it in README. Use `uv` and the project `.venv`.
 4. Language: code, comments, identifiers and CLAUDE.md files in English; `README.md` and `docs/` in Polish.
@@ -35,7 +35,7 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 ```
 daemon/lantern/   api/ scanner/ queue/ extractors/ chunking/ embedding/ store/ search/ cli.py
 daemon/CLAUDE.md  daemon conventions (schema, queue, adding extractors/backends)
-app/              Swift menu-bar client (Phase 6, placeholder)
+app/              Swift menu-bar client (app/CLAUDE.md; build with app/build.sh)
 launchd/          LaunchAgent plist template
 spikes/phase0/    Phase 0 measurement scripts (not app code, excluded from ruff)
 tests/            pytest; tests needing the real model are marked `@pytest.mark.model`

@@ -1,8 +1,34 @@
-# App (Swift menu-bar client): placeholder
+# App (Swift menu-bar client)
 
-Phase 6. Do not start without explicit approval from the user.
+A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embedding or database logic here.
 
-- SwiftUI `MenuBarExtra`. A **thin client of the daemon API** (Unix socket): status, queue, start/stop/reindex,
-  search window, folder configuration.
-- No indexing, embedding or database logic here. Everything goes through the daemon.
-- Possible future option (unverified): native MLX Swift port of EmbeddingGemma 2 (see `docs/DECISIONS.md`, open questions).
+## Layout
+
+- `Sources/LanternCore/` — `DaemonClient` (POSIX Unix socket, one request per connection), Codable models mirroring
+  `daemon/lantern/service/core.py` (`api_status`, `api_search`, `config_get`), `Format` helpers. Unit-tested.
+- `Sources/Lantern/` — `LanternApp` (MenuBarExtra), `AppState` (status polling every 2 s, actions, notifications),
+  `DaemonSupervisor` (starts the Python daemon as a child process so macOS file permissions belong to the app;
+  uses an already running daemon instead), `SearchPanel` (borderless NSPanel, ⌥Space via Carbon `HotKey`),
+  `MenuView`, `SettingsView` (own window: SwiftUI's Settings scene is unreliable in LSUIElement apps).
+- `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),
+  `LanternPython` (filled by build.sh).
+
+## Commands
+
+```bash
+app/build.sh                                         # build + sign app/build/Lantern.app (Xcode toolchain)
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
+# development: isolated daemon/index, panel kept open, open panel/menu/settings on launch
+LANTERN_HOME=/tmp/x LANTERN_SOCKET=/tmp/l.sock LANTERN_PANEL_PINNED=1 \
+  app/build/Lantern.app/Contents/MacOS/Lantern --show-search "query" | --show-menu | --show-settings
+```
+
+## Conventions
+
+- Swift 5 language mode, macOS 14+; Liquid Glass (`glassEffect`) behind `#available(macOS 26, *)` with a material
+  fallback. The Xcode toolchain is selected with `DEVELOPER_DIR` (Command Line Tools ship an older SDK).
+- UI strings are Polish (user-facing); code, comments and identifiers English.
+- Animations: short and quiet (`.snappy`/`.smooth`, ≤ 0.3 s), no bouncing; respect the system look.
+- When the daemon API changes, update the models here and the decoding tests in `Tests/LanternCoreTests`.
+- Signing: `build.sh` uses the first "Apple Development" identity (stable signature keeps macOS permissions across
+  rebuilds), otherwise ad-hoc. The Apple WWDR G3 intermediate must be in the keychain (it was missing on this Mac).

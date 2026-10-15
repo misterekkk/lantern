@@ -332,6 +332,28 @@ Decyzje:
 
 ---
 
+## Faza 6: wyniki (2026-10-15)
+
+Aplikacja Swift (`app/`, Swift Package): pasek menu (MenuBarExtra), panel wyszukiwania pod ⌥Space, okno ustawień,
+powiadomienia z akcjami. Sprawdzona na prawdziwych zrzutach okien (`screencapture -l`) na izolowanym indeksie.
+
+Decyzje (uzgodnione z użytkownikiem):
+1. **Skrót ⌥Space** (Carbon `RegisterEventHotKey`: działa w tle, bez uprawnień Dostępności). Spotlight zostaje pod ⌘Space.
+2. **Aplikacja uruchamia demona jako proces potomny**, więc zgody macOS (Biurko, Dokumenty, Pobrane, iCloud Drive)
+   są przypisane do Lantern.app. Działający już demon (LaunchAgent) jest używany zamiast drugiego.
+   `LANTERN_EXIT_WITH_PARENT=1`: demon kończy się, gdy aplikacja zniknie (wykryty na żywo osierocony demon po wymuszonym zamknięciu).
+3. **Podpis „Apple Development”** (stały podpis = zgody przetrwają przebudowy). Na tym Macu brakowało certyfikatu
+   pośredniego Apple WWDR G3 (był tylko wygasły G1), przez co certyfikat był „nieważny”; dodany do pęku kluczy.
+4. **Panel bez ramki** (`.borderless`, przezroczyste tło, rozmiar z SwiftUI, górna krawędź przypięta). Pierwsza wersja
+   (`.titled`) miała przezroczysty pas nad panelem i systemowy cień/ramkę wokół prostokąta okna („dziwna obwódka”
+   zauważona przez użytkownika). Na macOS 26 systemowy cień okna wyłączony, bo Liquid Glass rysuje własny.
+5. **Własne okno ustawień** zamiast sceny `Settings` SwiftUI, która w aplikacji bez Docka nie otwierała się niezawodnie.
+6. Animacje minimalistyczne: płynne pojawianie się panelu (0,16 s), przesuwające się zaznaczenie wyników
+   (`matchedGeometryEffect`), przejścia karty zgody, liczniki `numericText`, puls ikony podczas indeksowania.
+7. Budowanie przez toolchain Xcode 26 (`DEVELOPER_DIR`), bo Command Line Tools mają SDK 15.4 bez Liquid Glass.
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -420,5 +442,7 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
 15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
 16. ~~Własne wykluczenia~~ — rozwiązane (`lantern exclude`).
-17. Strumień zdarzeń z API (postęp, „znaleziono N plików”) dla aplikacji w pasku menu zamiast odpytywania `status` (Faza 6).
+17. Strumień zdarzeń z API zamiast odpytywania `status` co 2 s (aplikacja działa na odpytywaniu; koszt pomijalny, ale do rozważenia).
+19. Odtwarzanie nagrania/filmu od znacznika czasu po otwarciu wyniku (dziś: otwarcie pliku + znacznik w wyniku).
+20. Zmiana skrótu ⌥Space w ustawieniach (dziś stały).
 18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).

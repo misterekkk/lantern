@@ -4,10 +4,31 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 i nagrania audio. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 5 (demon w tle, CLI).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki dźwiękowej
-> filmów, wyszukiwanie łączące znaczenie i słowa w jeden ranking oraz demon w tle (LaunchAgent), który sam wykrywa
-> zmiany w folderach i w trybie „pytaj” czeka na zgodę przed indeksowaniem. Jeszcze nie ma: aplikacji w pasku menu
-> i panelu wyszukiwania (Faza 6) ani wyszukiwania po obrazie (Faza 7).
+> **Stan projektu: Faza 6 (aplikacja w pasku menu).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki
+> dźwiękowej filmów, wyszukiwanie łączące znaczenie i słowa w jeden ranking, demon w tle oraz aplikacja macOS:
+> ikona w pasku menu (stan, zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod
+> **⌥Space**. Jeszcze nie ma wyszukiwania po obrazie (Faza 7).
+
+## Aplikacja (pasek menu i panel ⌥Space)
+
+```bash
+app/build.sh                 # buduje i podpisuje app/build/Lantern.app (wymaga Xcode 26, patrz niżej)
+open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
+```
+
+- **Ikona w pasku menu** pokazuje stan (gotowy, indeksuje, czeka na zgodę, pauza), postęp, liczbę plików i pamięć
+  demona; przyciski: Zaindeksuj / Później, Wstrzymaj / Wznów, Dodaj folder…, Ustawienia…, Zakończ.
+- **⌥Space** otwiera panel wyszukiwania (jak Spotlight): ↑↓ wybór, ↩ otwórz, ⌘↩ pokaż w Finderze, Esc zamknij.
+  Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`).
+- **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
+- **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, pauza na baterii/temperaturze,
+  foldery, wykluczenia, wyczyszczenie historii, zagęszczenie indeksu.
+- **Aplikacja sama uruchamia demona** (proces potomny), więc zgody macOS na Biurko, Dokumenty i Pobrane dotyczą
+  aplikacji Lantern i pojawiają się jako zwykłe okna „Lantern chce uzyskać dostęp do…”. Gdy aplikacja się zamknie
+  (także po awarii), demon kończy się razem z nią. Jeśli działa już demon z LaunchAgenta, aplikacja z niego korzysta.
+- Wymagania do budowania: Xcode 26 (SDK macOS 26 dla efektu Liquid Glass; skrypt używa go przez `DEVELOPER_DIR`,
+  bez zmiany `xcode-select`). Podpis: certyfikat „Apple Development” (Xcode → Settings → Accounts → Manage
+  Certificates); bez niego podpis tymczasowy (ad-hoc) i macOS może ponownie pytać o zgody po każdej przebudowie.
 > To README opisuje tylko to, co faktycznie działa, a dalsze funkcje oznacza fazą, w której się pojawią.
 
 ## Użycie
@@ -63,7 +84,8 @@ uv run lantern clear-history               # usuń lokalną historię wyszukiwa�
 | Co | Po co | Instalacja |
 |---|---|---|
 | Mac z Apple Silicon (testowane: M4, 16 GB) | MLX działa tylko na Apple Silicon | – |
-| Xcode Command Line Tools | kompilator i git; później aplikacja Swift (Faza 6, wtedy pełny Xcode) | `xcode-select --install` |
+| Xcode Command Line Tools | kompilator i git | `xcode-select --install` |
+| Xcode 26 | budowanie aplikacji w pasku menu (SDK macOS 26) | App Store |
 | Homebrew | menedżer pakietów | https://brew.sh |
 | uv | środowisko Pythona i zależności | `brew install uv` |
 | Python 3.12 | język demona; **instalowany przez uv**, nie systemowy | automatycznie przez `uv sync` |
@@ -243,7 +265,7 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 README.md, CLAUDE.md, pyproject.toml
 docs/        ARCHITECTURE.md, DECISIONS.md (ADR + otwarte pytania), PRIVACY.md
 daemon/      kod demona (pakiet `lantern`): api, scanner, queue, extractors, chunking, embedding, store, search, cli.py
-app/         aplikacja Swift w pasku menu (Faza 6, na razie placeholder)
+app/         aplikacja Swift w pasku menu (Swift Package: LanternCore + Lantern, build.sh)
 launchd/     szablon LaunchAgenta (Faza 5)
 spikes/      skrypty pomiarowe Fazy 0 (nie są częścią aplikacji)
 tests/       testy
