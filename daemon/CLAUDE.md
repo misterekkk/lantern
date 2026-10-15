@@ -34,10 +34,13 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
 
 ## Pipeline (`lantern/indexer.py`)
 
-scan (`scanner/diff.py`) enqueues jobs → `run_queue` claims up to 32 files → extract + chunk each → one embedding call
-for all their chunks → one transaction per file. Data-like files (CSV/TSV, mostly numbers) are indexed head-only;
-lockfiles are excluded (`config.py`). **Bump `PIPELINE_VERSION` in `indexer.py` whenever chunking rules or prompt
-formats change**: files store `pipeline_version` and `model_id`, and `run_queue` re-queues mismatches automatically.
+scan (`scanner/diff.py`) enqueues jobs → `run_queue` stage 1 (`index` jobs): text/code files are extracted + chunked,
+their chunks embedded together, one transaction per file; audio/video files are streamed by ffmpeg into 30 s windows
+(25 s hop) and embedded by the audio tower, then a `transcribe` job is queued → stage 2 (`transcribe` jobs): Whisper →
+~20 s transcript chunks → text embeddings + FTS. The audio tower and Whisper are never loaded at the same time;
+`replace_file_chunks(kinds=...)` lets each stage replace only its own chunk kinds. Data-like files (CSV/TSV, mostly numbers) are indexed head-only;
+lockfiles are excluded (`config.py`). **Bump the kind's entry in `PIPELINE_VERSIONS` (`indexer.py`) whenever
+its chunking rules or prompt formats change**: files store `pipeline_version` and `model_id`, and `run_queue` re-queues mismatches automatically.
 
 ## Search (`lantern/search/`)
 

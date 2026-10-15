@@ -4,9 +4,10 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 i nagrania audio. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 3 (wyszukiwanie hybrydowe, CLI).** Działa indeksowanie folderów z tekstem i kodem oraz
-> wyszukiwanie łączące znaczenie i słowa w jeden ranking, z linii poleceń. Jeszcze nie ma: PDF i audio (Faza 4),
-> demona działającego w tle (Faza 5) ani aplikacji (Faza 6).
+> **Stan projektu: Faza 4 (audio i wideo, CLI).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki dźwiękowej
+> filmów oraz wyszukiwanie łączące znaczenie i słowa w jeden ranking, z linii poleceń. Nagrania i filmy są wyszukiwane
+> po tym, co w nich powiedziano, a wynik wskazuje moment (np. `film.mp4 @ 1:48–2:13`). Jeszcze nie ma: demona
+> działającego w tle (Faza 5), aplikacji (Faza 6) ani wyszukiwania po obrazie (Faza 7).
 > To README opisuje tylko to, co faktycznie działa, a dalsze funkcje oznacza fazą, w której się pojawią.
 
 ## Użycie
@@ -34,7 +35,21 @@ uv run lantern clear-history               # usuń lokalną historię wyszukiwa�
   wyników, bez treści plików). To dane pod przyszłe uczenie rankingu. `--no-log` pomija zapis, `clear-history` czyści.
 - Zmiana zasad dzielenia plików albo modelu powoduje automatyczny ponowny indeks przy następnym `index`.
 - Indeksowane typy: kod (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP i inne, dzielony na
-  funkcje i klasy) oraz tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.). Pliki ponad 2 MB i binarne są pomijane.
+  funkcje i klasy), tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.; pliki tekstowe ponad 2 MB i binarne są
+  pomijane), audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…) i wideo (mp4, mov, mkv, webm, avi…, tylko dźwięk).
+
+### Nagrania i filmy
+
+- ffmpeg wyciąga dźwięk (16 kHz mono) strumieniowo, okno po oknie, więc długość nagrania nie wpływa na zużycie RAM.
+- Dwa tory wyszukiwania, łączone w jednym rankingu:
+  1. **embedding audio** (EmbeddingGemma 2) okien 30 s z nakładką 5 s: znaczenie wypowiedzi, także międzyjęzykowo,
+  2. **transkrypcja** (Whisper large-v3-turbo, język wykrywany automatycznie) dzielona na fragmenty ~20 s:
+     pojedyncze słowa („krowa”), podgląd tekstu w wynikach, wyszukiwanie po słowach.
+- Wynik pokazuje plik i moment, np. `filmy/vlog.mp4 @ 1:48–2:13`, oraz tekst wypowiedzi z tego odcinka.
+- Modele audio ładują się tylko na czas indeksowania nagrań, po kolei (najpierw embedding audio, potem Whisper),
+  i są zwalniane po zakończeniu.
+- `lantern index <folder> --no-transcribe` pomija transkrypcję (szybciej, bez Whispera, ale bez wyszukiwania
+  pojedynczych słów).
 
 ## Prywatność w skrócie
 
@@ -52,13 +67,13 @@ uv run lantern clear-history               # usuń lokalną historię wyszukiwa�
 | Homebrew | menedżer pakietów | https://brew.sh |
 | uv | środowisko Pythona i zależności | `brew install uv` |
 | Python 3.12 | język demona; **instalowany przez uv**, nie systemowy | automatycznie przez `uv sync` |
-| ffmpeg | dekodowanie audio do 16 kHz mono (Faza 4) | `brew install ffmpeg` |
+| ffmpeg | dekodowanie audio i ścieżki dźwiękowej filmów do 16 kHz mono | `brew install ffmpeg` |
 
 Instalowane automatycznie przez `uv sync` do `.venv` projektu (nic globalnie):
 MLX i `mlx-vlm` (backend modelu, przypięty commit gałęzi z EmbeddingGemma 2), `tokenizers`, `transformers`, `torch`,
 `torchvision` i `pillow` (wymagane przez `mlx-vlm` i przyszłe przetwarzanie audio), `sqlite-vec` (wektory w SQLite),
 `tree-sitter-language-pack` (parsery kodu), `pathspec` (`.gitignore`), `charset-normalizer` (kodowania plików),
-`soundfile`.
+`mlx-whisper` (transkrypcja), `soundfile`.
 
 **Nie są potrzebne:** Ollama, llama.cpp, LanceDB. Zostały sprawdzone i odrzucone w Fazie 0, uzasadnienie jest w
 `docs/DECISIONS.md`.
@@ -83,9 +98,9 @@ uv sync
 # 3. Jednorazowe pobranie modelu (z internetem)
 #    a) wagi MLX 8-bit (~1,2 GB)
 uv run hf download mlx-community/embeddinggemma-2-8bit --revision 7505ef2f8ddef45efef6d060865f27989b3c9cec
-#    b) konfiguracja procesora i tokenizer z oficjalnego repo Google (bez wag 1,5 GB)
-uv run hf download google/embeddinggemma-2 --revision 914f7f89142e33e77833254d9c9b90c3cef7303b \
-    --exclude "model.safetensors"
+#    b) Whisper do transkrypcji nagrań i filmów (~1,6 GB; pomiń, jeśli nie indeksujesz audio/wideo
+#       albo używasz `lantern index --no-transcribe`)
+uv run hf download mlx-community/whisper-large-v3-turbo --revision a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb
 
 # 4. Sprawdzenie
 uv run lantern --help
@@ -153,8 +168,14 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 
 - Backend MLX korzysta z **niewydanej gałęzi `mlx-vlm`** (przypięty commit) i społecznościowej konwersji wag
   `mlx-community`. Wektory są zgodne z oryginałem (cos 0,9998), ale to zależność do obserwowania.
-- Pamięć: `lantern search` z załadowanym modelem zajmuje ~790 MB, indeksowanie do ~2 GB (zmierzone na M4).
-  W Fazie 5 cel to ~450 MB w spoczynku. Część audio (~0,9 GB) będzie ładowana tylko na czas indeksowania nagrań.
+- Pamięć (zmierzone na M4): `lantern search` z załadowanym modelem ~790 MB, indeksowanie tekstu do ~2 GB,
+  indeksowanie nagrań i filmów (embedding audio + Whisper, po kolei) do ~3,9 GB. W Fazie 5 cel to ~450 MB w spoczynku.
+- Transkrypcja obejmuje maksymalnie pierwsze 4 godziny nagrania (Whisper dekoduje całość do pamięci, ~230 MB na godzinę).
+  Embedding audio obejmuje całe nagranie.
+- Jakość wyszukiwania audio sprawdzona dotąd na mowie syntetycznej (`say`); prawdziwe nagrania (szum, wielu mówców)
+  mogą wypaść gorzej.
+- Duże pliki (> 64 MB, głównie filmy) są rozpoznawane po rozmiarze i próbkach treści (początek, środek, koniec), a nie
+  po pełnym hashu. Zmiana w innym miejscu pliku bez zmiany rozmiaru i daty modyfikacji nie zostanie wykryta.
 - CSV/TSV i duże pliki z przewagą liczb są indeksowane tylko od początku (nagłówek i pierwsze wiersze). Lockfile'y
   (`package-lock.json`, `uv.lock` itd.) są pomijane.
 - Polska odmiana w wyszukiwaniu słów to przybliżenie (prefiks rdzenia), a nie prawdziwy stemmer. Krótkie słowa

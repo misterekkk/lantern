@@ -182,6 +182,41 @@ Obserwacje:
 
 ---
 
+## Faza 4: wyniki (2026-10-15)
+
+Test: 16 plików (WAV, MP3, M4A i film MP4 z polskim nagraniem 2:38 o trzech tematach), ~13 min mowy syntetycznej
+(PL i EN), prawdziwe modele: EmbeddingGemma 2 audio (MLX 8-bit) i Whisper large-v3-turbo (MLX).
+
+| Pomiar | Wynik |
+|---|---|
+| zgodność embeddingu audio MLX z referencją ST fp32 | cos ≥ 0,999 (test `-m model`) |
+| Whisper po polsku, offline | poprawna transkrypcja, 0 prób połączeń (test `-m model`) |
+| indeksowanie 16 plików (okna audio + transkrypcja) | 74–76 s, 0 błędów, plik wideo bez dźwięku pominięty |
+| szczyt pamięci przy indeksowaniu mediów | 3,9 GB (modele audio ładowane po kolei, nie razem) |
+| zapytania | „krowa”, „kradzież roweru”, „wymiana klocków hamulcowych”, „how do trees cool cities” → właściwy plik na 1. miejscu; „sadzenie pomidorów w szklarni” → film @ 1:48 (temat zaczyna się w 1:48) |
+
+Decyzje:
+1. **Dwa tory dla audio i wideo** (ADR-003): okna audio 30 s / krok 25 s z jawnym limitem procesora oraz transkrypcja
+   Whisperem we fragmentach ~20 s. Oba trafiają do tej samej tabeli wektorów (ten sam model, ta sama przestrzeń),
+   a transkrypcja także do FTS. Ranking łączy je na poziomie plików.
+2. **Dwa etapy kolejki** (`index`, potem `transcribe`): wieża audio EmbeddingGemma (~0,9 GB) i Whisper (~1,8 GB)
+   nigdy nie są załadowane jednocześnie. Każdy ładuje się raz na cały etap i jest zwalniany po nim.
+3. **Wideo = ścieżka dźwiękowa** (ffmpeg `-map 0:a:0 -vn`). Klatki to Faza 7.
+4. **Dekodowanie strumieniowe** okien (pamięć ~1 okno niezależnie od długości). Whisper dostaje całość do 4 h.
+5. **Hash z próbek dla plików > 64 MB** (rozmiar + 3 × 4 MB): skan wielogigabajtowych filmów nie czyta całych plików.
+6. **Procesor audio z repo `mlx-community`** daje embeddingi zgodne z referencją, więc nie trzeba pobierać oficjalnego
+   repo Google (uproszczona instalacja).
+7. **Podgląd trafienia przez okno audio** pokazuje transkrypcję z tego samego odcinka czasu.
+8. **Wersje potoku per rodzaj pliku** (`PIPELINE_VERSIONS`): zmiana zasad audio nie wymusza reindeksu tekstu.
+
+Obserwacje (hipotezy):
+- Przy zapytaniu po polsku o nagranie po angielsku pojedyncze wspólne słowo z innym polskim nagraniem potrafi w RRF
+  przeważyć trafienie wektorowe #1 („rozmowa o pracy z inżynierem Kubernetes”). Kandydat do wag list w RRF albo do
+  rerankera. Nie stroję tego na danych syntetycznych.
+- Wszystko sprawdzone na mowie syntetycznej. Prawdziwe nagrania użytkownika to następny test jakości.
+
+---
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -221,7 +256,7 @@ tysięcy fragmentów. Powyżej tego: Matryoshka 256d albo kwantyzacja int8 (otwa
 
 ## ADR-003: Audio, okna z nakładką i jawny limit długości
 
-**Status:** proponowana
+**Status:** zaakceptowana i zrealizowana (Faza 4)
 
 **Decyzja:** ffmpeg do 16 kHz mono, potem okna **30 s z krokiem 25 s** (wstępnie, do weryfikacji w Fazie 4). Zawsze ustawiamy
 jawnie `processing_kwargs["audio"]["max_length"]` na długość okna, nigdy nie polegamy na domyślnym limicie.
@@ -266,3 +301,6 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 12. ~~Wersjonowanie chunkera~~ — rozwiązane w Fazie 3 (`pipeline_version`, `model_id`).
 13. Pamięć w spoczynku ~790 MB: usunięcie importu torch (własny loader zamiast `mlx_vlm.__init__`) da ~450 MB.
     Alternatywa: zwalnianie modelu po bezczynności (~50–100 MB, pierwsze zapytanie +0,5–2,5 s). Decyzja w Fazie 5.
+14. Jakość wyszukiwania audio na prawdziwych nagraniach użytkownika (szum, wielu mówców, akcenty): potrzebny zestaw
+    kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
+15. Wagi list w RRF (np. wektor 1,0, słowa 0,7) albo reranker, gdy zbierze się historia `search_events`.

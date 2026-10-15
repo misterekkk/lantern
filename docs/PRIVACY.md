@@ -35,8 +35,9 @@ Indeks zawiera **dane pochodne**: fragmenty tekstu oraz wektory, z których da s
 |---|---|---|
 | huggingface_hub / transformers | bez trybu offline: zapytania do huggingface.co przy ładowaniu modelu (sprawdzanie wersji) | zmienne offline; **zmierzone: 0 prób połączeń** przy ładowaniu i embedowaniu tekstu i audio |
 | sentence-transformers (backend zapasowy) | jak wyżej | jak wyżej |
-| MLX / mlx-vlm | brak własnego ruchu; wagi przez huggingface_hub | zmienne offline (do potwierdzenia pomiarem w Fazie 2) |
-| mlx-whisper (Faza 4) | wagi przez huggingface_hub | zmienne offline (do potwierdzenia w Fazie 4) |
+| MLX / mlx-vlm | brak własnego ruchu; wagi przez huggingface_hub | `local_files_only`; **zmierzone: 0 prób połączeń** (test `-m model`) |
+| mlx-whisper | wagi przez huggingface_hub | ładowany z lokalnej kopii (`local_files_only`); **zmierzone: 0 prób połączeń** przy transkrypcji (test `-m model`) |
+| ffmpeg | brak ruchu sieciowego; tylko czyta plik wejściowy, wynik idzie do potoku | wywoływany z `-nostdin`, bez plików wyjściowych |
 | Ollama (**nieużywana**) | serwer okresowo pobiera „model recommendations” z ollama.com (widoczne w logu) | nie jest częścią Lanterna |
 | Homebrew (instalacja) | analityka Homebrew przy `brew install` | opcjonalnie `brew analytics off` (nie dotyczy działania Lanterna) |
 
