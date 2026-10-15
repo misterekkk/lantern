@@ -21,6 +21,7 @@ dependencies = [
     "tree-sitter-language-pack>=1.22.1",
     "charset-normalizer>=3.5.2",
     "tokenizers>=0.23.3",
+    "mlx-whisper>=0.4.3",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +34,13 @@ lantern = "lantern.cli:main"
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.14"]
 # Phase 0 measurement scripts in spikes/phase0 (not part of the app).
-spike = ["sentence-transformers>=6.1", "torchaudio", "soxr", "mlx-whisper", "psutil", "requests"]
+spike = [
+    "sentence-transformers>=6.1",
+    "torchaudio",
+    "soxr",
+    "psutil",
+    "requests",
+]
 
 [build-system]
 requires = ["hatchling"]

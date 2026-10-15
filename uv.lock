@@ -360,6 +360,7 @@ dependencies = [
     { name = "charset-normalizer" },
     { name = "mlx" },
     { name = "mlx-vlm" },
+    { name = "mlx-whisper" },
     { name = "numpy" },
     { name = "pathspec" },
     { name = "pillow" },
@@ -385,7 +386,6 @@ dev = [
     { name = "ruff" },
 ]
 spike = [
-    { name = "mlx-whisper" },
     { name = "psutil" },
     { name = "requests" },
     { name = "sentence-transformers" },
@@ -398,6 +398,7 @@ requires-dist = [
     { name = "charset-normalizer", specifier = ">=3.5.2" },
     { name = "mlx", specifier = ">=0.32.3" },
     { name = "mlx-vlm", git = "https://github.com/Blaizzy/mlx-vlm.git?rev=3d87e88402f307efbf68e568971aa887ee7d9ed0" },
+    { name = "mlx-whisper", specifier = ">=0.4.3" },
     { name = "numpy", specifier = ">=2" },
     { name = "pathspec", specifier = ">=1.1.1" },
     { name = "pillow", specifier = ">=12" },
@@ -420,7 +421,6 @@ dev = [
     { name = "ruff", specifier = ">=0.14" },
 ]
 spike = [
-    { name = "mlx-whisper" },
     { name = "psutil" },
     { name = "requests" },
     { name = "sentence-transformers", specifier = ">=6.1" },
