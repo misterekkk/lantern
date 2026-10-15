@@ -3,8 +3,9 @@
 # Signing: the first "Apple Development" identity (Xcode → Settings → Accounts), otherwise ad-hoc.
 # The project's Python (.venv) is baked into Info.plist so the app can start the daemon.
 set -euo pipefail
-cd "${0:A:h}"
-REPO="${0:A:h:h}"
+SCRIPT="${0:A}"          # absolute before changing directory
+REPO="${SCRIPT:h:h}"
+cd "${SCRIPT:h}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 VERSION="$(grep -m1 '^version' "$REPO/pyproject.toml" | sed -E 's/.*"(.*)"/\1/')"
 
@@ -27,3 +28,14 @@ else
 fi
 codesign --verify "$APP"
 echo "built $APP"
+
+# --install: copy to /Applications (launch at login and Spotlight work best from there); quits a running copy first.
+if [[ "${1:-}" == "--install" ]]; then
+  if pgrep -xq Lantern; then
+    osascript -e 'tell application id "com.lantern.app" to quit' >/dev/null 2>&1 || pkill -x Lantern || true
+    for i in {1..20}; do pgrep -xq Lantern || break; sleep 0.5; done
+  fi
+  rm -rf /Applications/Lantern.app
+  ditto "$APP" /Applications/Lantern.app
+  echo "installed /Applications/Lantern.app"
+fi
