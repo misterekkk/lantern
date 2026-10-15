@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEMPLATE (Phase 5). Not installed by anything yet. Replace {{...}} placeholders before use. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lantern.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PROJECT_DIR}}/.venv/bin/lantern</string>
+        <string>daemon</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HF_HUB_OFFLINE</key><string>1</string>
+        <key>TRANSFORMERS_OFFLINE</key><string>1</string>
+        <key>HF_HUB_DISABLE_TELEMETRY</key><string>1</string>
+        <key>DO_NOT_TRACK</key><string>1</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/Lantern/daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/Lantern/daemon.err.log</string>
+</dict>
+</plist>
