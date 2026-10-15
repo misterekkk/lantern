@@ -1,0 +1,29 @@
+#!/bin/zsh
+# Builds app/build/Lantern.app with the Xcode toolchain (macOS 26 SDK for Liquid Glass) and signs it.
+# Signing: the first "Apple Development" identity (Xcode → Settings → Accounts), otherwise ad-hoc.
+# The project's Python (.venv) is baked into Info.plist so the app can start the daemon.
+set -euo pipefail
+cd "${0:A:h}"
+REPO="${0:A:h:h}"
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+VERSION="$(grep -m1 '^version' "$REPO/pyproject.toml" | sed -E 's/.*"(.*)"/\1/')"
+
+swift build -c release --product Lantern
+
+APP=build/Lantern.app
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$(swift build -c release --show-bin-path)/Lantern" "$APP/Contents/MacOS/Lantern"
+sed -e "s#__PYTHON__#$REPO/.venv/bin/python#" -e "s#__VERSION__#$VERSION#" -e "s#__BUILD__#$(date +%Y%m%d%H%M)#" \
+    Resources/Info.plist.template > "$APP/Contents/Info.plist"
+
+IDENTITY="$(security find-identity -v -p codesigning | grep -m1 'Apple Development' | sed -E 's/.*"(.*)"/\1/' || true)"
+if [[ -n "$IDENTITY" ]]; then
+  codesign --force --sign "$IDENTITY" "$APP"
+  echo "signed with: $IDENTITY"
+else
+  codesign --force --sign - "$APP"
+  echo "signed ad-hoc (sign in to Xcode → Settings → Accounts for a stable signature; macOS permissions then survive rebuilds)"
+fi
+codesign --verify "$APP"
+echo "built $APP"
