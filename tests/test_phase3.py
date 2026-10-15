@@ -110,3 +110,20 @@ def test_remove_root_and_compact_erase_data_from_the_file(lantern_home, tmp_path
         path.with_name("index.db-wal").read_bytes() if path.with_name("index.db-wal").exists() else b""
     )
     assert marker.encode() not in raw
+
+
+def test_term_coverage():
+    from lantern.textnorm import term_coverage
+
+    assert term_coverage("urodziny babci w ogrodzie cioci", "Sadzenie pomidorów w ogrodzie") == 0.25
+    assert term_coverage("krowa", "jakaś krowa stała na drodze") == 1.0
+    assert term_coverage("kradzież roweru", "ktoś ukradł jej rower z piwnicy") == 0.5  # "rowe*" matches, "kradz*" not
+    assert term_coverage("dobór głębokości", "dobor glebokosci drzewa") == 1.0  # diacritics-insensitive
+
+
+def test_incidental_keyword_match_does_not_beat_top_vector_hit():
+    vector = [hit("en_party"), hit("pl_long"), hit("other")]
+    weak = Hit(1, "pl_long", None, None, None, 5.0, "", coverage=0.25)  # shares one word with the query
+    assert fuse(vector, [weak], limit=3)[0].path == "en_party"
+    strong = Hit(1, "pl_long", None, None, None, 5.0, "", coverage=1.0)
+    assert fuse(vector, [strong], limit=3)[0].path == "pl_long"  # a real keyword match still counts

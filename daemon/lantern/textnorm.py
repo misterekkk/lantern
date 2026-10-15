@@ -7,6 +7,7 @@
 """
 
 import re
+import unicodedata
 
 _FOLD = str.maketrans({"ł": "l", "Ł": "L"})
 _TOKEN = re.compile(r"\w+", re.UNICODE)
@@ -29,17 +30,44 @@ def fold(text: str) -> str:
     return text.translate(_FOLD)
 
 
-def _term(token: str) -> str:
-    if token.isalpha() and len(token) >= 5:
-        keep = len(token) - (3 if len(token) >= 7 else 2)
-        return f'"{token[: max(4, keep)]}"*'
-    return f'"{token}"'  # identifiers (snake_case), numbers and short words: exact
+def query_terms(query: str) -> list[tuple[str, bool]]:
+    """Content terms of a query as (term, is_prefix): stopwords removed (unless that leaves nothing), long words
+    reduced to a stem prefix; identifiers (snake_case), numbers and short words stay exact."""
+    tokens = [t for t in _TOKEN.findall(fold(query).lower()) if len(t) > 1]
+    content = [t for t in tokens if t not in STOPWORDS] or tokens
+    terms = []
+    for token in dict.fromkeys(content):
+        if token.isalpha() and len(token) >= 5:
+            keep = len(token) - (3 if len(token) >= 7 else 2)
+            terms.append((token[: max(4, keep)], True))
+        else:
+            terms.append((token, False))
+    return terms
 
 
 def fts_query(query: str) -> str | None:
-    """Free text -> FTS5 OR-query of quoted terms (no FTS syntax injection), stopwords removed, stems as prefixes."""
-    tokens = [t for t in _TOKEN.findall(fold(query).lower()) if len(t) > 1]
-    content = [t for t in tokens if t not in STOPWORDS] or tokens  # a stopword-only query still searches
-    if not content:
+    """Free text -> FTS5 OR-query of quoted terms (no FTS syntax injection)."""
+    terms = query_terms(query)
+    if not terms:
         return None
-    return " OR ".join(_term(t) for t in dict.fromkeys(content))
+    return " OR ".join(f'"{t}"*' if prefix else f'"{t}"' for t, prefix in terms)
+
+
+def _plain(text: str) -> str:
+    """Lowercase, ł folded, diacritics removed (what FTS5 compares)."""
+    decomposed = unicodedata.normalize("NFKD", fold(text).lower())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def term_coverage(query: str, text: str) -> float:
+    """Share of the query's content terms present in text (prefix terms match word starts)."""
+    terms = query_terms(query)
+    if not terms:
+        return 0.0
+    words = set(_TOKEN.findall(_plain(text)))
+    hit = 0
+    for term, prefix in terms:
+        term = _plain(term)
+        if (prefix and any(w.startswith(term) for w in words)) or (not prefix and term in words):
+            hit += 1
+    return hit / len(terms)

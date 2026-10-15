@@ -16,6 +16,9 @@ from lantern.store import db
 
 RRF_K = 60
 CANDIDATES = 50  # files per list before fusion
+# A keyword hit counts in the fusion in proportion to the share of query terms it matches, and not at all below
+# this share: one incidental shared word (often across languages) must not outrank the top vector match.
+MIN_KEYWORD_COVERAGE = 0.5
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,7 @@ class Result:
     vector_score: float | None
     keyword_rank: int | None
     keyword_score: float | None
+    keyword_coverage: float | None = None
     kind: str = "text"
     start_ms: int | None = None
     end_ms: int | None = None
@@ -50,7 +54,10 @@ def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> l
     fused = []
     for path in vrank.keys() | krank.keys():
         v, kw = vrank.get(path), krank.get(path)
-        score = (1 / (k + v[0]) if v else 0.0) + (1 / (k + kw[0]) if kw else 0.0)
+        kw_weight = kw[1].coverage if kw and kw[1].coverage >= MIN_KEYWORD_COVERAGE else 0.0
+        score = (1 / (k + v[0]) if v else 0.0) + (kw_weight / (k + kw[0]) if kw else 0.0)
+        if score == 0.0:
+            continue
         # Show the chunk from the list where this file ranks better (vector wins ties).
         best = v[1] if v and (not kw or v[0] <= kw[0]) else kw[1]
         fused.append(
@@ -66,6 +73,7 @@ def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> l
                 vector_score=round(v[1].score, 4) if v else None,
                 keyword_rank=kw[0] if kw else None,
                 keyword_score=round(kw[1].score, 4) if kw else None,
+                keyword_coverage=round(kw[1].coverage, 3) if kw else None,
                 kind=best.kind,
                 start_ms=best.start_ms,
                 end_ms=best.end_ms,

@@ -1,13 +1,13 @@
 """Candidate lists for hybrid search: vector KNN and FTS5/BM25, each ranked by file (best chunk per file)."""
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from lantern.embedding.base import Embedder, format_query
 from lantern.store import db
-from lantern.textnorm import fts_query
+from lantern.textnorm import fts_query, term_coverage
 
 # Column weights for bm25(): text, path, symbol. A hit in a function name or path says more than one in a body.
 BM25_WEIGHTS = "1.0, 1.5, 3.0"
@@ -25,6 +25,8 @@ class Hit:
     kind: str = "text"
     start_ms: int | None = None  # audio windows and transcript chunks
     end_ms: int | None = None
+    coverage: float = 1.0  # keyword hits: share of query terms matched (used to weight fusion)
+    full_text: str = field(default="", repr=False, compare=False)
 
 
 def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit]:
@@ -49,17 +51,18 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
         preview = " ".join((text or "").split())[:160]
         out.append(
             Hit(
-                cid,
-                r["path"],
-                r["start_line"],
-                r["end_line"],
-                r["symbol"],
-                score,
-                preview,
-                r["kind"],
-                r["start_ms"],
-                r["end_ms"],
-            )  # fmt: skip
+                chunk_id=cid,
+                path=r["path"],
+                start_line=r["start_line"],
+                end_line=r["end_line"],
+                symbol=r["symbol"],
+                score=score,
+                preview=preview,
+                kind=r["kind"],
+                start_ms=r["start_ms"],
+                end_ms=r["end_ms"],
+                full_text=text or "",
+            )
         )
     return out
 
@@ -109,4 +112,5 @@ def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> lis
         "WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
         (expr, limit * 5),
     ).fetchall()
-    return _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows]), limit)
+    hits = _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows]), limit)
+    return [replace(h, coverage=term_coverage(query, f"{h.full_text} {h.path} {h.symbol or ''}")) for h in hits]
