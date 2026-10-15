@@ -19,6 +19,9 @@ from lantern.queue.jobs import Job
 from lantern.store import db
 
 FILES_PER_ROUND = 32
+# Bump when chunking rules or prompt formats change: indexed files with another version get re-indexed.
+# 1 = Phase 2 initial, 2 = long-line cutting + head-only data files.
+PIPELINE_VERSION = 2
 
 
 @dataclass
@@ -27,6 +30,7 @@ class IndexStats:
     chunks: int = 0
     skipped: int = 0
     failed: int = 0
+    stale: int = 0  # re-queued because of a pipeline or model change
     errors: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -61,6 +65,17 @@ def _prepare(job: Job, row: sqlite3.Row) -> _Prepared:
     return _Prepared(job, row["id"], row["path"], rel, records, texts)
 
 
+def enqueue_stale(conn: sqlite3.Connection, model_id: int) -> int:
+    """Queue indexed files whose chunks come from another pipeline version or embedding model."""
+    rows = conn.execute(
+        "SELECT id FROM files WHERE status = 'indexed' AND (pipeline_version != ? OR model_id IS NOT ?)",
+        (PIPELINE_VERSION, model_id),
+    ).fetchall()
+    for (file_id,) in rows:
+        jobs.enqueue(conn, file_id, "index")
+    return len(rows)
+
+
 def run_queue(
     conn: sqlite3.Connection,
     embedder: Embedder,
@@ -71,6 +86,7 @@ def run_queue(
     with db.transaction(conn):
         model_id = db.ensure_model(conn, embedder.model_info())
         jobs.recover(conn)
+        stats.stale = enqueue_stale(conn, model_id)
     total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued' AND kind = 'index'").fetchone()[0]
     done = 0
 
@@ -87,7 +103,7 @@ def run_queue(
 
     def write(item: _Prepared, vectors: np.ndarray) -> None:
         with db.transaction(conn):
-            db.replace_file_chunks(conn, item.file_id, item.rel, item.records, vectors, model_id)
+            db.replace_file_chunks(conn, item.file_id, item.rel, item.records, vectors, model_id, PIPELINE_VERSION)
             jobs.complete(conn, item.job)
         stats.indexed += 1
         stats.chunks += len(item.records)
