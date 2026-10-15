@@ -12,8 +12,15 @@ def test_fold_polish_l_stroke():
 
 
 def test_fts_query_escapes_syntax():
-    assert fts_query('ORA-01555 "drop" OR *') == '"ora" OR "01555" OR "drop" OR "or"'
+    assert fts_query('ORA-01555 "drop" OR *') == '"ora" OR "01555" OR "drop"'
     assert fts_query("!!") is None
+
+
+def test_fts_query_drops_stopwords_and_uses_stems():
+    assert fts_query("jak połączyć się z bazą danych") == '"poląc"* OR "bazą" OR "dany"*'
+    assert fts_query("optymalizacja drzewa decyzyjnego") == '"optymaliza"* OR "drze"* OR "decyzyjn"*'
+    assert fts_query("backoff_wrapper") == '"backoff_wrapper"'
+    assert fts_query("jak to") == '"jak" OR "to"'  # stopword-only query still searches
 
 
 def test_keyword_search_handles_polish_l(conn, project, embedder):
@@ -55,10 +62,17 @@ def test_cli_end_to_end_with_fake_embedder(project, lantern_home, monkeypatch):
     assert "3 new" in out.stdout and "indexed 3 files" in out.stdout
 
     out = run_cli("search", "backoff_wrapper", env=env)
-    assert out.returncode == 0 and "net.py" in out.stdout and "By keywords" in out.stdout
+    assert out.returncode == 0 and "net.py" in out.stdout and "keywords #1" in out.stdout
+
+    out = run_cli("open", "1", "--print", env=env)
+    assert out.returncode == 0 and out.stdout.strip().endswith("net.py:1")
 
     out = run_cli("status", env=env)
     assert "files: 3 indexed=3" in out.stdout and "model: fake-bow" in out.stdout
+    assert "search history: 1 searches, 1 with an opened result" in out.stdout
+
+    out = run_cli("remove", str(project), env=env)
+    assert out.returncode == 0 and "3 files" in out.stdout
 
     out = run_cli("index", str(project / "missing"), env=env)
     assert out.returncode == 1 and "Nothing was removed" in out.stderr
