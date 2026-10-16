@@ -7,7 +7,7 @@ import numpy as np
 
 from lantern.embedding.base import Embedder, format_query
 from lantern.store import db
-from lantern.textnorm import fts_query, term_coverage
+from lantern.textnorm import excerpt, fts_query, term_coverage
 
 # Column weights for bm25(): text, path, symbol. A hit in a function name or path says more than one in a body.
 BM25_WEIGHTS = "1.0, 1.5, 3.0"
@@ -30,7 +30,7 @@ class Hit:
     full_text: str = field(default="", repr=False, compare=False)
 
 
-def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit]:
+def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]], query: str | None = None) -> list[Hit]:
     if not scored:
         return []
     marks = ",".join("?" * len(scored))
@@ -49,7 +49,7 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
         if r is None:
             continue
         text = r["text"] if r["text"] is not None else _transcript_at(conn, cid, r["start_ms"], r["end_ms"])
-        preview = " ".join((text or "").split())[:160]
+        preview = excerpt(query, text or "") if query else " ".join((text or "").split())[:160]
         out.append(
             Hit(
                 chunk_id=cid,
@@ -102,7 +102,7 @@ def vector_search(conn: sqlite3.Connection, embedder: Embedder, query: str, limi
         f"SELECT chunk_id, distance FROM {db.vec_table(model_id)} WHERE embedding MATCH ? AND k = ?",
         (qv.tobytes(), limit * 5),
     ).fetchall()
-    return _best_per_file(_hits(conn, [(r[0], 1.0 - r[1]) for r in rows]), limit)
+    return _best_per_file(_hits(conn, [(r[0], 1.0 - r[1]) for r in rows], query), limit)
 
 
 def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[Hit]:
@@ -114,7 +114,7 @@ def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> lis
         "WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
         (expr, limit * 5),
     ).fetchall()
-    hits = _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows]), limit)
+    hits = _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows], query), limit)
     return [replace(h, coverage=term_coverage(query, f"{h.full_text} {h.path} {h.symbol or ''}")) for h in hits]
 
 
@@ -181,4 +181,4 @@ def image_search(
     # the remaining photos" and would add a photo-list vote to every query (e.g. any video's generic frames).
     min_z = PHOTO_MATCH_Z * len(lists)  # the fused score is a sum of per-model z-scores
     ranked = sorted(((c, z) for c, z in zip(ids, total.tolist(), strict=True) if z >= min_z), key=lambda kv: -kv[1])
-    return _best_per_file(_hits(conn, ranked), limit)
+    return _best_per_file(_hits(conn, ranked, query), limit)

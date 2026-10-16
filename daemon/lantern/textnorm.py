@@ -105,3 +105,40 @@ def term_coverage(query: str, text: str) -> float:
         elif (prefix and any(w.startswith(term) for w in words)) or (not prefix and term in words):
             hit += 1
     return hit / len(terms)
+
+
+def excerpt(query: str, text: str, width: int = 160, lead: int = 30) -> str:
+    """A preview of `text` where the query's words are: the window with the most different query terms (earliest on a
+    tie), starting a little before the first of them at a word boundary, with "…" when it does not start the text.
+    "Jakiej pogody…" as the sixth bullet of a slide shows that bullet, not the first one."""
+    flat = " ".join(text.split())
+    terms = [(_plain(t), prefix) for t, prefix in query_terms(query) if " " not in t]
+    hits = []  # (position, term index) of every word that matches a term
+    for m in _TOKEN.finditer(flat):
+        word = _plain(m.group())
+        for i, (term, prefix) in enumerate(terms):
+            if word == term or (prefix and word.startswith(term)):
+                hits.append((m.start(), i))
+                break
+    if not hits or hits[0][0] + 40 < width:  # nothing to find, or the first match is already in view
+        return flat[:width]
+    best, best_count = hits[0][0], 0
+    for pos, _ in hits:
+        count = len({i for p, i in hits if pos <= p < pos + width - lead})
+        if count > best_count:
+            best, best_count = pos, count
+    if best + 40 < width:
+        return flat[:width]
+    start = flat.rfind(" ", 0, max(best - lead, 0)) + 1
+    for mark in (". ", "? ", "! ", "• ", "; "):  # rather from the start of its sentence or bullet, if near
+        cut = flat.rfind(mark, max(best - lead, 0), best)
+        if cut != -1:
+            start = max(start, cut + len(mark))
+    if len(flat) - start < width - 1:  # near the end: fill the line with what comes before, from a boundary
+        earliest = max(len(flat) - (width - 1), 0)
+        marks = [flat.find(m, earliest, start) for m in (". ", "? ", "! ", "• ", "; ")]
+        marks = [c + 2 for c in marks if c != -1]
+        start = min(marks) if marks else (flat.find(" ", earliest, start) + 1 or start)
+    if flat.startswith("• ", start):
+        start += 2
+    return ("…" if start else "") + flat[start : start + width - (1 if start else 0)]

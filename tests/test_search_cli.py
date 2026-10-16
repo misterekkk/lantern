@@ -34,6 +34,17 @@ def test_numbers_and_codes_with_separators_are_phrases():
     assert term_coverage("187,15 zł", "Energia 187,40 zł, data 15.10.2025") == 0.5
 
 
+def test_previews_show_where_the_query_words_are():
+    from lantern.textnorm import excerpt
+
+    slide = "\n".join(f"• Pytanie numer {n} o zupełnie inny temat?" for n in range(6))
+    slide += "\n• Jakiej pogody możemy spodziewać się w przyszłym tygodniu?\n• Kto wygra wybory?"
+    shown = excerpt("jakiej pogody możemy spodziewać się", slide)
+    assert shown.startswith("…") and shown.index("Jakiej pogody") < 60 and len(shown) <= 160
+    assert excerpt("pytanie numer", slide).startswith("• Pytanie numer 0")  # already in view: from the start
+    assert excerpt("wybory", slide).endswith("Kto wygra wybory?") and len(excerpt("wybory", slide)) > 100
+
+
 def test_keyword_search_handles_polish_l(conn, project, embedder):
     scan_root(conn, project)
     run_queue(conn, embedder)
