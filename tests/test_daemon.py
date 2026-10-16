@@ -163,6 +163,28 @@ def test_status_with_the_fake_photo_model(start_daemon):
     assert protocol.call("status")["photo_model_loaded"] is False
 
 
+def test_folder_added_while_settings_are_open_waits_until_they_close(start_daemon, project, monkeypatch):
+    start_daemon(mode="auto")
+    protocol.call("status", {"settings_open": True})
+    protocol.call("index", {"path": str(project)})
+    time.sleep(1.5)
+    status = protocol.call("status")  # the CLI does not report the window: the hold stays
+    assert status["waiting_for_settings"] and files_by_status().get("indexed", 0) == 0
+    protocol.call("status", {"settings_open": False})  # window closed = go ahead
+    assert wait_until(lambda: files_by_status().get("indexed") == 3)
+    assert not protocol.call("status")["waiting_for_settings"]
+
+
+def test_settings_hold_expires_when_the_app_goes_silent(start_daemon, project, monkeypatch):
+    from lantern.service import core
+
+    monkeypatch.setattr(core, "SETTINGS_HOLD_S", 1.0)
+    start_daemon(mode="auto")
+    protocol.call("status", {"settings_open": True})
+    protocol.call("index", {"path": str(project)})
+    assert wait_until(lambda: files_by_status().get("indexed") == 3, timeout=20)  # no reports: released
+
+
 def test_remove_and_shutdown(start_daemon, project, sock):
     d = start_daemon(mode="auto")
     protocol.call("index", {"path": str(project)})

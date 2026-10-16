@@ -36,6 +36,9 @@ from lantern.store import db
 TICK_S = 0.5
 QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
+# The app reports an open Settings window with every status poll (2 s); without a report for this long the window
+# counts as closed (app quit or crashed), so a hold never outlives the app.
+SETTINGS_HOLD_S = 30.0
 WORKER_RETRY_S = 30.0  # after a worker crash with work left
 
 
@@ -77,6 +80,10 @@ class Daemon:
         self.has_images = False
         self.approved = False
         self.awaiting_approval = False
+        # While Settings are open, work the user just set up waits until they close (they may still exclude parts in
+        # the folder tree): a folder added there, and in "auto" mode anything a rescan finds.
+        self.settings_seen = 0.0  # monotonic time of the app's last "Settings are open" report
+        self.held_for_settings = False
         self.manual_pause = False
         self.auto_pause: str | None = None
         self.worker: subprocess.Popen | None = None
@@ -128,7 +135,9 @@ class Daemon:
         if not found_new or not sum(self._queued(conn).values()):
             return
         with self.lock:
-            if self.settings.index_mode == "auto":
+            if self.settings.index_mode == "auto" and self._settings_open():
+                self.held_for_settings = True
+            elif self.settings.index_mode == "auto":
                 self.approved = True
             elif not self.approved:
                 newly = not self.awaiting_approval
@@ -186,6 +195,16 @@ class Daemon:
         finally:
             with self.lock:
                 self.manual_pause = saved
+
+    def _settings_open(self) -> bool:
+        return time.monotonic() - self.settings_seen < SETTINGS_HOLD_S
+
+    def _holding(self) -> bool:
+        """True while work waits for Settings to close; releases (= approves) it once they are closed."""
+        if self.held_for_settings and not self._settings_open():
+            self.held_for_settings = False
+            self.approved, self.awaiting_approval = True, False
+        return self.held_for_settings
 
     def _paused(self) -> str | None:
         if self.manual_pause:
@@ -255,8 +274,9 @@ class Daemon:
         with self.lock:
             running = self.worker is not None
             paused = self._paused() or self.stopping.is_set()
-            want = self.approved or self.settings.index_mode == "auto"
-        if running and paused:
+            holding = self._holding()
+            want = (self.approved or self.settings.index_mode == "auto") and not holding
+        if running and (paused or holding):
             self._stop_worker()
             return
         if running or paused or not want or time.monotonic() < self.worker_retry_at:
@@ -313,7 +333,11 @@ class Daemon:
     def api_ping(self) -> dict:
         return {"ok": True, "pid": os.getpid()}
 
-    def api_status(self) -> dict:
+    def api_status(self, settings_open: bool | None = None) -> dict:
+        if settings_open is not None:  # only the app reports it (CLI calls leave it alone)
+            with self.lock:
+                self.settings_seen = time.monotonic() if settings_open else 0.0
+                self._holding()
         conn = self._conn()
         try:
             files = {r[0]: r[1] for r in conn.execute("SELECT status, COUNT(*) FROM files GROUP BY status")}
@@ -335,6 +359,7 @@ class Daemon:
             return {
                 "pid": os.getpid(), "memory_mb": round(footprint_mb()), "mode": self.settings.index_mode,
                 "approved": self.approved, "awaiting_approval": self.awaiting_approval,
+                "waiting_for_settings": self.held_for_settings,
                 "paused": self._paused(), "power": asdict(self.power_state),
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
@@ -406,7 +431,10 @@ class Daemon:
             raise FileNotFoundError(f"folder not available: {root}")
         summary = self.scan(root, force=force)
         with self.lock:
-            self.approved, self.awaiting_approval = True, False  # explicit request = approval
+            if self._settings_open():  # added in Settings: starts when they close (the tree may still exclude parts)
+                self.held_for_settings = True
+            else:
+                self.approved, self.awaiting_approval = True, False  # explicit request = approval
         if self.watcher:
             self.watcher.watch(root)
         return summary
