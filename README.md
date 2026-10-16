@@ -32,7 +32,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **A quick search panel** (⌥Space, or ⌘Space instead of Spotlight) with sections for applications, System
   Settings, code definitions, photos and files; the section that fits the query best comes first.
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
-  `kalkul`, `dicsord`, `vsc`), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
+  `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).
 - **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,
   `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
@@ -146,7 +146,9 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 - **⌥Space** opens the search panel (Settings → General: ⌘Space instead of Spotlight, or ⌃⌥Space). Results come
   in sections like in Spotlight: **Applications** and **System Settings** (↩ opens them), **Definitions**
   (functions and classes, with file, line and signature), **Photos** (with thumbnails) and **Files**. Recordings and
-  videos show the moment of the match, e.g. `vlog.mp4 · 1:48`.
+  videos show the moment of the match, e.g. `vlog.mp4 · 1:48`. The panel can be dragged by its top part; it snaps
+  to the screen's centre line and its usual height, and its place is kept as a share of the screen, so it fits any
+  display and comes back on screen when a monitor is unplugged.
   - Names that come from macOS (apps, settings, "Ustawienia systemowe") are shown in the system's language; Lantern's
     own words follow Lantern's language.
   - To use ⌘Space, macOS's Spotlight shortcut has to be turned off (System Settings → Keyboard → Keyboard
@@ -155,6 +157,10 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   choosing one puts it in the field with its ⌘ shortcut). Kinds: Applications, System Settings, Shortcuts, Clipboard,
   Code, Documents, PDFs, Photos, Recordings and videos — all before typing, then only the kinds that match. Tab / ⇧Tab
   move between them, ⌘1…⌘9 pick one, a click works too; ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
+- **Spelling:** after a short pause in typing, words that none of your languages knows get the spelling guesses of
+  macOS (on the Mac), and Lantern searches again with the first guess its index knows (a word in your files, an app
+  or a setting): "faktrua za prad" shows "Showing results for faktura za prad · Search for “faktrua za prad”
+  instead". With no known guess the query stays as typed.
 - **↩ on an answer** copies it; on a word definition it opens Dictionary; on a shortcut it runs it.
 - **Inline completion:** while you type, the rest of a likely query appears in grey; → accepts it. Suggestions come
   from your earlier searches that led to an opened result, then from app and System Settings names, then function

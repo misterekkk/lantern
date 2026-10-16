@@ -836,6 +836,30 @@ Measured on the test index (local queries vs web-like ones):
   matching drzwi; "faktura" → fakt*). Words of 6+ letters now keep a stem of at least 5 letters (przep*, drzew*,
   faktu*, kolej* — so "kolejce" still matches); a 6-letter word drops one letter, 7–9 two, 10+ three.
 
+## Agreement, spelling and the panel on several screens (2026-10-16)
+
+- **Files count as sure only when both lists agree.** In a large index some file contains every word of almost any
+  query ("cena dolara" found a note with both words far apart). Now the files section gets 0.72 only when one of the
+  top 5 has every content word *and* is in the top 10 of the meaning list (`FILE_AGREE_RANK`). Top 5 was too strict
+  ("hats simulation" lost its gif). Photos matched by text need every word in the OCR text or the file name.
+- **App categories.** A name match used to end the app search, so "muzyka" showed only the app named Muzyka. The App
+  Store category now matches as a word, in English (`CATEGORY_NAMES`) and as Spotlight names it in the system
+  language (`kMDItemAppStoreCategory` through MDItem, stored with the keywords), at 0.5, below name matches.
+- **Spelling, chosen by the index.** Checked on this Mac: NSSpellChecker's own correction is often wrong
+  ("warszwie" → "warstwie", "faktrua" → "daktrua", "pogda" → "poda"), but the right word is usually among its
+  guesses. So the app sends the guesses for words that none of the user's languages knows (after a 450 ms pause,
+  plain words of 4+ letters only, never identifiers), and the daemon (`search/spelling.py`) replaces a word only when
+  the word itself is unknown to the index and a guess is known: FTS terms (same stems as search) or the words of app,
+  setting and shortcut names. No known guess, no correction; "warszwie" stays as typed unless the files mention
+  Warsaw. Accent-only guesses ("prad" → "prąd") are skipped: search ignores accents. The corrected results replace
+  the first ones without animation (an animated swap could stop half-way until the next key press).
+- **Panel position.** Stored as a share of the visible frame (`panelOffsetShare`), so a position chosen on a large
+  display fits a small one; when screens change, a visible panel is placed again on the screen with the mouse.
+  Magnets catch at 15 pt and release at 20 pt (hysteresis), so the panel does not flicker at the edge. ⌘1–⌘9 cover
+  all nine kinds.
+- **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
+  appear over a full-screen app. Not tested here (it would take over the user's screen); open question 37.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -957,3 +981,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 35. System Settings deep links to a single setting (anchors after the pane id): unverified, so results open the pane.
 36. App descriptions for meaning search: the bundles carry only names, a category and a few keywords, so
     "komunikator" does not find Discord; a better source would have to stay local (no App Store lookups).
+37. Does the search panel appear over a full-screen app (another Space in full screen) with ⌥Space? Expected yes
+    (`.floating` + `fullScreenAuxiliary`); to be checked by the user. If not: raise the level to `.statusBar` only
+    while another app is in full screen.
