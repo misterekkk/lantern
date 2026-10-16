@@ -1,85 +1,98 @@
-# Architektura
+# Architecture
 
-## Przegląd
+## Overview
 
 ```
-Aplikacja Swift (pasek menu)    CLI / skrypty
-          └──── socket Unix (0600, tylko użytkownik) ───┐
-                                                        ▼
-Demon (LaunchAgent; model tekstowy w pamięci do wyszukiwania, ~490 MB)
-  API · pętla sterująca · Skaner + Watcher (FSEvents) · tryb ask/auto · pauza (bateria, temperatura)
-        │ uruchamia, gdy jest zatwierdzona praca, i zatrzymuje (pauza)
-  Proces indeksujący (priorytet tła; kończy się po opróżnieniu kolejki) · Kolejka zadań (SQLite)
+Swift app (menu bar)            CLI / scripts
+          └──── Unix socket (0600, user only) ───────────┐
+                                                         ▼
+Daemon (LaunchAgent or child of the app; text model in memory for search, ~490 MB)
+  API · control loop · scanner + watcher (FSEvents) · ask/auto mode · pause (battery, heat)
+        │ starts it when work is approved, stops it (pause)
+  Index worker (background priority; exits when the queue is empty) · job queue (SQLite)
         │
-  Ekstraktory (tekst, kod, audio, zdjęcia, klatki) → Chunker → Embedder (MLX, EmbeddingGemma 2 8-bit)
-        │                                   ├─ audio/wideo: okna audio + transkrypcja (mlx-whisper)
-        │                                   └─ zdjęcia/klatki: wieża wizyjna EG2 + SigLIP 2 (drugi model)
+  Extractors (text, code, audio, photos, frames) → chunker → embedder (MLX, EmbeddingGemma 2 8-bit)
+        │                                   ├─ audio/video: audio windows + transcripts (mlx-whisper)
+        │                                   └─ photos/frames: EG2 vision tower + SigLIP 2 (second model)
         ▼
-  SQLite (jeden plik): metadane + FTS5 (słowa) + sqlite-vec (wektory: osobne tabele na model i na tekst/zdjęcia)
+  SQLite (one file): metadata + FTS5 (words) + sqlite-vec (vectors: one table per model and per text/photos)
+        + symbols (code definitions)
         ▲
-  Wyszukiwanie: definicje (tabela symboli) | pliki (wektory + BM25 → RRF) | zdjęcia (EG2 + SigLIP, z-score)
-                → sekcje → search_events
+  Search: definitions (symbol table) | files (vectors + BM25 → RRF) | photos (EG2 + SigLIP, z-scores)
+          → sections → search_events
 ```
 
-Cała logika jest w demonie. Klienci tylko wywołują API.
+All logic lives in the daemon. Clients only call the API.
 
-## Zasady, których się trzymamy
+## Principles
 
-- **Skan jest źródłem prawdy.** FSEvents to tylko optymalizacja, bo zdarzenia giną, gdy demon nie działa. Przy starcie
-  porównujemy (ścieżka, rozmiar, mtime) z bazą, hash treści liczymy tylko w razie potrzeby.
-- **Ochrona przed masowym usunięciem:** niedostępny folder główny (odłączony dysk, udział sieciowy) nie powoduje usuwania wpisów.
-- **Przeniesienia** rozpoznajemy po hashu treści, bez ponownego liczenia embeddingów.
-- **Kolejka** w SQLite: idempotentna, wznawialna, błąd jednego pliku nie blokuje reszty.
-- **Embedder za interfejsem**, `model_id` przy każdym wektorze, zakaz mieszania modeli.
-- **Wyszukiwanie hybrydowe:** same wektory słabo trafiają w nazwy funkcji i komunikaty błędów, więc łączymy je z BM25 przez RRF.
-- **Audio:** ffmpeg do 16 kHz mono, okna 30 s z krokiem 25 s, znaczniki czasu. Dwa tory: embedding audio oraz transkrypcja
-  (słowa, podgląd). Uzasadnienie: DECISIONS.md, H1–H4.
-- **Zdjęcia:** dwie listy (pliki i zdjęcia) to dwa różne rodzaje wyników, więc nie łączymy ich w jeden ranking;
-  wyniki mają dwie sekcje, a wyżej jest ta, której lista jest pewniejsza (DECISIONS.md, Faza 7).
-- **Budżet RAM (16 GB):** wieża tekstowa ładowana stale (~0,4–0,5 GB), model zapytań do zdjęć (SigLIP, ~0,34 GB) na
-  żądanie; wieża audio, Whisper, wieża wizyjna i SigLIP do zdjęć tylko na czas zadań, audio i Whisper nigdy równocześnie.
+- **The scan is the source of truth.** FSEvents is only an optimisation, because events are lost while the daemon
+  is not running. On start we compare (path, size, mtime) with the database and hash content only when needed.
+- **Mass-deletion guard:** an unavailable root folder (unplugged disk, network share) never removes entries, and
+  more than half of a folder vanishing needs `--force`. Files excluded on purpose (still on the disk) do not count.
+- **Moves** are recognised by content hash, without recomputing embeddings.
+- **Job queue** in SQLite: idempotent, resumable; one failing file never blocks the rest.
+- **Embedders behind an interface**, a `model_id` on every vector, vectors of different models never mixed.
+- **Hybrid search:** vectors alone miss function names and error messages, so they are fused with BM25 through RRF.
+- **Audio:** ffmpeg to 16 kHz mono, 30 s windows with a 25 s hop, timestamps. Two tracks: audio embeddings and
+  transcripts (words, previews). Rationale: DECISIONS.md, H1–H4.
+- **Photos:** files and photos are different kinds of results, so they are not fused into one ranking; results come
+  in sections and the section with the more confident list goes first (DECISIONS.md, Phase 7).
+- **Code definitions** come from a tree-sitter symbol table and are shown first (DECISIONS.md, Phase 8).
+- **RAM budget (16 GB):** the text tower stays loaded (~0.4–0.5 GB) and the photo query model (SigLIP, ~0.34 GB) is
+  loaded on demand; the audio tower, Whisper, the vision tower and SigLIP for photos live only in the worker during
+  jobs, and audio and Whisper are never loaded at the same time.
 
-## Fazy
+## Phases
 
-| Faza | Zakres | Stan |
+| Phase | Scope | Status |
 |---|---|---|
-| 0 | rozpoznanie backendów, pomiary, test jakości | zrobione (DECISIONS.md) |
-| 1 | szkielet repo i dokumentacja | zrobione |
-| 2 | rdzeń: schemat, skaner, ekstraktor tekstu/kodu, chunker, embedder, CLI `index/search/status` | zrobione |
-| 3 | wyszukiwanie hybrydowe (RRF), higiena indeksu, VACUUM, `search_events`, polska normalizacja FTS | zrobione |
-| 4 | audio (także ścieżka dźwiękowa filmów przez ffmpeg): okna, embedding audio, transkrypcja, znaczniki czasu, ocena na prawdziwych nagraniach | zrobione (ocena na mowie syntetycznej; prawdziwe nagrania: otwarte pytanie 14) |
-| 5 | demon + API (socket Unix), FSEvents, LaunchAgent, pauza na baterii i przy wysokiej temperaturze; tryb „pytaj”: po starcie (także po dłuższym wyłączeniu) skan wykrywa nowe i zmienione pliki i pyta, czy je zaindeksować | zrobione |
-| 5b | cały komputer: polityka katalogu domowego, iCloud tylko lokalnie, ochrona folderów bez uprawnień, własne wykluczenia, `--dry-run`, test skali | zrobione |
-| 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | zrobione |
-| 7 | wyszukiwanie w zdjęciach i klatkach filmów (ffmpeg → klatki → wieża wizyjna EG2 + SigLIP 2), poprzedzone testem jakości i szybkości; sekcja zdjęć w panelu | zrobione |
-| 8 | precyzyjne wyszukiwanie kodu: tabela symboli z tree-sittera (nazwa, rodzaj, sygnatura, linia), poprawne nazwy w C/C++/Go i metodach małych klas, sekcja „Definicje”, otwieranie na linii w domyślnym edytorze | zrobione |
-| 9 | ustawienia i media (plan niżej): drzewko z wyszukiwarką, ignorowane rozszerzenia, panel Wydajność, przełącznik audio/filmów, podgląd ⌘Y, nagrania od znacznika czasu, okno ustawień z panelem bocznym | zrobione |
+| 0 | backend survey, measurements, quality test | done (DECISIONS.md) |
+| 1 | repository skeleton and documentation | done |
+| 2 | core: schema, scanner, text/code extractor, chunker, embedder, CLI `index/search/status` | done |
+| 3 | hybrid search (RRF), index hygiene, VACUUM, `search_events`, Polish FTS normalisation | done |
+| 4 | audio (also the sound of videos via ffmpeg): windows, audio embeddings, transcripts, timestamps | done (evaluated on synthetic speech; real recordings: open question 14) |
+| 5 | daemon + API (Unix socket), FSEvents, LaunchAgent, pause on battery and heat; "ask" mode: after start (also after a long shutdown) the scan finds new and changed files and asks whether to index them | done |
+| 5b | whole Mac: home-folder policy, local-only iCloud, protection of folders without permission, user exclusions, `--dry-run`, scale test | done |
+| 6 | Swift app: menu bar (on/off, status, queue, "found N new files, index them?"), Spotlight-style search panel on a global shortcut, design following Apple's HIG (SwiftUI, Liquid Glass, SF Symbols) | done |
+| 7 | search in photos and video frames (ffmpeg → frames → EG2 vision tower + SigLIP 2), preceded by a quality and speed test; photos section in the panel | done |
+| 8 | precise code search: tree-sitter symbol table (name, kind, signature, line), correct names in C/C++/Go and methods of small classes, "Definitions" section, opening at the line in the default editor | done |
+| 9 | settings and media (plan below): folder tree with search, ignored extensions, Performance pane, audio/video switch, ⌘Y preview, recordings from the timestamp, settings window like System Settings | done |
+| 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | in progress |
 
-### Plan Fazy 9 (uzgodniony z użytkownikiem 2026-10-16)
+### Phase 9 plan (agreed with the user, 2026-10-16)
 
-- **Pasek menu zostaje minimalny.** Szczegóły są w oknie ustawień (koło zębate).
-- **Drzewko folderów z polami wyboru:** rozwijanie aż do pojedynczych plików, trzy stany (zaznaczony, odznaczony,
-  częściowo), wczytywanie po rozwinięciu, liczba plików w indeksie, podgląd skutków przed zapisem („z indeksu
-  zniknie N plików”). Elementy pomijane zawsze są wyszarzone, z wyjaśnieniem. Pod spodem: istniejące wykluczenia ścieżek.
-- **Ignorowane rozszerzenia:** pigułki z ✕, dodawanie przyciskiem ＋ z podpowiedziami filtrowanymi w trakcie pisania
-  (znane typy + rozszerzenia obecne w folderach), dowolne nietypowe rozszerzenie. Wpisanie `csv`, `.csv` albo
-  `*.csv` i przecinka (także spacji lub Entera) od razu tworzy pigułkę. Domyślnie `.ipynb`, `.csv`, `.tsv`;
-  `.json` jako podpowiedź.
-- **Zakładka Wydajność:** wykres RAM na żywo (co 1 s przy otwartym oknie): demon i proces indeksujący osobno,
-  footprint jak w Monitorze aktywności. Do tego załadowane modele, bieżące zadanie i tempo, szczyt sesji oraz lista
-  modeli (nazwa, rewizja, rozmiar, stan).
-- **Przełącznik audio i filmów** (obok zdjęć, klatek i transkrypcji).
-- **Skróty w panelu (uzgodnione 2026-10-16):** ↩ / podwójne kliknięcie = w miejscu trafienia (kod i tekst na początku
-  fragmentu, nagranie od momentu), ⌥↩ / ⌥ + podwójne kliknięcie = od początku, ⌘Y = podgląd w Lanternie (fragment
-  tekstu z podświetlonym zakresem albo nagranie od momentu), ⌘↩ = Finder. Wdrożone z ⌘Y zamiast spacji (spacja
-  wpisuje się w pole zapytania; ⌘Y to systemowy skrót Quick Look).
-- **Filmy i nagrania od znacznika czasu:**
-  - Spacja (wdrożone jako ⌘Y): plan A, szybki podgląd w oknie z systemowym `AVPlayerView`, start ~3 s przed wypowiedzią, tekst wypowiedzi
-    i przycisk „Otwórz w QuickTime Player”. Systemowy Quick Look nie ma API do ustawienia momentu startu (sprawdzone w SDK).
-  - ↩: plan B, QuickTime Player od momentu. Słownik skryptowy QuickTime ma zapisywalną właściwość `current time`;
-    wymaga jednorazowej zgody na sterowanie (Automation). Do sprawdzenia na żywo, także dla mkv/webm. Gdy plan B
-    zawiedzie, otwiera się plan A.
-  - ⌥↩: cały film od początku w domyślnej aplikacji; ⌘↩: Finder. To samo dla nagrań audio i klatek filmów.
+- **The menu bar stays minimal.** Details live in the settings window (gear).
+- **Folder tree with checkboxes:** expands down to single files, three states (checked, unchecked, partial), loads
+  on expand, shows the number of indexed files and previews the effect before saving ("N files will leave the
+  index"). Always-skipped items are greyed out with the reason. Underneath: the existing path exclusions.
+- **Ignored extensions:** pills with ✕, a ＋ button with suggestions that filter as you type (known types +
+  extensions present in the folders), any unusual extension allowed. Typing `csv`, `.csv` or `*.csv` and a comma
+  (or space, Return) makes a pill. Defaults: `.ipynb`, `.csv`, `.tsv`; `.json` as a suggestion.
+- **Performance pane:** live RAM chart (every second while the window is open), daemon and worker separately, the
+  footprint Activity Monitor shows. Plus loaded models, current job and speed, session peak and a model list
+  (name, revision, size, state).
+- **Audio and video switch** (next to photos, frames and transcription).
+- **Panel shortcuts (agreed 2026-10-16):** ↩ / double-click = at the match (code and text at the start of the
+  passage, recordings from the moment), ⌥↩ / ⌥ double-click = from the start, ⌘Y = preview inside Lantern (text
+  passage highlighted or the recording from the moment), ⌘↩ = Finder. Built with ⌘Y instead of Space (Space types
+  into the query field; ⌘Y is the system Quick Look shortcut).
+- **Recordings from the timestamp:**
+  - ⌘Y: plan A, a quick preview with the system `AVPlayerView`, starting ~3 s before the words, with the transcript
+    and an "Open in QuickTime Player" button. The system Quick Look has no API for a start time (checked in the SDK).
+  - ↩: plan B, QuickTime Player from the moment. QuickTime's scripting dictionary has a writable `current time`
+    property; it needs a one-time Automation permission. If plan B fails, plan A opens.
+  - ⌥↩: the whole recording from the start in its default app; ⌘↩: Finder. Same for audio and video frames.
 
-Poza zakresem na razie: reranker LightGBM (najpierw zbieramy `search_events`), podsumowania folderów przez LLM,
-synchronizacja, chmura, wielu użytkowników.
+### Phase 10 plan: GitHub Pages demo (agreed 2026-10-16)
+
+- A static page that looks like a MacBook desktop (menu bar, wallpaper, Dock) and guides the visitor with Liquid
+  Glass hint bubbles: click Lantern in the menu bar → index the new files → close the menu → press ⌥Space (or click
+  the highlighted shortcut) → type the suggested phrase → see a photo, a video moment, code at a line, a song.
+- **No Apple assets:** no Apple wallpapers, SF fonts, SF Symbols or Apple logo (licences and trademarks). The page
+  uses `-apple-system` (Apple visitors see their own system font), its own gradient wallpaper and its own SVG icons.
+- **Private like the app:** no analytics, no third-party requests (fonts, CDNs); everything is in the repository.
+- Deployed by a GitHub Actions workflow from `site/` once the repository is public; works locally before that.
+
+Out of scope for now: the LightGBM reranker (we only collect `search_events`), LLM folder summaries, sync, cloud,
+multiple users.

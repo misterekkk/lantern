@@ -1,681 +1,698 @@
-# Decyzje i otwarte pytania
+# Decisions and open questions
 
-Format: ADR (Architecture Decision Record). Każda decyzja ma status, kontekst, decyzję i konsekwencje.
-Otwarte pytania są na końcu pliku.
+Format: ADR (Architecture Decision Record). Each decision has a status, context, decision and consequences.
+Phase results with measurements come first, the ADRs follow, and the open questions are at the end of the file.
 
 ---
 
-## Faza 0: wyniki rozpoznania (2026-10-15)
+## Phase 0: survey results (2026-10-15)
 
-Środowisko pomiarów: MacBook Pro, Apple M4, 16 GB RAM, macOS 26.6.2.
+Measurement setup: MacBook Pro, Apple M4, 16 GB RAM, macOS 26.6.2.
 Python 3.12.15 (uv), torch 2.14.1, transformers 5.19.0, sentence-transformers 6.1.0,
 Ollama 0.40.4 (Homebrew), llama.cpp 0.6.0 build 11429 (Homebrew), sqlite-vec 0.1.9, SQLite 3.53.1.
-Model: `google/embeddinggemma-2`, rewizja `914f7f89142e33e77833254d9c9b90c3cef7303b` (Apache 2.0, nie jest gated).
+Model: `google/embeddinggemma-2`, revision `914f7f89142e33e77833254d9c9b90c3cef7303b` (Apache 2.0, not gated).
 
-Skrypty pomiarowe są w `spikes/phase0/`, a surowe dane i wyniki w `spikes/phase0/data/` (poza gitem).
+The measurement scripts are in `spikes/phase0/`; raw data and results in `spikes/phase0/data/` (not in git).
 
-### Tabela: backend × modalność
+### Table: backend × modality
 
-| Backend | Modalność | Działa? | Pamięć | Szybkość | Uwagi |
+| Backend | Modality | Works? | Memory | Speed | Notes |
 |---|---|---|---|---|---|
-| sentence-transformers, MPS, bf16, 270M | tekst | tak | RSS ~1,2 GB, MPS do ~3,4 GB* | 7,8 fragm./s (~560 tok.) | 5/5 w teście poprawności, brak NaN |
-| sentence-transformers, MPS, fp32, 270M | tekst | tak | RSS ~2,2 GB, MPS do ~4,5 GB* | 6,3 fragm./s | wolniej, więcej pamięci niż bf16 |
-| sentence-transformers, CPU, fp32, 270M | tekst | tak | RSS ~3,1 GB | 5,3 fragm./s | możliwy fallback |
-| sentence-transformers, CPU, bf16 | tekst | tak | RSS ~3,0 GB | 0,3 fragm./s | **nie używać** |
-| sentence-transformers, MPS, bf16, 570M | tekst + audio | **tak** | RSS ~1,2 GB, MPS ~4,3 GB* (okna 30 s), ~8 GB* (okno 300 s) | audio 300 s w 8,2 s (~36× realtime) | **domyślnie ucina audio po 30 s**, patrz ADR-003 |
-| Ollama, `270m-bf16-text` | tekst | tak | runner ~570–720 MB | 12,4 fragm./s | wektory identyczne z ST (cos = 1,000) |
-| Ollama, `570m-nvfp4-text-audio` | tekst | tak | runner ~1,1 GB | 11,0 fragm./s | cos vs ST ≈ 0,985 (kwantyzacja) |
-| Ollama, `570m-bf16-text-audio` | audio | **częściowo** | runner ~1,25 GB | 120 s → 15 s, 200 s → 33 s | `{"input":[{"audio":"<base64 wav>"}]}`, zgodne z ST (cos ≥ 0,994); **≥ ~230 s runner pada (EOF)** |
-| llama.cpp, `ggml-org/embeddinggemma-2-GGUF` | tekst / audio | **nie (na tej wersji)** | – | – | GGUF i mmproj (z wieżą audio) istnieją, ale brew build 11429: `unknown model architecture: 'gemma-embedding2'` |
-| **MLX, `mlx-community/embeddinggemma-2-8bit`** | tekst + audio | **tak** | Metal: wagi ~1,18 GB, szczyt ~3,3 GB | tekst 13,2 fragm./s; audio 30 s → 0,37 s, 300 s → 6,1 s | **cos vs ST fp32: tekst 0,9998, audio 0,9998** |
-| MLX, `…-8bit`, tylko wieża tekstowa | tekst | tak | Metal: wagi **~275 MB**, szczyt ~1,07 GB (batch 16 × 560 tok.) | 13,2 fragm./s | patrz „RAM” niżej |
-| MLX, `…-4bit` | tekst + audio | tak | Metal: wagi ~1,05 GB | jak 8-bit | **dryf**: tekst cos ~0,98, audio 0,957–0,970 |
-| MLX, `…-bf16` | tekst + audio | tak | Metal: wagi ~1,42 GB | 13,9 fragm./s | cos ≈ 1,000 |
+| sentence-transformers, MPS, bf16, 270M | text | yes | RSS ~1.2 GB, MPS up to ~3.4 GB* | 7.8 chunks/s (~560 tok.) | 5/5 in the sanity test, no NaN |
+| sentence-transformers, MPS, fp32, 270M | text | yes | RSS ~2.2 GB, MPS up to ~4.5 GB* | 6.3 chunks/s | slower and more memory than bf16 |
+| sentence-transformers, CPU, fp32, 270M | text | yes | RSS ~3.1 GB | 5.3 chunks/s | possible fallback |
+| sentence-transformers, CPU, bf16 | text | yes | RSS ~3.0 GB | 0.3 chunks/s | **do not use** |
+| sentence-transformers, MPS, bf16, 570M | text + audio | **yes** | RSS ~1.2 GB, MPS ~4.3 GB* (30 s windows), ~8 GB* (300 s window) | 300 s of audio in 8.2 s (~36× realtime) | **truncates audio at 30 s by default**, see ADR-003 |
+| Ollama, `270m-bf16-text` | text | yes | runner ~570–720 MB | 12.4 chunks/s | vectors identical to ST (cos = 1.000) |
+| Ollama, `570m-nvfp4-text-audio` | text | yes | runner ~1.1 GB | 11.0 chunks/s | cos vs ST ≈ 0.985 (quantisation) |
+| Ollama, `570m-bf16-text-audio` | audio | **partly** | runner ~1.25 GB | 120 s → 15 s, 200 s → 33 s | `{"input":[{"audio":"<base64 wav>"}]}`, matches ST (cos ≥ 0.994); **from ~230 s the runner dies (EOF)** |
+| llama.cpp, `ggml-org/embeddinggemma-2-GGUF` | text / audio | **no (this version)** | – | – | the GGUF and mmproj (with the audio tower) exist, but brew build 11429: `unknown model architecture: 'gemma-embedding2'` |
+| **MLX, `mlx-community/embeddinggemma-2-8bit`** | text + audio | **yes** | Metal: weights ~1.18 GB, peak ~3.3 GB | text 13.2 chunks/s; audio 30 s → 0.37 s, 300 s → 6.1 s | **cos vs ST fp32: text 0.9998, audio 0.9998** |
+| MLX, `…-8bit`, text tower only | text | yes | Metal: weights **~275 MB**, peak ~1.07 GB (batch 16 × 560 tok.) | 13.2 chunks/s | see "RAM" below |
+| MLX, `…-4bit` | text + audio | yes | Metal: weights ~1.05 GB | as 8-bit | **drift**: text cos ~0.98, audio 0.957–0.970 |
+| MLX, `…-bf16` | text + audio | yes | Metal: weights ~1.42 GB | 13.9 chunks/s | cos ≈ 1.000 |
 
-MLX uruchamiany przez `mlx-vlm` z **niewydanej gałęzi** (commit `3d87e88402f307efbf68e568971aa887ee7d9ed0`,
-gałąź `pc/embeddinggemma-2`), MLX 0.32.4. Konwersja `mlx-community` jest społecznościowa (nieoficjalna, nie od Google),
-ale wektory 8-bit są numerycznie zgodne z oryginałem. Przetwarzanie wstępne (tokenizer, cechy audio) robimy procesorem
-z transformers z oficjalnego repo, czyli dokładnie tak samo jak w ST. Testowane w osobnym venv (`spikes/phase0/.venv-mlx`).
+MLX runs through `mlx-vlm` from an **unreleased branch** (commit `3d87e88402f307efbf68e568971aa887ee7d9ed0`, branch
+`pc/embeddinggemma-2`), MLX 0.32.4. The `mlx-community` conversion is a community one (unofficial, not from Google),
+but the 8-bit vectors are numerically consistent with the original. Preprocessing (tokenizer, audio features) uses the
+transformers processor from the official repo, exactly as in ST. Tested in a separate venv (`spikes/phase0/.venv-mlx`).
 
-### RAM: ile naprawdę zajmuje model
+### RAM: how much the model really takes
 
-Liczby z internetu (~191 MB tekst, ~567 MB pełny) dotyczą kwantyzacji na telefonie. Na tym Macu (MLX 8-bit):
-- **sam tekst w spoczynku:** wagi ~275 MB + Python/MLX/tokenizer ~100–150 MB, czyli **~400–450 MB**, pod warunkiem że
-  ładujemy tylko wagi tekstowe i nie importujemy torch (import transformers+torch to dodatkowe ~330 MB RSS);
-- **szczyt przy indeksowaniu tekstu:** ~1,1 GB (zależy od wielkości batcha, można zmniejszyć);
-- **z wieżą audio:** wagi ~1,2 GB (wieża audio 300M zostaje w bf16 także w wersjach kwantyzowanych), szczyt ~3,3 GB;
-- ładowanie modelu trwa 0,1–0,5 s, więc wieżę audio można ładować tylko na czas zadań audio z kolejki.
+The figures on the internet (~191 MB text, ~567 MB full) are for phone quantisations. On this Mac (MLX 8-bit):
+- **text only, idle:** weights ~275 MB + Python/MLX/tokenizer ~100–150 MB, i.e. **~400–450 MB**, provided only the text
+  weights are loaded and torch is not imported (importing transformers+torch adds ~330 MB RSS);
+- **peak while indexing text:** ~1.1 GB (depends on the batch size, can be reduced);
+- **with the audio tower:** weights ~1.2 GB (the 300M audio tower stays bf16 even in quantised versions), peak ~3.3 GB;
+- loading takes 0.1–0.5 s, so the audio tower can be loaded only for the duration of audio jobs from the queue.
 
-### Test: pojedyncze słowo w nagraniu („krowa”)
+### Test: a single word in a recording ("krowa", cow)
 
-3 dodatkowe nagrania PL po ~30 s, w których słowo pada raz, mimochodem, w zupełnie innym kontekście
-(korek → „jakaś krowa stała na środku jezdni”, zebranie wspólnoty → „ukradł jej rower”, spotkanie z klientem →
-„zostawiłem parasol”). Wyszukiwanie wśród 16 nagrań, MLX 8-bit. Pozycja właściwego nagrania:
+3 extra Polish recordings of ~30 s in which the word appears once, in passing, in an unrelated context
+(traffic jam → "some cow was standing in the middle of the road", residents' meeting → "he stole her bike", client
+meeting → "I left my umbrella"). Search among 16 recordings, MLX 8-bit. Rank of the right recording:
 
-| Zapytanie | audio, okna 30 s | transkrypcja → wektor | transkrypcja → BM25 dokładne | transkrypcja → BM25 prefiks |
+| Query | audio, 30 s windows | transcript → vector | transcript → exact BM25 | transcript → prefix BM25 |
 |---|---|---|---|---|
-| krowa | 1 | 1 | 1 | 1 |
-| krowy na drodze | 1 | 1 | brak | 1 |
-| kradzież roweru | 1 | 1 | brak | 1 |
-| rower | 2 | 1 | 1 | 1 |
-| parasol | 1 | 2 | 1 | 1 |
-| zapomniany parasol i deszcz | 2 | 1 | 1 | 1 |
+| krowa (cow) | 1 | 1 | 1 | 1 |
+| krowy na drodze (cows on the road) | 1 | 1 | none | 1 |
+| kradzież roweru (bike theft) | 1 | 1 | none | 1 |
+| rower (bike) | 2 | 1 | 1 | 1 |
+| parasol (umbrella) | 1 | 2 | 1 | 1 |
+| zapomniany parasol i deszcz (forgotten umbrella and rain) | 2 | 1 | 1 | 1 |
 
-- **H4:** Do szukania pojedynczego wypowiedzianego słowa najpewniejsza jest transkrypcja + FTS z dopasowaniem prefiksu
-  (polska odmiana: „krowy” vs „krowa”). Dokładne BM25 zawodzi na odmianie. Sam embedding audio też często trafia,
-  ale na 16 nagraniach to mało. Przy tysiącach nagrań pojedyncze słowo w 30 s oknie raczej utonie.
-- Wniosek dla architektury: **dla audio potrzebne są oba tory**, embedding audio (znaczenie, dźwięki niewerbalne)
-  oraz transkrypcja (słowa, podgląd, BM25), połączone przez RRF.
+- **H4:** To find a single spoken word, transcript + FTS with prefix matching is the most reliable (Polish inflection:
+  "krowy" vs "krowa"). Exact BM25 fails on inflection. Audio embeddings alone often hit too, but 16 recordings is
+  little; among thousands, a single word in a 30 s window will probably drown.
+- For the architecture: **audio needs both tracks**, audio embeddings (meaning, non-verbal sounds) and transcripts
+  (words, previews, BM25), fused with RRF.
 
-\* `torch.mps.driver_allocated_memory()` obejmuje cache alokatora MPS, czyli realne szczytowe zajęcie pamięci zunifikowanej.
-Da się je ograniczyć przez `torch.mps.empty_cache()` i `PYTORCH_MPS_HIGH_WATERMARK_RATIO`. Do sprawdzenia w Fazie 2.
+\* `torch.mps.driver_allocated_memory()` includes the MPS allocator cache, i.e. the real peak use of unified memory.
+It can be limited with `torch.mps.empty_cache()` and `PYTORCH_MPS_HIGH_WATERMARK_RATIO`.
 
-Transkrypcja (dla porównania): mlx-whisper `large-v3-turbo`, ~14× realtime (718 s audio w 51 s z ładowaniem), szczyt RSS ~1,8 GB.
+Transcription (for comparison): mlx-whisper `large-v3-turbo`, ~14× realtime (718 s of audio in 51 s including
+loading), peak RSS ~1.8 GB.
 
-### Ustalenia, których nie było w dokumentacji
+### Findings that were not in the documentation
 
-1. **Ucinanie audio po 30 s.** Ekstraktor cech (`Gemma4AudioFeatureExtractor`) ma domyślnie `max_length=480000` próbek
-   (30 s przy 16 kHz) i `truncation=True`. Wszystko po 30 s jest po cichu ignorowane: osadzenia nagrań różniących się
-   tylko końcówką po 30 s mają cos = 1,00. Karta modelu podaje ~327 s, co osiąga się dopiero przez
-   `model[0].processing_kwargs = {"audio": {"max_length": 320 * 16000, "truncation": True}}`.
-   Po tej zmianie końcówka faktycznie wpływa na wektor.
-2. **Pillow i torchvision są wymagane** nawet przy wyłączonej wieży wizyjnej (`EmbeddingGemma2Processor` ich importuje).
-3. **Nie używać float16** (zalecenie z karty modelu). bf16 na MPS działa bez NaN.
-4. **FTS5 `remove_diacritics 2` nie zamienia „ł” na „l”.** „lodz” nie znajduje „łódź”, ale „gesla” znajduje „gęślą”.
-   Polski tekst trzeba normalizować (ł→l) zarówno przy indeksowaniu, jak i w zapytaniu.
-5. **Python 3.13 z python.org nie ma `enable_load_extension`**, więc sqlite-vec na nim nie ruszy. Python 3.12 instalowany przez uv działa.
-6. **Ollama łączy się z ollama.com** w tle (log: `model recommendations cache`). Do opisania w PRIVACY.md i do zablokowania lub odrzucenia.
-7. Model w HF ma gotowe prompty: `SearchQuery`, `Document` (`title: none | text: `), `CodeRetrieval` i inne.
+1. **Audio is truncated at 30 s.** The feature extractor (`Gemma4AudioFeatureExtractor`) defaults to
+   `max_length=480000` samples (30 s at 16 kHz) and `truncation=True`. Everything after 30 s is silently ignored:
+   embeddings of recordings that differ only after 30 s have cos = 1.00. The model card's ~327 s needs
+   `model[0].processing_kwargs = {"audio": {"max_length": 320 * 16000, "truncation": True}}`; after that the ending
+   really affects the vector.
+2. **Pillow and torchvision are required** even with the vision tower off (`EmbeddingGemma2Processor` imports them).
+3. **Never use float16** (model card recommendation). bf16 on MPS works without NaN.
+4. **FTS5 `remove_diacritics 2` does not turn "ł" into "l".** "lodz" does not find "łódź", but "gesla" finds "gęślą".
+   Polish text must be normalised (ł→l) both when indexing and in queries.
+5. **The python.org Python 3.13 has no `enable_load_extension`**, so sqlite-vec cannot run on it. The Python 3.12
+   installed by uv works.
+6. **Ollama connects to ollama.com** in the background (log: `model recommendations cache`). Documented in PRIVACY.md;
+   Ollama was rejected.
+7. The HF model ships prompts: `SearchQuery`, `Document` (`title: none | text: `), `CodeRetrieval` and others.
 
-### Test jakości: audio embedding vs transkrypcja (hipotezy, nie fakty)
+### Quality test: audio embeddings vs transcripts (hypotheses, not facts)
 
-Korpus: 13 nagrań syntetycznych (`say`: Zosia PL, Daniel EN). 8 PL i 4 EN po 36–56 s
-oraz 1 nagranie PL 159 s z trzema tematami (od 0 s, 59 s i 108 s). 22 zapytania parafrazujące, w tym 2 z dokładnym terminem,
-4 międzyjęzykowe i 3 celujące w segmenty długiego nagrania. Ranking na poziomie nagrania (najlepszy fragment).
+Corpus: 13 synthetic recordings (`say`: Zosia PL, Daniel EN). 8 Polish and 4 English of 36–56 s, plus one Polish
+recording of 159 s with three topics (from 0 s, 59 s and 108 s). 22 paraphrasing queries, including 2 with an exact
+term, 4 cross-language and 3 aimed at segments of the long recording. Ranking per recording (best chunk).
 
-| Metoda | hit@1 | MRR |
+| Method | hit@1 | MRR |
 |---|---|---|
-| audio, jeden embedding na nagranie (limit 320 s) | 0,91 | 0,955 |
-| audio, domyślny limit 30 s | 0,91 | 0,939 |
-| audio, okna 30 s / krok 25 s | 0,91 | 0,947 |
-| transkrypcja Whisper → embedding tekstu | **1,00** | **1,000** |
-| transkrypcja → BM25 (FTS5) | 0,73 | 0,773 |
-| RRF(transkrypcja-wektor, BM25) | 0,95 | 0,977 |
-| RRF(audio-okna, transkrypcja-wektor, BM25) | 0,95 | 0,977 |
-| oryginalny tekst skryptu → embedding (górna granica) | 1,00 | 1,000 |
+| audio, one embedding per recording (320 s limit) | 0.91 | 0.955 |
+| audio, default 30 s limit | 0.91 | 0.939 |
+| audio, 30 s windows / 25 s hop | 0.91 | 0.947 |
+| Whisper transcript → text embedding | **1.00** | **1.000** |
+| transcript → BM25 (FTS5) | 0.73 | 0.773 |
+| RRF(transcript vector, BM25) | 0.95 | 0.977 |
+| RRF(audio windows, transcript vector, BM25) | 0.95 | 0.977 |
+| original script text → embedding (upper bound) | 1.00 | 1.000 |
 
-Lokalizacja segmentu w długim nagraniu: okna audio 3/3, fragmenty transkrypcji 3/3.
+Locating a segment in the long recording: audio windows 3/3, transcript chunks 3/3.
 
-Wnioski (hipotezy):
-- **H1:** Embedding audio działa zaskakująco dobrze także po polsku i międzyjęzykowo (MRR ~0,95), ale transkrypcja
-  z embeddingiem tekstu jest lepsza (1,00) i daje tekst do BM25, podglądu wyników i cytowania.
-- **H2:** Domyślny limit 30 s psuje wyszukiwanie późniejszych fragmentów: temat od 108 s spadł na 6. miejsce.
-  Okna z nakładką (30 s) rozwiązują to i dają znaczniki czasu.
-- **H3:** BM25 na transkrypcji jest słaby międzyjęzykowo (brak trafień) i przy „ORA-01555” (Whisper zapisał „o 01555”).
-  RRF z BM25 lekko obniżył wynik względem samego wektora na tym korpusie, choć na kodzie będzie odwrotnie.
-- **Zastrzeżenia:** mowa syntetyczna jest dużo łatwiejsza od prawdziwej (szum, akcenty, wielu mówców), próba jest mała
-  i jest efekt sufitu. Do powtórzenia na prawdziwych nagraniach w Fazie 4.
+Conclusions (hypotheses):
+- **H1:** Audio embeddings work surprisingly well in Polish and across languages (MRR ~0.95), but transcripts with text
+  embeddings are better (1.00) and give text for BM25, result previews and quoting.
+- **H2:** The default 30 s limit breaks search for later passages: the topic starting at 108 s fell to 6th place.
+  Overlapping windows (30 s) fix it and give timestamps.
+- **H3:** BM25 on transcripts is weak across languages (no hits) and for "ORA-01555" (Whisper wrote "o 01555"). RRF
+  with BM25 slightly lowered the score versus the vector alone on this corpus, although on code it will be the opposite.
+- **Caveats:** synthetic speech is much easier than real speech (noise, accents, several speakers), the sample is
+  small and there is a ceiling effect. To be repeated on real recordings.
 
-### Prywatność bibliotek (pomiar)
+### Library privacy (measured)
 
-- Ładowanie modelu i embedowanie tekstu i audio przez sentence-transformers z
+- Loading the model and embedding text and audio through sentence-transformers with
   `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1`:
-  **0 prób połączeń** (przechwycone `socket.connect` i `getaddrinfo`, `spikes/phase0/probe_network.py`).
-- Bez trybu offline huggingface_hub sprawdza wersję modelu w sieci przy ładowaniu (tego nie mierzyłem, to znane zachowanie biblioteki).
-- Ollama: okresowe pobieranie rekomendacji modeli z ollama.com (widoczne w logu serwera).
-- mlx-whisper: model pobierany z HF Hub. Po pobraniu działa z `HF_HUB_OFFLINE=1` (do potwierdzenia w Fazie 4).
+  **0 connection attempts** (intercepted `socket.connect` and `getaddrinfo`, `spikes/phase0/probe_network.py`).
+- Without offline mode huggingface_hub checks the model version online when loading (not measured; known behaviour).
+- Ollama: periodically fetches model recommendations from ollama.com (visible in the server log).
+- mlx-whisper: the model comes from the HF Hub; after the download it works with `HF_HUB_OFFLINE=1` (confirmed in
+  Phase 4 by a test).
 
 ---
 
-## Faza 2: wyniki (2026-10-15)
+## Phase 2: results (2026-10-15)
 
-Test: `lantern index ~/Studia/Projekt` (22 projekty, 653 pliki tekstu i kodu), MLX 8-bit, tylko wieża tekstowa.
+Test: `lantern index ~/Studia/Projekt` (22 projects, 653 text and code files), MLX 8-bit, text tower only.
 
-| Pomiar | Wynik |
+| Measurement | Result |
 |---|---|
-| zgodność wektorów MLX z referencją ST fp32 | cos ≥ 0,9998 (test `-m model`) |
-| pełne indeksowanie | 283 s, 645 plików, 4920 fragmentów, 8 pominiętych (> 2 MB lub binarne), 0 błędów |
-| ponowne `index` bez zmian | 0,1 s |
-| szczyt pamięci przy indeksowaniu | 2,04 GB (phys_footprint, `/usr/bin/time -l`) |
-| demon w spoczynku (model tekstowy załadowany) | ~790 MB, z czego ~337 MB to import torch przez `mlx-vlm` |
-| czas zapytania (embedding zapytania + KNN) | 25–29 ms; samo FTS ≤ 1 ms |
-| rozmiar bazy | 28 MB |
-| ruch sieciowy przy ładowaniu i embedowaniu | 0 prób połączeń (test `-m model`) |
+| MLX vectors vs the ST fp32 reference | cos ≥ 0.9998 (`-m model` test) |
+| full indexing | 283 s, 645 files, 4920 chunks, 8 skipped (> 2 MB or binary), 0 errors |
+| repeated `index` without changes | 0.1 s |
+| peak memory while indexing | 2.04 GB (phys_footprint, `/usr/bin/time -l`) |
+| idle daemon (text model loaded) | ~790 MB, of which ~337 MB is the torch import by `mlx-vlm` |
+| query time (query embedding + KNN) | 25–29 ms; FTS alone ≤ 1 ms |
+| database size | 28 MB |
+| network traffic while loading and embedding | 0 connection attempts (`-m model` test) |
 
-Ustalenia:
-1. **Bez limitu pamięci MLX indeksowanie urosło do 13,4 GB** (MLX trzymał pamięć roboczą GPU). `mx.set_memory_limit(3 GB)`
-   i `mx.set_cache_limit(256 MB)` obniżyły szczyt do ~2 GB bez utraty szybkości. Limity są ustawiane przy ładowaniu modelu.
-2. **Pliki z danymi dominowały koszt** (zrzut modelu ML, duże CSV, lockfile'y: ~1,45 znaku/token, 940 fragmentów
-   ucinanych na limicie). Decyzja: lockfile'y wykluczone domyślnie; CSV/TSV i duże pliki z przewagą cyfr indeksowane
-   tylko od początku (nagłówek i pierwsze wiersze). Czas indeksowania spadł z 498 s do 283 s.
-3. **Łączenie partii z wielu plików nie przyspieszyło** (GPU było już nasycone), ale zostało, bo upraszcza pracę na małych plikach.
-4. Linie dłuższe niż okno (zminifikowany kod, JSON notebooków) są cięte. Wcześniej jeden fragment miał 25 tys. znaków.
-5. Lista po słowach (OR wszystkich tokenów) łapie słowa pomijalne („jak”, „się”). Do poprawy w Fazie 3.
+Findings:
+1. **Without an MLX memory limit indexing grew to 13.4 GB** (MLX kept GPU working memory). `mx.set_memory_limit(3 GB)`
+   and `mx.set_cache_limit(256 MB)` brought the peak down to ~2 GB without losing speed. The limits are set when the
+   model loads.
+2. **Data files dominated the cost** (an ML model dump, large CSVs, lockfiles: ~1.45 characters/token, 940 chunks cut
+   at the limit). Decision: lockfiles excluded by default; CSV/TSV and large number-heavy files indexed by their head
+   only (header and first rows). Indexing time fell from 498 s to 283 s.
+3. **Batching chunks across files did not speed things up** (the GPU was already saturated), but it stayed because it
+   simplifies small files.
+4. Lines longer than a window (minified code, notebook JSON) are cut. Before, one chunk had 25,000 characters.
+5. The word list (OR of all tokens) catches stop words ("jak", "się"). Fixed in Phase 3.
 
 ---
 
-## Faza 3: wyniki (2026-10-15)
+## Phase 3: results (2026-10-15)
 
-| Pomiar | Wynik |
+| Measurement | Result |
 |---|---|
-| czas zapytania hybrydowego (embedding + KNN + FTS + RRF + zapis historii) | 29–39 ms |
-| migracja istniejącej bazy v1 → v2 | automatyczna; 631 plików przeindeksowanych po zmianie wersji potoku (287 s) |
-| szczyt pamięci przy reindeksie | 2,04 GB |
-| usunięcie folderu + `compact` | usunięty tekst nie występuje w surowych bajtach pliku bazy (test automatyczny) |
+| hybrid query time (embedding + KNN + FTS + RRF + history write) | 29–39 ms |
+| migration of an existing database v1 → v2 | automatic; 631 files re-indexed after the pipeline version change (287 s) |
+| peak memory during re-indexing | 2.04 GB |
+| folder removal + `compact` | the removed text is absent from the raw bytes of the database file (automated test) |
 
-Decyzje:
-1. **RRF na poziomie plików** (k = 60, po 50 kandydatów z każdej listy). Plik znaleziony przez obie listy wygrywa,
-   a dokładny identyfikator z samej listy słów nadal trafia do wyników. Wynik pokazuje źródło („meaning #1 · keywords #3”).
-2. **Słowa pomijalne PL/EN + prefiks rdzenia** zamiast stemmera: słowa ≥ 7 liter tracą 3 ostatnie znaki, 5–6 liter tracą 2,
-   minimum 4 znaki („decyzyjnego” → `decyzyjn*`). Identyfikatory i liczby dopasowywane dokładnie.
-   Wagi kolumn BM25: tekst 1, ścieżka 1,5, symbol 3.
-3. **`search_events`** zapisuje zapytanie i dla każdego wyniku pozycje i wyniki z obu list oraz RRF, bez treści plików.
-   `lantern open N` zapisuje wybrany wynik. To dane pod reranker (Treelite/LightGBM nadal poza zakresem).
-4. **`pipeline_version` i `model_id` przy pliku** (schemat v2): zmiana zasad dzielenia lub modelu powoduje
-   automatyczny reindeks. Zamyka otwarte pytanie 12.
-5. **Wymazywanie danych:** `secure_delete`, FTS5 `secure-delete`, a przy `compact` FTS `optimize` + `VACUUM` +
-   checkpoint WAL. Automatyczne zagęszczanie po `index`, gdy wolne strony przekraczają 25% pliku.
+Decisions:
+1. **RRF at file level** (k = 60, 50 candidates from each list). A file found by both lists wins, and an exact
+   identifier found only by the word list still makes the results. Each result shows its source
+   ("meaning #1 · keywords #3").
+2. **Polish/English stop words + stem prefix** instead of a stemmer: words of ≥ 7 letters lose the last 3 characters,
+   5–6 letters lose 2, minimum 4 characters ("decyzyjnego" → `decyzyjn*`). Identifiers and numbers match exactly.
+   BM25 column weights: text 1, path 1.5, symbol 3.
+3. **`search_events`** stores the query and, for every result, the positions and scores from both lists and RRF,
+   without file contents. `lantern open N` records the chosen result. Data for a reranker (Treelite/LightGBM still out
+   of scope).
+4. **`pipeline_version` and `model_id` per file** (schema v2): a change of chunking rules or model triggers an
+   automatic re-index. Closes open question 12.
+5. **Erasing data:** `secure_delete`, FTS5 `secure-delete`, and on `compact` FTS `optimize` + `VACUUM` + a WAL
+   checkpoint. Automatic compaction after `index` when free pages exceed 25% of the file.
 
-Obserwacje:
-- Krótkie fragmenty (2–3 linie kodu z komentarzem) potrafią wygrać wektorowo z dłuższymi opisami. Kandydat do
-  rerankera albo do łączenia bardzo krótkich fragmentów z sąsiadami (do obserwacji).
+Observations:
+- Short chunks (2–3 lines of code with a comment) can beat longer descriptions on vectors. A candidate for the reranker
+  or for merging very short chunks with their neighbours (to watch).
 
 ---
 
-## Faza 4: wyniki (2026-10-15)
+## Phase 4: results (2026-10-15)
 
-Test: 16 plików (WAV, MP3, M4A i film MP4 z polskim nagraniem 2:38 o trzech tematach), ~13 min mowy syntetycznej
-(PL i EN), prawdziwe modele: EmbeddingGemma 2 audio (MLX 8-bit) i Whisper large-v3-turbo (MLX).
+Test: 16 files (WAV, MP3, M4A and an MP4 video with a 2:38 Polish recording on three topics), ~13 minutes of synthetic
+speech (Polish and English), real models: EmbeddingGemma 2 audio (MLX 8-bit) and Whisper large-v3-turbo (MLX).
 
-| Pomiar | Wynik |
+| Measurement | Result |
 |---|---|
-| zgodność embeddingu audio MLX z referencją ST fp32 | cos ≥ 0,999 (test `-m model`) |
-| Whisper po polsku, offline | poprawna transkrypcja, 0 prób połączeń (test `-m model`) |
-| indeksowanie 16 plików (okna audio + transkrypcja) | 74–76 s, 0 błędów, plik wideo bez dźwięku pominięty |
-| szczyt pamięci przy indeksowaniu mediów | 3,9 GB (modele audio ładowane po kolei, nie razem) |
-| zapytania | „krowa”, „kradzież roweru”, „wymiana klocków hamulcowych”, „how do trees cool cities” → właściwy plik na 1. miejscu; „sadzenie pomidorów w szklarni” → film @ 1:48 (temat zaczyna się w 1:48) |
+| MLX audio embeddings vs the ST fp32 reference | cos ≥ 0.999 (`-m model` test) |
+| Whisper in Polish, offline | correct transcript, 0 connection attempts (`-m model` test) |
+| indexing 16 files (audio windows + transcripts) | 74–76 s, 0 errors, a video without sound skipped |
+| peak memory while indexing media | 3.9 GB (audio models loaded one after the other, never together) |
+| queries | "krowa", "kradzież roweru", "wymiana klocków hamulcowych", "how do trees cool cities" → the right file first; "sadzenie pomidorów w szklarni" → the video @ 1:48 (the topic starts at 1:48) |
 
-Decyzje:
-1. **Dwa tory dla audio i wideo** (ADR-003): okna audio 30 s / krok 25 s z jawnym limitem procesora oraz transkrypcja
-   Whisperem we fragmentach ~20 s. Oba trafiają do tej samej tabeli wektorów (ten sam model, ta sama przestrzeń),
-   a transkrypcja także do FTS. Ranking łączy je na poziomie plików.
-2. **Dwa etapy kolejki** (`index`, potem `transcribe`): wieża audio EmbeddingGemma (~0,9 GB) i Whisper (~1,8 GB)
-   nigdy nie są załadowane jednocześnie. Każdy ładuje się raz na cały etap i jest zwalniany po nim.
-3. **Wideo = ścieżka dźwiękowa** (ffmpeg `-map 0:a:0 -vn`). Klatki to Faza 7.
-4. **Dekodowanie strumieniowe** okien (pamięć ~1 okno niezależnie od długości). Whisper dostaje całość do 4 h.
-5. **Hash z próbek dla plików > 64 MB** (rozmiar + 3 × 4 MB): skan wielogigabajtowych filmów nie czyta całych plików.
-6. **Procesor audio z repo `mlx-community`** daje embeddingi zgodne z referencją, więc nie trzeba pobierać oficjalnego
-   repo Google (uproszczona instalacja).
-7. **Podgląd trafienia przez okno audio** pokazuje transkrypcję z tego samego odcinka czasu.
-8. **Wersje potoku per rodzaj pliku** (`PIPELINE_VERSIONS`): zmiana zasad audio nie wymusza reindeksu tekstu.
+Decisions:
+1. **Two tracks for audio and video** (ADR-003): 30 s audio windows with a 25 s hop and an explicit processor limit,
+   and Whisper transcripts in ~20 s chunks. Both go to the same vector table (same model, same space), and transcripts
+   also to FTS. The ranking fuses them at file level.
+2. **Two queue stages** (`index`, then `transcribe`): the EmbeddingGemma audio tower (~0.9 GB) and Whisper (~1.8 GB)
+   are never loaded at the same time. Each loads once for its whole stage and is released afterwards.
+3. **Video = its sound track** (ffmpeg `-map 0:a:0 -vn`). Frames came in Phase 7.
+4. **Streaming decoding** of windows (memory ~1 window regardless of length). Whisper gets the whole file up to 4 h.
+5. **Sampled hash for files > 64 MB** (size + 3 × 4 MB): scanning multi-gigabyte videos does not read whole files.
+6. **The audio processor from the `mlx-community` repo** gives embeddings matching the reference, so the official
+   Google repo is not needed (simpler installation).
+7. **Previews of audio-window hits** show the transcript of the same time span.
+8. **Pipeline versions per file kind** (`PIPELINE_VERSIONS`): changing the audio rules does not force a text re-index.
 
-### Test na zaszumionych nagraniach (`spikes/phase4/noise_eval.py`)
+### Test on noisy recordings (`spikes/phase4/noise_eval.py`)
 
-Ten sam korpus (16 nagrań, 28 zapytań) zdegradowany `audiomentations` i ffmpeg, indeksowany prawdziwym potokiem.
+The same corpus (16 recordings, 28 queries) degraded with `audiomentations` and ffmpeg, indexed by the real pipeline.
 hit@1 / MRR:
 
-| Warunek | Ranking Lanterna | Tylko okna audio | Tylko transkrypcja | Tylko słowa | WER Whispera |
+| Condition | Lantern ranking | Audio windows only | Transcript only | Words only | Whisper WER |
 |---|---|---|---|---|---|
-| czyste | 1,00 / 1,000 | 0,89 / 0,946 | 1,00 / 1,000 | 0,89 / 0,893 | 4% |
-| szum różowy 10 dB | 0,96 / 0,982 | 0,75 / 0,849 | 0,96 / 0,982 | 0,89 / 0,893 | 5% |
-| szum różowy 0 dB | 1,00 / 1,000 | 0,71 / 0,777 | 1,00 / 1,000 | 0,86 / 0,875 | 14% |
-| rozmowy w tle 5 dB | 1,00 / 1,000 | 0,75 / 0,831 | 1,00 / 1,000 | 0,89 / 0,893 | 7% |
-| telefon (300–3400 Hz, szum 15 dB, MP3 32 kb/s) | 1,00 / 1,000 | 0,79 / 0,826 | 1,00 / 1,000 | 0,89 / 0,893 | 8% |
+| clean | 1.00 / 1.000 | 0.89 / 0.946 | 1.00 / 1.000 | 0.89 / 0.893 | 4% |
+| pink noise 10 dB | 0.96 / 0.982 | 0.75 / 0.849 | 0.96 / 0.982 | 0.89 / 0.893 | 5% |
+| pink noise 0 dB | 1.00 / 1.000 | 0.71 / 0.777 | 1.00 / 1.000 | 0.86 / 0.875 | 14% |
+| background talk 5 dB | 1.00 / 1.000 | 0.75 / 0.831 | 1.00 / 1.000 | 0.89 / 0.893 | 7% |
+| phone (300–3400 Hz, 15 dB noise, MP3 32 kb/s) | 1.00 / 1.000 | 0.79 / 0.826 | 1.00 / 1.000 | 0.89 / 0.893 | 8% |
 
-Wnioski (hipotezy, mowa syntetyczna + sztuczny szum):
-- **Whisper jest bardzo odporny** (WER 4% → 14% przy szumie równym mowie). Tor transkrypcji niesie wyszukiwanie audio.
-- **Embedding samego dźwięku słabnie z szumem** (MRR 0,95 → 0,78), ale nadal jest potrzebny bez transkrypcji
-  (`--no-transcribe`) i dla treści niewerbalnych.
-- **Poprawka fuzji wynikła z tego testu.** Przed nią ranking Lanterna miał 0,93 / 0,958 we wszystkich warunkach,
-  czyli gorzej niż sama transkrypcja. Przyczyna: przy zapytaniu w innym języku niż nagranie lista słów łapała inne
-  nagranie po jednym przypadkowym wspólnym słowie („ogrodzie”, „rate”), a RRF nagradza obecność na obu listach.
-  Teraz trafienie po słowach waży w RRF tyle, jaką część słów zapytania pokrywa, a poniżej 50% nie liczy się wcale
-  (`MIN_KEYWORD_COVERAGE`). Zapytania jednowyrazowe i identyfikatory mają pełne pokrycie, więc dokładne trafienia nie tracą.
-  Wyszukiwanie w kodzie i dokumentach na `~/Studia/Projekt` bez pogorszenia.
-- Prawdziwe nagrania (pogłos, wielu mówców naraz, akcenty) nadal są otwartym pytaniem 14. Pogłosu nie testowałem
-  (`RoomSimulator` wymaga `pyroomacoustics`).
+Conclusions (hypotheses; synthetic speech + artificial noise):
+- **Whisper is very robust** (WER 4% → 14% with noise as loud as the speech). The transcript track carries audio search.
+- **Sound-only embeddings weaken with noise** (MRR 0.95 → 0.78), but they are still needed without transcripts
+  (`--no-transcribe`) and for non-verbal content.
+- **A fusion fix came out of this test.** Before it, the Lantern ranking scored 0.93 / 0.958 in every condition, i.e.
+  worse than transcripts alone. Cause: with a query in another language than the recording, the word list caught a
+  different recording through one incidental shared word ("ogrodzie", "rate"), and RRF rewards presence in both lists.
+  Now a keyword hit counts in RRF in proportion to the share of query words it covers, and not at all below 50%
+  (`MIN_KEYWORD_COVERAGE`). Single-word queries and identifiers have full coverage, so exact hits lose nothing. Code
+  and document search on `~/Studia/Projekt` did not get worse.
+- Real recordings (reverb, several speakers at once, accents) remain open question 14. Reverb was not tested
+  (`RoomSimulator` needs `pyroomacoustics`).
 
 ---
 
-## Faza 5: wyniki (2026-10-15)
+## Phase 5: results (2026-10-15)
 
-| Pomiar | Wynik |
+| Measurement | Result |
 |---|---|
-| demon w spoczynku (model tekstowy załadowany) | **~455–490 MB** (wcześniej ~790 MB) |
-| wyszukiwanie przez demona | 19–89 ms na zapytanie; cała komenda `lantern search` z CLI 40–110 ms |
-| indeksowanie 42 plików (kod, tekst, nagranie, film) po `approve` | 51 s, 0 błędów; demon przez cały czas 490 MB, proces indeksujący do 3,3 GB, potem kończy się |
-| testy demona | prawdziwy socket, proces roboczy, FSEvents, tryb ask/auto, pauza, bateria, uprawnienia |
+| idle daemon (text model loaded) | **~455–490 MB** (before: ~790 MB) |
+| search through the daemon | 19–89 ms per query; the whole `lantern search` CLI command 40–110 ms |
+| indexing 42 files (code, text, a recording, a video) after `approve` | 51 s, 0 errors; the daemon stayed at 490 MB, the worker up to 3.3 GB, then it exited |
+| daemon tests | real socket, worker process, FSEvents, ask/auto mode, pause, battery, permissions |
 
-Decyzje:
-1. **ADR-004: indeksowanie w osobnym procesie.** Demon trzyma tylko model tekstowy (wyszukiwanie). Proces roboczy
-   (`python -m lantern.service.worker`, priorytet tła `PRIO_DARWIN_BG`) startuje, gdy jest zatwierdzona praca, i kończy
-   się po opróżnieniu kolejki. Wieża audio, Whisper i procesor audio (który importuje torch) nigdy nie zostają w demonie.
-   Wyszukiwanie nie czeka na indeksowanie. Pauza to SIGTERM: bieżący plik jest kończony, reszta wraca do kolejki.
-2. **Ładowanie modelu bez torch** (`embedding/mlx_loader.py`): pakiety `mlx_vlm`, `models/gemma4`, `models/qwen3_5`
-   zastąpione pustymi pakietami zastępczymi, żeby nie wykonywać ich `__init__` (to one ciągną transformers → torch).
-   Zgodność wektorów z referencją bez zmian (testy `-m model`). Zamyka otwarte pytanie 13.
-3. **MLX i wątki:** strumienie GPU są przypisane do wątku. Model jest ładowany i wywoływany w jednym dedykowanym wątku
-   demona (zapytania z wielu wątków API są do niego kolejkowane). Błąd wyszedł dopiero na żywym demonie
-   („There is no Stream(gpu, 0) in current thread”); jest test z prawdziwym modelem w układzie jak produkcja.
-4. **Tryb `ask`:** po starcie (i po zdarzeniach obserwatora, gdy nic nie jest indeksowane) nowe i zmienione pliki czekają
-   na zgodę. Zmiany wykryte w trakcie zatwierdzonej rundy są do niej dołączane. Usunięcia są stosowane od razu.
-   Po restarcie demon pyta także o pliki pozostawione w kolejce przez poprzednie uruchomienie.
-5. **API:** JSON w liniach przez socket Unix (`0600`, katalog danych `0700`), jedno zapytanie na połączenie: proste
-   dla CLI i dla Swift (Network.framework). Gdy demon działa, CLI deleguje do niego zapisy, żeby nigdy dwa procesy
-   nie indeksowały naraz z dwoma modelami w pamięci.
-6. **Pauza na baterii / temperaturze** przez `pmset -g batt` i `pmset -g therm` (co 30 s, bez dodatkowych zależności).
+Decisions:
+1. **ADR-004: indexing in a separate process.** The daemon holds only the text model (search). The worker
+   (`python -m lantern.service.worker`, background priority `PRIO_DARWIN_BG`) starts when work is approved and exits
+   when the queue is empty. The audio tower, Whisper and the audio processor (which imports torch) never stay in the
+   daemon. Search never waits for indexing. Pause is SIGTERM: the current file is finished, the rest goes back to the
+   queue.
+2. **Loading the model without torch** (`embedding/mlx_loader.py`): the `mlx_vlm`, `models/gemma4` and
+   `models/qwen3_5` packages are replaced by empty stub packages so their `__init__` does not run (that is what pulls
+   transformers → torch). Vectors still match the reference (`-m model` tests). Closes open question 13.
+3. **MLX and threads:** GPU streams belong to a thread. The model is loaded and called on one dedicated daemon thread
+   (queries from several API threads are queued to it). The bug only showed up in the live daemon ("There is no
+   Stream(gpu, 0) in current thread"); there is now a test with the real model in the production layout.
+4. **`ask` mode:** after start (and after watcher events, when nothing is being indexed) new and changed files wait for
+   approval. Changes found during an approved round join it. Deletions apply immediately. After a restart the daemon
+   also asks about files the previous run left in the queue.
+5. **API:** JSON lines over a Unix socket (`0600`, data folder `0700`), one request per connection: simple for the CLI
+   and for Swift. When the daemon runs, the CLI delegates writes to it, so two processes never index at once with two
+   models in memory.
+6. **Pause on battery / heat** through `pmset -g batt` and `pmset -g therm` (every 30 s, no extra dependencies).
 
-Znalezione na żywo i poprawione: `chmod 0700` na katalogu nadrzędnym socketu (przy `LANTERN_SOCKET=/tmp/...` to byłby
-systemowy `/tmp`); teraz uprawnienia dostaje tylko katalog danych Lanterna.
+Found live and fixed: `chmod 0700` on the socket's parent folder (with `LANTERN_SOCKET=/tmp/...` that would have been
+the system `/tmp`); now only Lantern's data folder gets the permissions.
 
 ---
 
-## Wstępny test wyszukiwania zdjęć (przed Fazą 7, 2026-10-15)
+## Early photo search test (before Phase 7, 2026-10-15)
 
-`spikes/phase7/image_eval.py`. Flickr30k, 1000 zdjęć z 5 opisami angielskimi każde. Zapytania: 12 pojedynczych pojęć
-(EN i PL, np. „dog” / „pies”; zdjęcie trafne, gdy któryś opis wspomina pojęcie), wszystkie 5000 opisów EN oraz 25 opisów
-przetłumaczonych na polski. EmbeddingGemma 2: wieża wizyjna MLX (zgodność z ST fp32: cos 0,9999). SigLIP 2:
-`google/siglip2-base-patch16-256` (transformers, MPS, fp32).
+`spikes/phase7/image_eval.py`. Flickr30k, 1000 photos with 5 English captions each. Queries: 12 single concepts
+(English and Polish, e.g. "dog" / "pies"; a photo is relevant when one of its captions mentions the concept), all 5000
+English captions and 25 captions translated into Polish. EmbeddingGemma 2: MLX vision tower (vs ST fp32: cos 0.9999).
+SigLIP 2: `google/siglip2-base-patch16-256` (transformers, MPS, fp32).
 
 | | EmbeddingGemma 2 | SigLIP 2 base |
 |---|---|---|
-| „dog”, psy w top 10 | 10/10 | 10/10 |
-| „pies”, psy w top 10 | 4/10 (gołe słowo) → **10/10** z kontekstem („pies na zdjęciu”) | 10/10 |
-| pojedyncze pojęcia EN, mAP | 0,862 | 0,856 |
-| pojedyncze pojęcia PL, mAP | 0,649 (gołe słowo) → **0,819** („… na zdjęciu”) | 0,720 |
-| pełne opisy EN, R@1 / R@5 | **0,862 / 0,974** | 0,794 / 0,946 |
-| pełne opisy PL, R@1 / R@5 | **0,88 / 1,00** | 0,64 / 0,92 |
-| szybkość embeddingu zdjęć (M4) | 2 zdj./s (280 tokenów obrazu) | **46 zdj./s** |
-| szczyt pamięci | 1,3 GB | ~1,5 GB (torch) |
+| "dog", dogs in the top 10 | 10/10 | 10/10 |
+| "pies", dogs in the top 10 | 4/10 (bare word) → **10/10** with context ("pies na zdjęciu") | 10/10 |
+| single concepts EN, mAP | 0.862 | 0.856 |
+| single concepts PL, mAP | 0.649 (bare word) → **0.819** ("… na zdjęciu") | 0.720 |
+| full captions EN, R@1 / R@5 | **0.862 / 0.974** | 0.794 / 0.946 |
+| full captions PL, R@1 / R@5 | **0.88 / 1.00** | 0.64 / 0.92 |
+| photo embedding speed (M4) | 2 photos/s (280 image tokens) | **46 photos/s** |
+| peak memory | 1.3 GB | ~1.5 GB (torch) |
 
-Wnioski (hipotezy):
-- **Słabość „pies” to dwuznaczność, nie brak polskiego:** po angielsku „pies” to placki. Jednowyrazowe zapytanie bez
-  kontekstu językowego jest czytane jako angielskie. Dla toru zdjęć Lantern powinien dodawać kontekst
-  (np. „{zapytanie} na zdjęciu” / „photo of {query}”) albo osobny prompt. Do dobrania w Fazie 7.
-- **EmbeddingGemma 2 lepiej rozumie opisy całymi zdaniami** (zwłaszcza po polsku), **SigLIP 2 jest 23× szybszy.**
-  Przy dużych bibliotekach zdjęć szybkość decyduje: 20 tys. zdjęć to ~2,8 h (EG2) vs ~7 min (SigLIP 2).
-- Do sprawdzenia w Fazie 7: EG2 z mniejszym budżetem tokenów obrazu (70–140 zamiast 280; szybciej, jakość?),
-  SigLIP 2 so400m (lepszy, wolniejszy), wersje MLX SigLIP, oraz HEIC i zdjęcia z telefonu.
+Conclusions (hypotheses):
+- **The "pies" weakness is ambiguity, not missing Polish:** in English "pies" are pastries. A one-word query without
+  language context is read as English. For the photo track Lantern should add context
+  (e.g. "{query} na zdjęciu" / "photo of {query}") or a separate prompt. Tuned in Phase 7.
+- **EmbeddingGemma 2 understands whole-sentence captions better** (especially in Polish), **SigLIP 2 is 23× faster.**
+  For large photo libraries speed matters: 20,000 photos take ~2.8 h (EG2) vs ~7 min (SigLIP 2).
+- To check in Phase 7: EG2 with a smaller image token budget (70–140 instead of 280; faster, quality?), SigLIP 2
+  so400m (better, slower), MLX versions of SigLIP, HEIC and phone photos.
 
 ---
 
-## Etap „cały komputer” (po Fazie 5, 2026-10-15)
+## "Whole Mac" stage (after Phase 5, 2026-10-15)
 
-Suchy przebieg na prawdziwym katalogu domowym (`lantern index ~ --dry-run`, tylko metadane, 5,5 s):
-5789 plików tekstu i kodu (119 MB), 3 pliki audio/wideo, 405 zdjęć, 4 elementy tylko w iCloud. Po dwóch przykładowych
-wykluczeniach w `~/Downloads` (rozpakowane źródła biblioteki, zbiór JSON): ~1900 plików, szacunek pierwszego
-indeksowania ~1,2 h w tle.
+Dry run on the real home folder (`lantern index ~ --dry-run`, metadata only, 5.5 s): 5789 text and code files
+(119 MB), 3 audio/video files, 405 photos, 4 iCloud-only items. After two sample exclusions in `~/Downloads` (unpacked
+library sources, a JSON dataset): ~1900 files, first indexing estimated at ~1.2 h in the background.
 
-Decyzje:
-1. **Polityka katalogu domowego:** pomijany `~/Library` (z wyjątkiem iCloud Drive), `~/Applications`, biblioteka
-   muzyki Apple, pakiety macOS (`*.app`, `*.photoslibrary`, iWork, obrazy VM, `.dmg`…) i ukryte katalogi/pliki
-   (z wyjątkiem `.github`). Biurko i Dokumenty w iCloud Drive to dowiązania do `~/Desktop` i `~/Documents`, a skaner nie
-   podąża za dowiązaniami, więc nie ma duplikatów.
-2. **iCloud „tylko w chmurze”** (`SF_DATALESS`): pomijane, bo odczyt pobrałby plik. Zaindeksowany plik przeniesiony
-   do chmury zostaje w indeksie (nadal istnieje; otwarcie go pobierze).
-3. **Brak uprawnień** (prywatność macOS, chmod): folder pomijany, a jego wpisy **chronione przed usunięciem**.
-   Wcześniej `os.walk` pomijał taki folder po cichu, co usunęłoby jego pliki z indeksu.
-4. **Własne wykluczenia** (`lantern exclude add/remove/list`, lista `exclude` w `config.toml`): ścieżki bezwzględne
-   (`~` dozwolone) albo wzorce jak w `.gitignore`. Zamyka otwarte pytanie 16.
-5. **Skala (`spikes/scale/scale_eval.py`):** zostajemy przy pełnych wektorach `float[768]`.
+Decisions:
+1. **Home-folder policy:** skip `~/Library` (except iCloud Drive), `~/Applications`, the Apple Music library, macOS
+   packages (`*.app`, `*.photoslibrary`, iWork, VM images, `.dmg`…) and hidden folders/files (except `.github`).
+   Desktop and Documents in iCloud Drive are links to `~/Desktop` and `~/Documents`, and the scanner does not follow
+   links, so there are no duplicates.
+2. **iCloud "cloud only"** (`SF_DATALESS`): skipped, because reading would download the file. An indexed file that was
+   evicted to the cloud stays in the index (it still exists; opening it downloads it).
+3. **No permission** (macOS privacy, chmod): the folder is skipped and its entries are **protected from deletion**.
+   Before, `os.walk` silently skipped such a folder, which would have removed its files from the index.
+4. **User exclusions** (`lantern exclude add/remove/list`, the `exclude` list in `config.toml`): absolute paths
+   (`~` allowed) or `.gitignore`-style patterns. Closes open question 16.
+5. **Scale (`spikes/scale/scale_eval.py`):** we stay with full `float[768]` vectors.
 
-| Fragmentów | float[768] | int8[768] | bit[768] + doprecyzowanie top 200 | float[256] |
+| Chunks | float[768] | int8[768] | bit[768] + rerank top 200 | float[256] |
 |---|---|---|---|---|
-| 100 tys. | 70 ms | 55 ms | 53 ms | 21 ms |
-| 300 tys. | 220 ms | 168 ms | 124 ms | 67 ms |
-| 1 mln | 743 ms | 558 ms | 337 ms | 229 ms |
-| zgodność top 10 z dokładnym (projekty / zdjęcia) | 100% | 95% / 95% | 97% / 99,8% | 78% / 80% |
+| 100k | 70 ms | 55 ms | 53 ms | 21 ms |
+| 300k | 220 ms | 168 ms | 124 ms | 67 ms |
+| 1M | 743 ms | 558 ms | 337 ms | 229 ms |
+| top-10 agreement with exact (projects / photos) | 100% | 95% / 95% | 97% / 99.8% | 78% / 80% |
 
-   Matryoshka 256 traci wyraźnie (wbrew „prawie bez strat” z karty modelu) i odpada. Bity z doprecyzowaniem to plan
-   na indeksy > ~300 tys. fragmentów (dodatkowa tabela `bit[768]` obok `float[768]`, wypełniana jednym zapytaniem SQL
-   przez `vec_quantize_binary`). Dziś niepotrzebne: katalog domowy to ~kilkadziesiąt tysięcy fragmentów (~20–50 ms).
-
----
-
-## Faza 6: wyniki (2026-10-15)
-
-Aplikacja Swift (`app/`, Swift Package): pasek menu (MenuBarExtra), panel wyszukiwania pod ⌥Space, okno ustawień,
-powiadomienia z akcjami. Sprawdzona na prawdziwych zrzutach okien (`screencapture -l`) na izolowanym indeksie.
-
-Decyzje (uzgodnione z użytkownikiem):
-1. **Skrót ⌥Space** (Carbon `RegisterEventHotKey`: działa w tle, bez uprawnień Dostępności). Spotlight zostaje pod ⌘Space.
-2. **Aplikacja uruchamia demona jako proces potomny**, więc zgody macOS (Biurko, Dokumenty, Pobrane, iCloud Drive)
-   są przypisane do Lantern.app. Działający już demon (LaunchAgent) jest używany zamiast drugiego.
-   `LANTERN_EXIT_WITH_PARENT=1`: demon kończy się, gdy aplikacja zniknie (wykryty na żywo osierocony demon po wymuszonym zamknięciu).
-3. **Podpis „Apple Development”** (stały podpis = zgody przetrwają przebudowy). Na tym Macu brakowało certyfikatu
-   pośredniego Apple WWDR G3 (był tylko wygasły G1), przez co certyfikat był „nieważny”; dodany do pęku kluczy.
-4. **Panel bez ramki** (`.borderless`, przezroczyste tło, rozmiar z SwiftUI, górna krawędź przypięta). Pierwsza wersja
-   (`.titled`) miała przezroczysty pas nad panelem i systemowy cień/ramkę wokół prostokąta okna („dziwna obwódka”
-   zauważona przez użytkownika). Na macOS 26 systemowy cień okna wyłączony, bo Liquid Glass rysuje własny.
-5. **Własne okno ustawień** zamiast sceny `Settings` SwiftUI, która w aplikacji bez Docka nie otwierała się niezawodnie.
-6. Animacje minimalistyczne: płynne pojawianie się panelu (0,16 s), przesuwające się zaznaczenie wyników
-   (`matchedGeometryEffect`), przejścia karty zgody, liczniki `numericText`, puls ikony podczas indeksowania.
-7. Budowanie przez toolchain Xcode 26 (`DEVELOPER_DIR`), bo Command Line Tools mają SDK 15.4 bez Liquid Glass.
+   Matryoshka 256 loses clearly (despite "almost lossless" on the model card) and is rejected. Bits with reranking are
+   the plan for indexes above ~300k chunks (an extra `bit[768]` table next to `float[768]`, filled with one SQL query
+   through `vec_quantize_binary`). Not needed today: a home folder is a few tens of thousands of chunks (~20–50 ms).
 
 ---
 
-## Faza 7: wybór modelu do zdjęć (2026-10-16)
+## Phase 6: results (2026-10-15)
 
-`spikes/phase7/image_bench.py` + `run.sh`: 10 konfiguracji, każda w osobnym procesie, ten sam zbiór (Flickr30k 1k,
-12 pojęć EN/PL, 5000 opisów EN, 25 opisów PL). „PL+ctx” = zapytanie „{słowo} na zdjęciu”. Pamięć: „spoczynek” po
-załadowaniu modelu (zawyżona o ~0,5 GB zdjęć testowych trzymanych w RAM i import torch w procesorze), „szczyt” =
-peak memory footprint procesu.
+The Swift app (`app/`, Swift package): menu bar (MenuBarExtra), search panel on ⌥Space, settings window,
+notifications with actions. Checked on real window captures (`screencapture -l`) with an isolated index.
 
-| Konfiguracja | zdj./s | spoczynek | szczyt | mAP EN | mAP PL | mAP PL+ctx | R@1 EN | R@1 PL | „pies” w top 10 (goły / z kontekstem) |
+Decisions (agreed with the user):
+1. **⌥Space shortcut** (Carbon `RegisterEventHotKey`: works in the background, no Accessibility permission). Spotlight
+   stays on ⌘Space.
+2. **The app starts the daemon as a child process**, so macOS permissions (Desktop, Documents, Downloads, iCloud Drive)
+   belong to Lantern.app. A daemon that is already running (LaunchAgent) is used instead of starting a second one.
+   `LANTERN_EXIT_WITH_PARENT=1`: the daemon exits when the app goes away (an orphaned daemon was found live after a
+   force quit).
+3. **"Apple Development" signing** (a stable signature keeps permissions across rebuilds). This Mac was missing the
+   Apple WWDR G3 intermediate certificate (only the expired G1 was there), which made the certificate "invalid"; it was
+   added to the keychain.
+4. **Borderless panel** (`.borderless`, transparent background, size from SwiftUI, top edge pinned). The first version
+   (`.titled`) had a transparent strip above the panel and a system shadow/frame around the window rectangle ("a strange
+   outline" noticed by the user). On macOS 26 the system window shadow is off, because Liquid Glass draws its own.
+5. **Own settings window** instead of SwiftUI's `Settings` scene, which did not open reliably in an app without a Dock
+   icon.
+6. Minimal animations: smooth panel appearance (0.16 s), a sliding result highlight (`matchedGeometryEffect`),
+   approval card transitions, `numericText` counters, a pulsing icon while indexing.
+7. Built with the Xcode 26 toolchain (`DEVELOPER_DIR`), because the Command Line Tools ship SDK 15.4 without Liquid Glass.
+
+---
+
+## Phase 7: choosing the photo model (2026-10-16)
+
+`spikes/phase7/image_bench.py` + `run.sh`: 10 configurations, each in its own process, on the same set (Flickr30k 1k,
+12 concepts EN/PL, 5000 English captions, 25 Polish captions). "PL+ctx" = the query "{word} na zdjęciu" ("{word} in
+the photo"). Memory: "idle" after loading the model (inflated by ~0.5 GB of test photos held in RAM and the torch
+import in the processor), "peak" = the process's peak memory footprint.
+
+| Configuration | photos/s | idle | peak | mAP EN | mAP PL | mAP PL+ctx | R@1 EN | R@1 PL | "pies" in top 10 (bare / with context) |
 |---|---|---|---|---|---|---|---|---|---|
-| EG2 8-bit, 70 tok. | 9,5 | 2,1 GB | 5,9 GB | 0,811 | 0,611 | 0,765 | 0,812 | 0,80 | 6 / 10 |
-| **EG2 8-bit, 140 tok.** | **4,4** | 2,4 GB | 5,8 GB | 0,835 | 0,637 | **0,788** | **0,847** | **0,84** | 6 / 10 |
-| EG2 8-bit, 280 tok. | 2,0 | 2,8 GB | 5,8 GB | 0,862 | 0,648 | 0,819 | 0,862 | 0,88 | 4 / 10 |
-| EG2 8-bit, 560 tok. | 0,8 | 2,6 GB | 5,8 GB | 0,866 | 0,661 | 0,824 | 0,866 | 0,88 | 3 / 10 |
-| EG2 4-bit, 140 tok. | 4,6 | 2,3 GB | 5,9 GB | 0,818 | 0,616 | 0,741 | 0,842 | 0,76 | 4 / 10 |
-| EG2 bf16, 140 tok. | 4,5 | 2,6 GB | 5,8 GB | 0,834 | 0,631 | 0,785 | 0,845 | 0,84 | 6 / 10 |
-| SigLIP 2 base fp32 | 48,4 | 2,7 GB | 3,7 GB | 0,856 | 0,720 | 0,705 | 0,794 | 0,64 | 10 / 10 |
-| SigLIP 2 base fp16 | **57,7** | 2,1 GB | **2,2 GB** | 0,856 | 0,720 | 0,704 | 0,794 | 0,64 | 10 / 10 |
-| SigLIP 2 large fp16 | 18,0 | 2,9 GB | 4,1 GB | 0,847 | 0,675 | 0,677 | 0,818 | 0,76 | 9 / 10 |
-| SigLIP 2 so400m fp16 | 5,7 | 3,6 GB | 4,7 GB | 0,858 | 0,739 | 0,682 | 0,833 | 0,88 | 9 / 10 |
+| EG2 8-bit, 70 tok. | 9.5 | 2.1 GB | 5.9 GB | 0.811 | 0.611 | 0.765 | 0.812 | 0.80 | 6 / 10 |
+| **EG2 8-bit, 140 tok.** | **4.4** | 2.4 GB | 5.8 GB | 0.835 | 0.637 | **0.788** | **0.847** | **0.84** | 6 / 10 |
+| EG2 8-bit, 280 tok. | 2.0 | 2.8 GB | 5.8 GB | 0.862 | 0.648 | 0.819 | 0.862 | 0.88 | 4 / 10 |
+| EG2 8-bit, 560 tok. | 0.8 | 2.6 GB | 5.8 GB | 0.866 | 0.661 | 0.824 | 0.866 | 0.88 | 3 / 10 |
+| EG2 4-bit, 140 tok. | 4.6 | 2.3 GB | 5.9 GB | 0.818 | 0.616 | 0.741 | 0.842 | 0.76 | 4 / 10 |
+| EG2 bf16, 140 tok. | 4.5 | 2.6 GB | 5.8 GB | 0.834 | 0.631 | 0.785 | 0.845 | 0.84 | 6 / 10 |
+| SigLIP 2 base fp32 | 48.4 | 2.7 GB | 3.7 GB | 0.856 | 0.720 | 0.705 | 0.794 | 0.64 | 10 / 10 |
+| SigLIP 2 base fp16 | **57.7** | 2.1 GB | **2.2 GB** | 0.856 | 0.720 | 0.704 | 0.794 | 0.64 | 10 / 10 |
+| SigLIP 2 large fp16 | 18.0 | 2.9 GB | 4.1 GB | 0.847 | 0.675 | 0.677 | 0.818 | 0.76 | 9 / 10 |
+| SigLIP 2 so400m fp16 | 5.7 | 3.6 GB | 4.7 GB | 0.858 | 0.739 | 0.682 | 0.833 | 0.88 | 9 / 10 |
 
-Wnioski:
-1. **Kwantyzacja EG2 nie wpływa na szybkość zdjęć** (wieża wizyjna zawsze bf16); 4-bit wyraźnie traci jakość,
-   bf16 ≈ 8-bit. Zostaje 8-bit (ten sam model co tekst i audio).
-2. **Budżet tokenów to główne pokrętło:** 140 tokenów = 2,2× szybciej niż domyślne 280 przy niewielkiej stracie
-   (mAP PL+ctx 0,788 vs 0,819; R@1 PL 0,84 vs 0,88). 70 tokenów = 4,8× szybciej, nadal lepiej niż SigLIP po polsku.
-3. **SigLIP 2 base fp16 jest 13× szybszy** i ma najmniejszy szczyt pamięci, lepiej łapie gołe jednowyrazowe zapytania
-   (także „pies”), ale słabo rozumie polskie opisy zdaniem (R@1 PL 0,64 vs 0,84) i wymagałby drugiego modelu w demonie
-   do zapytań (osobna przestrzeń wektorów, +RAM na stałe). so400m dorównuje EG2 po polsku, ale jest wolny i ciężki.
-4. **Rekomendacja:** EG2 8-bit, **140 tokenów/zdjęcie**, zapytania do zdjęć z kontekstem językowym. Zero dodatkowej
-   pamięci w spoczynku (zapytania liczy ten sam model tekstowy, który demon już trzyma), jedna przestrzeń wektorów,
-   lepszy polski. 405 zdjęć użytkownika ≈ 1,5 min, 20 tys. ≈ 75 min w tle. SigLIP 2 base fp16 jako możliwy „tryb szybki”
-   dla bardzo dużych bibliotek (otwarte pytanie).
-5. Szczyt ~5,8 GB dla EG2 w tym teście wynika z limitu MLX ustawionego na 4 GB + zdjęć w RAM; w procesie roboczym
-   Lanterna limit to 3 GB, a zdjęcia są przetwarzane po jednym. Do zmierzenia przy wdrożeniu.
+Conclusions:
+1. **EG2 quantisation does not affect photo speed** (the vision tower is always bf16); 4-bit clearly loses quality,
+   bf16 ≈ 8-bit. We keep 8-bit (the same model as text and audio).
+2. **The token budget is the main dial:** 140 tokens = 2.2× faster than the default 280 for a small loss
+   (mAP PL+ctx 0.788 vs 0.819; R@1 PL 0.84 vs 0.88). 70 tokens = 4.8× faster, still better than SigLIP in Polish.
+3. **SigLIP 2 base fp16 is 13× faster** with the smallest memory peak and catches bare one-word queries better (also
+   "pies"), but understands Polish sentence captions poorly (R@1 PL 0.64 vs 0.84) and would need a second model in the
+   daemon for queries (a separate vector space, permanent extra RAM). so400m matches EG2 in Polish but is slow and heavy.
+4. **Recommendation:** EG2 8-bit, **140 tokens per photo**, photo queries with a language cue. No extra idle memory
+   (queries use the same text model the daemon already holds), one vector space, better Polish. The user's 405 photos
+   ≈ 1.5 min, 20,000 ≈ 75 min in the background. SigLIP 2 base fp16 as a possible "fast mode" for very large libraries.
+5. The ~5.8 GB peak for EG2 in this test comes from an MLX limit set to 4 GB + photos in RAM; Lantern's worker uses a
+   3 GB limit and processes photos one at a time. Measured during implementation (below).
 
-### Para SigLIP 2 + EmbeddingGemma 2 (`fusion_eval.py`, `pair_cost.py`)
+### The SigLIP 2 + EmbeddingGemma 2 pair (`fusion_eval.py`, `pair_cost.py`)
 
-Jakość (A = SigLIP 2 base fp16, B = EG2 8-bit 140 tok.; PL pojedyncze słowa: B z kontekstem, A gołe słowo):
+Quality (A = SigLIP 2 base fp16, B = EG2 8-bit 140 tok.; Polish single words: B with context, A the bare word):
 
-| Strategia | mAP EN | mAP PL | R@1 EN | R@5 EN | R@1 PL |
+| Strategy | mAP EN | mAP PL | R@1 EN | R@5 EN | R@1 PL |
 |---|---|---|---|---|---|
-| tylko A | 0,856 | 0,720 | 0,794 | 0,946 | 0,64 |
-| tylko B | 0,835 | 0,788 | 0,847 | 0,968 | 0,84 |
-| **z-score (znormalizowane wyniki, suma)** | **0,872** | **0,814** | **0,859** | **0,973** | **0,88** |
-| RRF po równo | 0,873 | 0,807 | 0,833 | 0,969 | 0,84 |
-| RRF z wagą od długości zapytania | 0,873 | 0,779 | 0,847 | 0,972 | 0,80 |
-| kaskada: A top 100 → rerank B | 0,812 | 0,746 | 0,847 | 0,969 | 0,84 |
+| A only | 0.856 | 0.720 | 0.794 | 0.946 | 0.64 |
+| B only | 0.835 | 0.788 | 0.847 | 0.968 | 0.84 |
+| **z-score (normalised scores, summed)** | **0.872** | **0.814** | **0.859** | **0.973** | **0.88** |
+| RRF, equal weights | 0.873 | 0.807 | 0.833 | 0.969 | 0.84 |
+| RRF weighted by query length | 0.873 | 0.779 | 0.847 | 0.972 | 0.80 |
+| cascade: A top 100 → rerank with B | 0.812 | 0.746 | 0.847 | 0.969 | 0.84 |
 
-Koszt w demonie (jeden proces, jak demon): EG2 tekst 387 MB → + SigLIP 2 base text encoder fp16 (torch) **2091 MB**
-(+1,7 GB na stałe, w tym ~0,23 GB sam import torch). Zimne ładowanie SigLIP na żądanie: ~4,7 s (import torch 2,5 s +
-model 2,2 s), więc nie nadaje się do ładowania przy otwarciu panelu. Zapytanie (ciepło): EG2 9,5 ms, SigLIP 8,3 ms,
-oba 16,9 ms. Indeksowanie pary: ~4,1 zdj./s (SigLIP dokłada ~0,02 s/zdjęcie do 0,23 s EG2), dwa wektory na zdjęcie.
+Cost in the daemon (one process, like the daemon): EG2 text 387 MB → + SigLIP 2 base text encoder fp16 (torch)
+**2091 MB** (+1.7 GB permanently, ~0.23 GB of it the torch import alone). Cold loading SigLIP on demand: ~4.7 s (torch
+import 2.5 s + model 2.2 s), too slow to load when the panel opens. Query (warm): EG2 9.5 ms, SigLIP 8.3 ms, both
+16.9 ms. Indexing the pair: ~4.1 photos/s (SigLIP adds ~0.02 s per photo to EG2's 0.23 s), two vectors per photo.
 
-Wnioski (hipotezy; mały zbiór: 12 pojęć, 25 opisów PL; 5000 opisów EN najbardziej wiarygodne):
-- Para z łączeniem z-score daje +1,2–4 pkt we wszystkich miarach. Kaskada i waga od długości zapytania nie pomagają.
-- Oba modele odpowiadają w < 20 ms łącznie, więc wyniki można łączyć przed wyświetleniem: nie ma „spóźnionych” wyników.
-- Koszt: +1,7 GB RAM w demonie (torch). Do sprawdzenia: SigLIP 2 w MLX 8-bit (`mlx-community/siglip2-base-patch16-224-8bit`),
-  który mógłby obniżyć koszt pary do kilkuset MB bez torch.
+Conclusions (hypotheses; small set: 12 concepts, 25 Polish captions; the 5000 English captions are the most reliable):
+- The pair with z-score fusion gains 1.2–4 points on every measure. The cascade and query-length weighting do not help.
+- Both models answer in < 20 ms together, so results can be fused before display: no "late" results.
+- Cost: +1.7 GB RAM in the daemon (torch). To check: SigLIP 2 on MLX 8-bit
+  (`mlx-community/siglip2-base-patch16-224-8bit`), which could bring the pair's cost down to a few hundred MB without
+  torch.
 
-### SigLIP 2 w MLX 8-bit do zapytań (`mlx_siglip.py`)
+### SigLIP 2 on MLX 8-bit for queries (`mlx_siglip.py`)
 
-`mlx-community/siglip2-base-patch16-224-8bit` ładowany kodem `mlx_vlm.models.siglip` (model tylko tekstowy) przez te
-same pakiety zastępcze co EG2: **bez torch**. Wektory zdjęć z oryginalnego `google/siglip2-base-patch16-224` (fp16, torch
-w procesie roboczym, 75,9 zdj./s).
+`mlx-community/siglip2-base-patch16-224-8bit` loaded with the `mlx_vlm.models.siglip` code (text model only) through
+the same stub packages as EG2: **no torch**. Photo vectors come from the original `google/siglip2-base-patch16-224`
+(fp16, torch in the worker, 75.9 photos/s).
 
-- Zgodność wektorów zapytań MLX 8-bit z torch fp32: cos min 0,9994, średnio 1,0000.
-- Koszt w demonie (jak demon): EG2 tekst 387 MB → + SigLIP tekst MLX **726 MB (+339 MB)**, ładowanie **0,33 s**;
-  zapytanie: EG2 8,4 ms + SigLIP 6,0 ms = 14,3 ms. Po serii zapytań 889 MB (cache MLX, ograniczany limitami).
-- Jakość pary (z-score) SigLIP 224 MLX + EG2 140: mAP EN 0,866, mAP PL 0,814, R@1 EN 0,858, R@1 PL 0,84
-  (samo EG2: 0,835 / 0,788 / 0,847 / 0,84) — praktycznie jak para z torch 256 px, przy ~5× mniejszym koszcie RAM.
+- MLX 8-bit query vectors vs torch fp32: cos min 0.9994, mean 1.0000.
+- Cost in the daemon (like the daemon): EG2 text 387 MB → + SigLIP text MLX **726 MB (+339 MB)**, loading **0.33 s**;
+  query: EG2 8.4 ms + SigLIP 6.0 ms = 14.3 ms. After a series of queries 889 MB (MLX cache, bounded by the limits).
+- Quality of the pair (z-score) SigLIP 224 MLX + EG2 140: mAP EN 0.866, mAP PL 0.814, R@1 EN 0.858, R@1 PL 0.84
+  (EG2 alone: 0.835 / 0.788 / 0.847 / 0.84) — practically the same as the torch 256 px pair at ~5× less RAM.
 
-Decyzja kierunkowa do Fazy 7: **para EG2 (140 tok.) + SigLIP 2 base 224**, łączenie z-score dla zdjęć; SigLIP tekst
-w demonie ładowany na żądanie (przy otwarciu panelu / pierwszym zapytaniu, 0,33 s) i zwalniany po bezczynności, więc
-w spoczynku demon zostaje przy ~390–450 MB. Wektory zdjęć obu modeli liczy proces roboczy.
+Direction for Phase 7: **the EG2 (140 tok.) + SigLIP 2 base 224 pair**, z-score fusion for photos; the SigLIP text
+encoder in the daemon loaded on demand (when the panel opens / on the first query, 0.33 s) and released after idling,
+so the idle daemon stays at ~390–450 MB. The worker computes the photo vectors of both models.
 
 ---
 
-## Faza 7: wyniki (2026-10-16)
+## Phase 7: results (2026-10-16)
 
-Wdrożone: zdjęcia (jpg, png, heic, gif, webp, tiff, bmp) i klatki filmów, para modeli EG2 (140 tok.) + SigLIP 2
-base 224, osobne tabele wektorów zdjęć dla każdego modelu (`vec_images_<id>`), sekcja zdjęć w API, CLI i panelu.
+Implemented: photos (jpg, png, heic, gif, webp, tiff, bmp) and video frames, the EG2 (140 tok.) + SigLIP 2 base 224
+model pair, separate photo vector tables per model (`vec_images_<id>`), a photos section in the API, CLI and panel.
 
-Decyzje:
-- **Klatki:** ffmpeg `select='isnan(prev_selected_t)+gt(scene,0.3)+gte(t-prev_selected_t,30)'` (zmiana sceny albo
-  co najmniej co 30 s), szerokość 448 px, maks. 400 klatek na film. Duplikaty odrzucane przed embeddingiem: dHash
-  (Hamming ≤ 6) **i** średni kolor siatki 4×4 (≤ 24). Sam dHash uznawał jednolite plansze w różnych kolorach
-  za identyczne (zgubione sceny w teście). Klatka reprezentuje odcinek do następnej zachowanej.
-- **Zdjęcia:** Pillow (`exif_transpose`, zmniejszenie do 1024 px), HEIC i awarie Pillow przez `sips` (bez `-Z`, które
-  powiększało małe zdjęcia). Pomijane: krótszy bok < 96 px, > 100 MB, błędy dekodowania. Film bez dźwięku jest
-  indeksowany przez same klatki.
-- **Lista zdjęć:** pula kandydatów z KNN obu modeli, dokładne podobieństwa dla całej puli, z-score osobno dla każdego
-  modelu, suma. Do wyników trafia tylko zdjęcie z z ≥ 1 na model (`PHOTO_MATCH_Z`). Bez tego progu każde zapytanie
-  dostawało „najbliższe z reszty” zdjęcia: jednolita zielona klatka filmu wygrywała prawie każde zapytanie.
-- **Dwie sekcje zamiast jednego rankingu.** Najpierw próbowałem łączyć zdjęcia z plikami przez RRF z wagą pewności
-  każdej listy. W folderze ze zdjęciami działało, ale na indeksie mieszanym (projekty użytkownika + 80 zdjęć) „pies”
-  i „rower” zwracały pliki źródłowe Lanterna zawierające te słowa, bo zgodność listy wektorów z listą słów przebijała
-  jedno trafienie zdjęcia. Zdjęcia i dokumenty to różne rodzaje wyników, więc teraz są osobne sekcje (jak Spotlight),
-  a wyżej jest sekcja z pewniejszą listą.
-  - pewność listy plików: różnica podobieństwa najlepszy wynik − mediana kandydatów, rampa 0,02–0,08 → 0,25–1,
-  - pewność listy zdjęć: z najlepszego zdjęcia na model, rampa 1–4 → 0,25–1,
-  - porównanie względne, bo progu bezwzględnego dla zdjęć nie ma: zakresy pewności zapytań tekstowych i wizualnych
-    nachodzą na siebie (np. „gitara”: zdjęcia 0,66, „postgres”: 0,75).
-  - Zapytanie wyglądające na kod (`_`, nawiasy, `camelCase`, `a.b`, ścieżki), np. „def backoff_wrapper(”, zawsze daje
-    pliki na górze: wektory kodu mają płaskie wyniki, więc samo porównanie pewności dawało tu zdjęcia na górze.
-  - Zdjęcia dopasowane po nazwie pliku też trafiają do sekcji zdjęć (po dopasowanych treścią). Klatki filmów zostają
-    w sekcji plików razem z dźwiękiem filmu.
+Decisions:
+- **Frames:** ffmpeg `select='isnan(prev_selected_t)+gt(scene,0.3)+gte(t-prev_selected_t,30)'` (a scene change or at
+  least every 30 s), 448 px wide, at most 400 frames per video. Duplicates are dropped before embedding: dHash
+  (Hamming ≤ 6) **and** the mean colour of a 4×4 grid (≤ 24). dHash alone treated plain slides of different colours as
+  identical (scenes were lost in the test). A frame stands for the span until the next kept frame.
+- **Photos:** Pillow (`exif_transpose`, downscaled to 1024 px), HEIC and Pillow failures through `sips` (without `-Z`,
+  which upscaled small photos). Skipped: shorter side < 96 px, > 100 MB, decoding errors. A video without sound is
+  indexed through its frames alone.
+- **Photo list:** a candidate pool from both models' KNN, exact similarities for the whole pool, a z-score per model,
+  summed. Only photos with z ≥ 1 per model are listed (`PHOTO_MATCH_Z`). Without this threshold every query got the
+  "closest of the rest": a plain green video frame won almost every query.
+- **Two sections instead of one ranking.** First I tried fusing photos with files through RRF weighted by each list's
+  confidence. It worked in a photo folder, but on a mixed index (the user's projects + 80 photos) "pies" and "rower"
+  returned Lantern source files containing those words, because agreement between the vector and word lists beat a
+  single photo hit. Photos and documents are different kinds of results, so they are now separate sections (like
+  Spotlight), and the section with the more confident list goes first.
+  - file list confidence: top similarity − median of the candidates, ramp 0.02–0.08 → 0.25–1,
+  - photo list confidence: z of the best photo per model, ramp 1–4 → 0.25–1,
+  - a relative comparison, because there is no absolute threshold for photos: the confidence ranges of text and visual
+    queries overlap (e.g. "gitara": photos 0.66, "postgres": 0.75),
+  - a query that looks like code (`_`, brackets, `camelCase`, `a.b`, paths), e.g. "def backoff_wrapper(", always puts
+    files first: code vectors have flat scores, so the confidence comparison alone put photos first here,
+  - photos matched by file name also go to the photos section (after content matches). Video frames stay in the files
+    section with the video's sound.
 
-Wyniki (indeks mieszany: ~700 plików kodu i tekstu z projektów użytkownika, film, nagranie i 106 obrazów, w tym
-80 zdjęć Flickr30k; 12 zapytań):
+Results (mixed index: ~700 code and text files from the user's projects, a video, a recording and 106 images, including
+80 Flickr30k photos; 12 queries):
 
-| Zapytanie | Pierwsza sekcja | 1. plik / 1. zdjęcie |
+| Query | First section | 1st file / 1st photo |
 |---|---|---|
-| postgres | pliki | README.md (PostgreSQL) |
-| backoff_wrapper | pliki | test_model.py |
-| ConnectionRefusedError | pliki | protocol.py |
-| optymalizacja drzewa | pliki | fast_tree4.cpp |
-| README instalacja | pliki | README.md |
-| pies / dog | zdjęcia | pies (oba) |
-| rower | zdjęcia | rower |
-| dziecko w wodzie | zdjęcia | dziecko w wodzie |
-| gitara | zdjęcia | gitara |
-| zachód słońca | zdjęcia | zachód słońca |
-| samochód na parkingu | zdjęcia | samochód |
+| postgres | files | README.md (PostgreSQL) |
+| backoff_wrapper | files | test_model.py |
+| ConnectionRefusedError | files | protocol.py |
+| optymalizacja drzewa (tree optimisation) | files | fast_tree4.cpp |
+| README instalacja (README installation) | files | README.md |
+| pies / dog | photos | a dog (both) |
+| rower (bike) | photos | a bike |
+| dziecko w wodzie (child in the water) | photos | a child in the water |
+| gitara (guitar) | photos | a guitar |
+| zachód słońca (sunset) | photos | a sunset |
+| samochód na parkingu (car in a car park) | photos | a car |
 
-12 z 12 zapytań z właściwą sekcją na górze; w samym folderze zdjęć 9 z 9 zapytań z właściwym zdjęciem na 1. miejscu.
+12 of 12 queries with the right section first; in the photo folder alone 9 of 9 queries with the right photo first.
 
-Koszty (M4): indeksowanie 80 zdjęć w 25 s razem z ładowaniem obu modeli (~3,2 zdj./s), szczyt RSS procesu ~3,9 GB.
-Demon: +339 MB tylko gdy model zapytań SigLIP jest załadowany (otwarcie panelu, `warmup`), zwalniany po 5 min.
-Testy: zgodność wektora zdjęcia EG2 z sentence-transformers (cos ≥ 0,999), zgodność SigLIP MLX z torch (cos ≥ 0,999,
-bez importu torch), właściwe zdjęcie na 1. miejscu, 0 połączeń sieciowych przy ładowaniu i liczeniu obu modeli.
+Costs (M4): indexing 80 photos in 25 s including loading both models (~3.2 photos/s), peak process RSS ~3.9 GB.
+Daemon: +339 MB only while the SigLIP query model is loaded (panel open, `warmup`), released after 5 minutes.
+Tests: EG2 photo vectors vs sentence-transformers (cos ≥ 0.999), SigLIP MLX vs torch (cos ≥ 0.999, no torch import),
+the right photo first, 0 network connections while loading and running both models.
 
-Ograniczenia (hipotezy do sprawdzenia na prawdziwej bibliotece): mały zbiór testowy; brak OCR (tekst na zrzutach
-ekranu nie jest wyszukiwany po słowach); próg z ≥ 1 zakłada pulę kilkudziesięciu kandydatów. Przy kilku zdjęciach
-w indeksie odcina prawie wszystko (zostają dopasowania po nazwie). Wyłączenie klatek nie usuwa klatek już
-zaindeksowanych filmów.
+Limitations (hypotheses to check on a real library): a small test set; no OCR (text in screenshots is not searchable
+by words); the z ≥ 1 threshold assumes a pool of a few dozen candidates — with only a few photos in the index it cuts
+almost everything (name matches remain). Turning frames off does not remove frames of videos already indexed.
 
-## Faza 8: wyniki (2026-10-16)
+## Phase 8: results (2026-10-16)
 
-Wdrożone: tabela `symbols` (schemat v3) z tree-sittera, poprawione nazwy fragmentów kodu, sekcja „Definicje”
-w API, CLI i panelu, otwieranie wyniku na linii w domyślnym edytorze.
+Implemented: a `symbols` table (schema v3) from tree-sitter, corrected code chunk names, a "Definitions" section in the
+API, CLI and panel, opening a result at its line in the default editor.
 
-Decyzje:
-- **Osobna tabela symboli zamiast samej kolumny `symbol` w FTS.** Fragment miał jedną nazwę, więc metody małych klas
-  i funkcje sklejone w jeden fragment ginęły. FTS5 dzielił też `add_two` na „add” + „two”. Teraz każda definicja ma
-  wiersz: nazwę, klucz bez stylu (`add_two` = `addTwo` → `addtwo`), rodzaj, sygnaturę, klasę nadrzędną i dokładną linię.
-- **Bez indeksu trigramowego FTS5:** zwykła tabela z indeksem na kluczu wystarcza. Pomiar przy 300 tys. symboli:
-  dokładnie < 0,01 ms, prefiks (zakres po indeksie) < 1 ms, fragment (skan) ~14 ms. To też prostsze usuwanie:
-  wiersze idą kaskadowo z plikiem (secure_delete), bez osobnej tabeli wirtualnej.
-- **Rozpoznanie zapytania:** identyfikator przed „(”, inaczej ostatni poza nawiasami; słowa kluczowe (`def`, `class`,
-  `fn`, `public`, `void`…) dają podpowiedź rodzaju albo są pomijane; `A::b` / `A.b` → klasa nadrzędna; liczba
-  argumentów z nawiasów. Zdania w języku naturalnym nie szukają definicji, pojedyncze słowo tylko dokładnych nazw.
-- **Kolejność:** definicje zawsze na górze (to dokładne odpowiedzi), potem zdjęcia/pliki według reguły z Fazy 7.
-  Historia wyszukiwań zapisuje wyniki w kolejności wyświetlania (naprawiony błąd z Fazy 7: przy zdjęciach na górze
-  `lantern open 1` otwierał pierwszy plik, a nie pierwsze zdjęcie). Do historii nie trafiają sygnatury (treść kodu).
-- **Błędy nazw znalezione testem języków i naprawione:** C/C++ dawało typ zwracany jako nazwę („int”), Go nie
-  nazywało `type P struct`, makra C++ (`NAMESPACE_BEGIN namespace x {`) parsowały się jako funkcje. Funkcja C/C++
-  liczy się tylko z prawdziwym deklaratorem funkcji. Sygnatura kończy się na pierwszym `{` poza nawiasami.
-- **Otwieranie na linii** w aplikacji domyślnej dla typu pliku (jak podwójne kliknięcie w Finderze):
-  - VS Code `vscode://file/…:linia` — sprawdzone na żywo (kursor w linii 5),
-  - Cursor `cursor://file/…:linia` — schemat zarejestrowany w aplikacji, format jak VS Code; nie uruchamiałem,
-  - Xcode `xed -l` — wymaga `DEVELOPER_DIR` wskazującego Xcode (na tym Macu `xcode-select` wskazuje Command Line Tools
-    i `xed` sam z siebie zwraca błąd); flaga `-l` sprawdzona w `xed --help`,
-  - JetBrains: launcher aplikacji z `--line` (udokumentowane przez JetBrains); nie uruchamiałem (RAM),
-  - pozostałe (np. IDLE, ustawione na tym Macu dla `.py`): zwykłe otwarcie, bez zmiany aplikacji.
+Decisions:
+- **A separate symbol table instead of only the `symbol` column in FTS.** A chunk had one name, so methods of small
+  classes and functions merged into one chunk were lost. FTS5 also split `add_two` into "add" + "two". Now every
+  definition has a row: name, style-insensitive key (`add_two` = `addTwo` → `addtwo`), kind, signature, parent class
+  and exact line.
+- **No FTS5 trigram index:** a plain table with an index on the key is enough. Measured at 300k symbols: exact
+  < 0.01 ms, prefix (index range) < 1 ms, fragment (scan) ~14 ms. Deletion is simpler too: rows cascade with the file
+  (secure_delete), no separate virtual table.
+- **Query parsing:** the identifier before "(", otherwise the last one outside brackets; keywords (`def`, `class`, `fn`,
+  `public`, `void`…) give a kind hint or are skipped; `A::b` / `A.b` → parent class; the number of arguments from the
+  brackets. Natural-language sentences do not search definitions; a single word only exact names.
+- **Order:** definitions always first (they are exact answers), then photos/files by the Phase 7 rule. The search
+  history stores results in display order (fixed a Phase 7 bug: with photos first, `lantern open 1` opened the first
+  file instead of the first photo). Signatures (code content) are not stored in the history.
+- **Name bugs found by the language test and fixed:** C/C++ gave the return type as the name ("int"), Go did not name
+  `type P struct`, C++ macros (`NAMESPACE_BEGIN namespace x {`) parsed as functions. A C/C++ function counts only with a
+  real function declarator. A signature ends at the first `{` outside brackets.
+- **Opening at the line** in the default app for the file type (like a double-click in Finder):
+  - VS Code `vscode://file/…:line` — verified live (cursor on line 5),
+  - Cursor `cursor://file/…:line` — scheme registered by the app, same format as VS Code; not launched,
+  - Xcode `xed -l` — needs `DEVELOPER_DIR` pointing at Xcode (on this Mac `xcode-select` points at the Command Line
+    Tools and `xed` fails on its own); the `-l` flag checked in `xed --help`,
+  - JetBrains: the app's launcher with `--line` (documented by JetBrains); not launched (RAM),
+  - others (e.g. IDLE, set on this Mac for `.py`): a plain open, never a different app.
 
-Wyniki:
-- Wszystkie 22 języki w teście (`tests/test_symbols.py`) dają oczekiwane definicje i linie.
-- Prawdziwe projekty użytkownika: 4394 symbole z 438 plików kodu (funkcje 2162, metody 1525, klasy 312…).
-  12 zapytań w różnych stylach (wklejona linia `def …:`, sama nazwa, inny styl, fragment, `Klasa.metoda`,
-  `Klasa::metoda`, Java, C++): **12/12 z właściwą definicją**. W 8/12 dokładnie ten plik jest pierwszy; pozostałe 4
-  to remisy identycznych kopii (np. `HistogramBasedDecisionTree` w 9 kopiach w 3 projektach). Czas < 1 ms na zapytanie.
-- Ponowny indeks kodu po zmianie potoku: 570 plików w ~4 min (wektory liczone od nowa, bo zmieniły się nazwy w tytułach).
+Results:
+- All 22 languages in the test (`tests/test_symbols.py`) give the expected definitions and lines.
+- The user's real projects: 4394 symbols from 438 code files (functions 2162, methods 1525, classes 312…). 12 queries
+  in different styles (a pasted `def …:` line, the bare name, another naming style, a fragment, `Class.method`,
+  `Class::method`, Java, C++): **12/12 with the right definition**. In 8/12 exactly the expected file is first; the
+  other 4 are ties between identical copies (e.g. `HistogramBasedDecisionTree` in 9 copies across 3 projects).
+  < 1 ms per query.
+- Re-indexing code after the pipeline change: 570 files in ~4 minutes (vectors recomputed, because the names in the
+  chunk titles changed).
 
-Ograniczenia: tylko definicje, bez użyć (wywołań); deklaracje bez ciała (prototypy w nagłówkach C) są pomijane;
-przy wielu kopiach tej samej definicji sekcja (5 pozycji) może ich nie zmieścić wszystkich.
+Limitations: definitions only, no usages (calls); declarations without a body (prototypes in C headers) are skipped;
+with many copies of the same definition the section (5 entries) may not fit them all.
 
-## Faza 9: wyniki (2026-10-16)
+## Phase 9: results (2026-10-16)
 
-Wdrożone: okno ustawień w układzie Ustawień systemowych (panele po lewej), drzewko folderów z polami wyboru
-i wyszukiwarką, ignorowane rozszerzenia (pigułki), przełącznik plików audio i filmów, panel Wydajność, podgląd ⌘Y
-w panelu wyszukiwania, nagrania od znacznika czasu (plan A i B), nowe skróty (↩ / ⌥↩ / ⌘Y / ⌘↩).
+Implemented: a settings window laid out like System Settings, a folder tree with checkboxes and search, ignored
+extensions (pills), an audio and video switch, a Performance pane, the ⌘Y preview in the search panel, recordings
+from the timestamp (plans A and B), new shortcuts (↩ / ⌥↩ / ⌘Y / ⌘↩).
 
-Decyzje:
-- **Drzewko = zwykłe wykluczenia ścieżek.** Odznaczenie dopisuje ścieżkę (zagnieżdżone wpisy znikają jako zbędne).
-  Zaznaczenie elementu w wykluczonym folderze zamienia wykluczenie folderu na wykluczenia rodzeństwa po drodze, więc
-  wraca tylko ten element. Skaner niczego nowego nie potrzebuje. Stany: zaznaczony, częściowo, odznaczony, pominięty
-  (z powodem, ten sam kod co w skanerze: `dir_skip_reason` / `file_skip_reason`).
-- **Wyszukiwarka w drzewku** przegląda nazwy w indeksowanych folderach (tylko nazwy, bez czytania treści),
-  ignoruje wielkość liter i polskie znaki (także „ł”), nie wchodzi do folderów zawsze pomijanych, ale wchodzi do
-  wykluczonych (żeby dało się je przywrócić). Limit 100 wyników albo 3 s.
-- **Ochrona przed masowym usunięciem liczy tylko pliki, których nie ma na dysku.** Wykluczenie dużego folderu
-  (pliki nadal istnieją) nie wymaga `--force`; odłączony dysk albo zły folder nadal są blokowane.
-- **Rozszerzenia:** wpis `csv`, `.csv`, `*.csv` i `CSV` oznacza to samo; pigułka pokazuje `.csv` (forma, w której
-  rozszerzenie widać w nazwie pliku w Finderze). Przecinek, spacja, średnik albo Enter kończą pigułkę; ＋ dodaje
-  wpisane albo otwiera podpowiedzi (typy, które Lantern indeksuje, z liczbą plików w indeksie). Domyślnie `.ipynb`,
-  `.csv`, `.tsv`.
-- **Pamięć:** footprint jak w Monitorze aktywności (`proc_pid_rusage`, `ri_phys_footprint`). Demon próbkuje sam
-  co 1 s (historia 10 min), więc wykres ma dane od razu po otwarciu okna. Szczyty z `ri_lifetime_max_phys_footprint`:
-  sprawdzone, że skok 300 MB między pomiarami zostaje w szczycie. Tempo z ostatnich 20 s (z 60 s ładowanie modeli
-  zaniżało je do połowy). Oś czasu: godzina w formacie systemu (24 h po polsku), domyślnie ostatnie 60 s.
-- **Podgląd ⌘Y zamiast spacji:** fokus jest w polu zapytania, więc spacja musi wpisywać spację; ⌘Y to systemowy skrót
-  Quick Look (Finder, Raycast). Podgląd jest w samym panelu (zamiast listy), więc klawiatura działa bez przełączania okien.
-- **Plan B (QuickTime od momentu) sprawdzony na żywo:** skrypt z `current time` otworzył film i przewinął do 10 s
-  (po 1 s odtwarzania zwrócił `10,665`, z przecinkiem: dlatego przekazujemy pełne sekundy, a nie ułamek). Zgoda
-  macOS na sterowanie QuickTime pojawia się za pierwszym razem; bez niej ↩ pokazuje plan A. mkv/webm: ani QuickTime,
-  ani podgląd (ten sam silnik AVFoundation) ich nie odtworzą, więc otwierają się od początku w domyślnej aplikacji.
-- **Pomiar na żywo (80 zdjęć, izolowany demon):** proces indeksujący 0,7 → 3,2 GB (szczyt jądra 3220 MB, najwyższa
-  próbka 1 s 3198 MB), po zakończeniu demon 391 MB; panel pokazał załadowane części (EmbeddingGemma: obraz, SigLIP).
+Decisions:
+- **The tree = plain path exclusions.** Unchecking adds the path (nested entries are dropped as redundant). Checking
+  an item inside an excluded folder replaces the folder's exclusion with exclusions of the siblings along the way, so
+  only that item comes back. The scanner needs nothing new. States: checked, partial, unchecked, skipped (with the
+  reason, from the same code as the scanner: `dir_skip_reason` / `file_skip_reason`).
+- **Tree search** walks names in the indexed folders (names only, no contents), ignores case and Polish characters
+  (also "ł"), never enters always-skipped folders but does enter excluded ones (so they can be brought back). Limit:
+  100 results or 3 s.
+- **The mass-deletion guard counts only files gone from the disk.** Excluding a large folder (files still exist) does
+  not need `--force`; an unplugged disk or a wrong folder is still blocked.
+- **Extensions:** `csv`, `.csv`, `*.csv` and `CSV` mean the same; the pill shows `.csv` (the way the extension
+  appears in a file name in Finder). A comma, space, semicolon or Return completes a pill; ＋ adds what is typed or
+  opens the suggestions (types Lantern indexes, with the number of indexed files). Defaults `.ipynb`, `.csv`, `.tsv`.
+- **Memory:** the footprint Activity Monitor shows (`proc_pid_rusage`, `ri_phys_footprint`). The daemon samples every
+  second on its own (10-minute history), so the chart has data as soon as the window opens. Peaks come from
+  `ri_lifetime_max_phys_footprint`: verified that a 300 MB spike between samples stays in the peak. Speed over the last
+  20 s (over 60 s, model loading halved it). Time axis: clock time in the system format (24 h in Polish), last 60 s
+  by default.
+- **⌘Y preview instead of Space:** focus is in the query field, so Space must type a space; ⌘Y is the system Quick
+  Look shortcut (Finder, Raycast). The preview replaces the list inside the panel, so the keyboard keeps working
+  without switching windows.
+- **Plan B (QuickTime from the moment) verified live:** a script with `current time` opened the video and jumped to
+  10 s (after 1 s of playback it returned `10,665`, with a comma: that is why whole seconds are passed, never a
+  fraction). The macOS permission to control QuickTime is asked the first time; without it ↩ shows plan A. mkv/webm:
+  neither QuickTime nor the preview (same AVFoundation engine) can play them, so they open from the start in their
+  default app.
+- **Live measurement (80 photos, isolated daemon):** worker 0.7 → 3.2 GB (kernel peak 3220 MB, highest 1 s sample
+  3198 MB), daemon 391 MB afterwards; the pane showed the loaded parts (EmbeddingGemma vision, SigLIP).
+- **Compact counts:** exact up to 9,999, then compact like macOS ("12.3K", "100M"; "12,3 tys." in Polish, with a
+  no-break space), so counts never overflow the menu, the sidebar or the tree.
 
-Po uwagach użytkownika okno ustawień przebudowane według zrzutów Ustawień systemowych (macOS 26): pasek boczny
-z wyszukiwarką i wierszem stanu Lanterna, panele w grupach, strzałki ← → i tytuł w pasku narzędzi, karta nagłówka
-(ikona, tytuł, opis), wiersze z kolorowymi ikonami, podstrony (drzewko, wzorce), miękka krawędź przewijania
-(`scrollEdgeEffectStyle(.soft)`), opcje zależne przygaszone zamiast wcięte. Wybór języka aplikacji (jak w macOS /
-polski / angielski) w panelu Ogólne, z ponownym uruchomieniem; README po angielsku (repozytorium publiczne).
+After the user's feedback the settings window was rebuilt from screenshots of System Settings (macOS 26): a sidebar
+with search and a Lantern status row, panes in groups, ← → arrows and the title in the toolbar, header cards (icon,
+title, description), rows with coloured icons, subpages (tree, patterns), a soft scroll edge
+(`scrollEdgeEffectStyle(.soft)`), dependent options dimmed instead of indented. An app language picker (same as macOS /
+Polish / English) in General, with a relaunch; README and docs in English (public repository).
 
-Ograniczenia: zgoda na sterowanie QuickTime sprawdzona z procesu VS Code (aplikacja Lantern zapyta o własną przy
-pierwszym ↩ na nagraniu); wyszukiwarka drzewka przy bardzo dużych folderach (cały katalog domowy) może nie zdążyć
-w 3 s i pokazuje wtedy pierwsze wyniki.
+Limitations: the QuickTime permission was verified from the VS Code process (the Lantern app asks for its own on the
+first ↩ on a recording); on very large folders (the whole home folder) tree search may not finish in 3 s and then shows
+the first results.
 
-## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
+## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
-**Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
+**Status:** accepted (2026-10-15), confirmed in Phases 2–5
 
-**Kontekst:** Potrzebne są tekst, kod i audio w jednej przestrzeni wektorowej, lokalnie i offline, przy niskim zużyciu RAM
-na 16 GB. Użytkownik preferuje natywny MLX, jeśli jest port. Pomiar: MLX 8-bit jest ~1,7× szybszy od ST na tekście,
-~1,3× na audio, a wektory są zgodne z oryginałem (cos 0,9998). Ollama ma audio, ale pada na długich oknach.
-llama.cpp nie działa z obecną wersją.
+**Context:** text, code and audio are needed in one vector space, locally and offline, with low RAM use on 16 GB. The
+user prefers native MLX when a port exists. Measured: MLX 8-bit is ~1.7× faster than ST on text and ~1.3× on audio,
+and the vectors match the original (cos 0.9998). Ollama has audio but fails on long windows. llama.cpp does not work
+with the current version.
 
-**Decyzja:**
-- Backend główny: **MLX** (`mlx-vlm`, przypięty commit), wagi `mlx-community/embeddinggemma-2-8bit` przypięte do rewizji HF.
-- Wieża tekstowa ładowana stale (~0,4–0,5 GB w spoczynku), wieża audio **ładowana na żądanie** na czas zadań audio i zwalniana po nich.
-- Docelowo przetwarzanie wstępne bez torch (tokenizer z `tokenizers`, cechy mel w numpy), żeby oszczędzić ~330 MB.
-  Do tego czasu używamy procesora z transformers.
-- Backend zapasowy za tym samym interfejsem: `sentence-transformers` (MPS, bf16), np. gdyby gałąź mlx-vlm się rozjechała.
-- Embedder za interfejsem (`embed_text`, `embed_audio`, `model_info`).
+**Decision:**
+- Main backend: **MLX** (`mlx-vlm`, pinned commit), weights `mlx-community/embeddinggemma-2-8bit` pinned to an HF
+  revision.
+- The text tower stays loaded (~0.4–0.5 GB idle); the audio and vision towers are **loaded on demand** in the worker
+  for audio/photo jobs and released afterwards.
+- Preprocessing without torch in the daemon (tokenizer from `tokenizers`, stub packages in the loader); the worker
+  uses the transformers processor for audio and images.
+- Fallback backend behind the same interface: `sentence-transformers` (MPS, bf16), e.g. if the mlx-vlm branch drifts.
+- Embedders behind an interface (`embed_text`, `embed_audio`, `embed_images`, `model_info`).
 
-**Konsekwencje:**
-- Ryzyko: mlx-vlm z niewydanej gałęzi i społeczna konwersja wag. Łagodzimy to przypięciem commitu i rewizji oraz testem
-  zgodności z ST (cos ≥ 0,999 na zestawie kontrolnym) w testach integracyjnych.
-- Wektor zapisywany z `model_id` = nazwa wag, rewizja, backend, kwantyzacja i wymiar. MLX-8bit i ST-bf16 to **różne**
-  `model_id`, mimo cos 0,9998. Zmiana oznacza reindeks.
+**Consequences:**
+- Risk: mlx-vlm from an unreleased branch and community-converted weights. Mitigated by pinning the commit and the
+  revision and by a reference test against ST (cos ≥ 0.999 on a control set) in the integration tests.
+- Every vector is stored with a `model_id` = weights name, revision, backend, quantisation and dimension. MLX-8bit and
+  ST-bf16 are **different** `model_id`s despite cos 0.9998. Switching means re-indexing.
 
-## ADR-002: Magazyn, SQLite + FTS5 + sqlite-vec w jednym pliku
+## ADR-002: Storage, SQLite + FTS5 + sqlite-vec in one file
 
-**Status:** proponowana
+**Status:** accepted
 
-**Kontekst:** Potrzebne są metadane, pełnotekstowe wyszukiwanie słów, wektory, transakcyjne usuwanie i rzeczywiste
-kasowanie danych z dysku.
+**Context:** metadata, full-text word search, vectors, transactional deletion and real erasure from disk are needed.
 
-**Decyzja:** Jeden plik SQLite z tabelami `vec0` (sqlite-vec, cosinus) i FTS5. LanceDB odrzucone dla v1.
+**Decision:** one SQLite file with `vec0` tables (sqlite-vec, cosine) and FTS5. LanceDB rejected for v1.
 
-**Konsekwencje:** Usunięcie pliku to jedna transakcja (fragmenty + FTS + wektory). VACUUM faktycznie zmniejsza plik
-(pomiar: 305 MB → 156 MB po usunięciu połowy). KNN brute-force: 78 ms dla 100 tys. × 768d, więc wystarczy do kilkuset
-tysięcy fragmentów. Powyżej tego: Matryoshka 256d albo kwantyzacja int8 (otwarte pytanie). Wymaga Pythona z
+**Consequences:** deleting a file is one transaction (chunks + FTS + vectors). VACUUM really shrinks the file
+(measured: 305 MB → 156 MB after deleting half). Brute-force KNN: 78 ms for 100k × 768d, enough for a few hundred
+thousand chunks; above that, binary vectors with reranking (measured in the "whole Mac" stage). Needs a Python with
 `enable_load_extension` (uv).
 
-## ADR-003: Audio, okna z nakładką i jawny limit długości
+## ADR-003: Audio, overlapping windows and an explicit length limit
 
-**Status:** zaakceptowana i zrealizowana (Faza 4)
+**Status:** accepted and implemented (Phase 4)
 
-**Decyzja:** ffmpeg do 16 kHz mono, potem okna **30 s z krokiem 25 s** (wstępnie, do weryfikacji w Fazie 4). Zawsze ustawiamy
-jawnie `processing_kwargs["audio"]["max_length"]` na długość okna, nigdy nie polegamy na domyślnym limicie.
-Długie okna (300 s) są możliwe, ale zabierają ~8 GB pamięci MPS i dają gorszą lokalizację w czasie.
-Transkrypcja (mlx-whisper large-v3-turbo) to **drugi tor** wyszukiwania audio w Fazie 4 (H1, H4): tekst do FTS z
-dopasowaniem prefiksu, do podglądu i do embeddingu tekstowego. Whisper ładowany tylko na czas transkrypcji (~1,8 GB),
-nigdy równocześnie z wieżą audio EmbeddingGemma.
+**Decision:** ffmpeg to 16 kHz mono, then **30 s windows with a 25 s hop**. We always set
+`processing_kwargs["audio"]["max_length"]` explicitly to the window length and never rely on the default limit. Long
+windows (300 s) are possible but take ~8 GB of MPS memory and localise worse in time. Transcription (mlx-whisper
+large-v3-turbo) is the **second track** of audio search (H1, H4): text for FTS with prefix matching, previews and text
+embeddings. Whisper is loaded only for transcription (~1.8 GB), never together with the EmbeddingGemma audio tower.
+
+## ADR-004: Indexing in a separate worker process
+
+**Status:** accepted and implemented (Phase 5); see "Phase 5: results", decision 1.
 
 ---
 
-## Otwarte pytania
+## Open questions
 
-1. Transkrypcja jako drugi tor audio jest przyjęta kierunkowo (ADR-003). Otwarte zostaje, czy przy bardzo dużej liczbie nagrań nie robić jej leniwie (najpierw embedding audio, potem transkrypcja w tle).
-8. Polska odmiana w FTS: naiwny prefiks („krow*”) zadziałał w teście, ale daje fałszywe trafienia przy krótkich rdzeniach. Alternatywa: stemmer lub lematyzator dla PL (np. Morfologik/Stempel). Do decyzji w Fazie 3.
-9. Stabilność gałęzi `mlx-vlm` z EmbeddingGemma 2: śledzić, kiedy trafi do wydania na PyPI.
-2. Optymalna długość okna audio (30 / 60 / 120 s) na prawdziwych nagraniach.
-3. Limit pamięci MPS w demonie (`PYTORCH_MPS_HIGH_WATERMARK_RATIO`, `empty_cache`), żeby indeksowanie nie zabierało RAM innym aplikacjom na 16 GB.
-4. Wymiar wektorów: 768 vs Matryoshka 256 (karta modelu podaje „prawie bez strat”), co dałoby 3× mniejszą bazę.
-5. llama.cpp: nowsza wersja niż build 11429 może obsługiwać `gemma-embedding2` (GGUF jest od ggml-org, nieoficjalny). Niesprawdzone.
-6. Ollama audio: przyczyna awarii przy ≥ ~230 s (pamięć? limit runnera MLX?). Nieistotne przy oknach 30 s.
-7. Nieoficjalny port Swift MLX (`Obscyra-app/EmbeddingGemma2Swift`) jako potencjalny backend dla aplikacji Swift w Fazie 6.
-10. Integracja z wyszukiwaniem systemowym (Cmd+Space). Spotlight nie pozwala podpiąć własnego rankingu znaczeniowego
-    (Core Spotlight dopasowuje po swoich słowach kluczowych). **Kierunek przyjęty przez użytkownika (2026-10-15):** własny
-    panel (NSPanel + SwiftUI) wyglądający jak Spotlight, pod globalnym skrótem. Użytkownik może wyłączyć skrót Spotlight
-    w Ustawieniach systemowych → Klawiatura → Skróty i przypisać ⌘Space Lanternowi (tak robią Raycast i Alfred).
-    W panelu ewentualne prefiksy poleceń (np. „lantern search: kot w butach”, „audio:”, „kod:”). Akcja App Intents
-    w Spotlight jako dodatek. Do weryfikacji w Fazie 6. Wymóg dla demona już teraz: zapytanie w ~100–200 ms (spełnione: 25–29 ms).
-11. ~~Wyszukiwanie po obrazie~~ — wdrożone w Fazie 7 (sekcja „Faza 7: wyniki”). Historia ustaleń poniżej.
-    Zdjęcia oraz klatki filmów (ffmpeg → klatki → wieża wizyjna, +~0,35 GB na czas zadań).
-    Model to obsługuje, ale jakość obrazów i wideo w benchmarkach jest wyraźnie niższa niż tekstu, a na tym Macu
-    nic nie mierzyłem. **Użytkownik chce tej opcji (2026-10-15):** Faza 7, poprzedzona krótkim testem. Dźwięk z filmów
-    (ffmpeg, znaczniki czasu wypowiedzi) wchodzi do Fazy 4.
-    Szkic potoku klatek (propozycje użytkownika, do weryfikacji w teście Fazy 7):
-    - wykrywanie zmian scen w ffmpeg (`select='gt(scene,T)'` + `showinfo` dla znaczników czasu), z dolnym limitem
-      częstotliwości (np. min. 1 klatka na 30–60 s, bo wykrywanie scen gubi wolne zmiany, np. wykład ze slajdami),
-    - deduplikacja podobnych klatek hashem percepcyjnym (dHash/pHash, odległość Hamminga poniżej progu) **przed**
-      embeddingiem; zachowana klatka reprezentuje odcinek [start, koniec] aż do następnej zachowanej,
-    - zysk: mniej obliczeń GPU i mniejsza baza. Szczyt RAM się nie zmienia, bo zależy od wielkości partii, a nie od liczby klatek,
-    - progi (scena T, Hamming) dobrać w teście na kilku typach nagrań (film, wykład ze slajdami, nagranie z telefonu).
-    Model dla obrazów: wstępny test zrobiony (sekcja „Wstępny test wyszukiwania zdjęć”); decyzja w Fazie 7 między
-    wieżą wizyjną EmbeddingGemma 2 (lepsza na opisach, 2 zdj./s) a **SigLIP 2** (23× szybszy, osobna przestrzeń). SigLIP oznacza osobny `model_id`
-    i osobną tabelę wektorów, łączoną z resztą przez RRF na poziomie plików. Wektorów nie mieszamy.
-12. ~~Wersjonowanie chunkera~~ — rozwiązane w Fazie 3 (`pipeline_version`, `model_id`).
-13. ~~Pamięć w spoczynku~~ — rozwiązane w Fazie 5 (~490 MB: loader bez torch + indeksowanie w osobnym procesie).
-    Opcja na przyszłość: zwalnianie modelu po długiej bezczynności (~50–100 MB, pierwsze zapytanie +0,5–1 s).
-14. Jakość wyszukiwania audio na prawdziwych nagraniach użytkownika (szum, wielu mówców, akcenty): potrzebny zestaw
-    kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
-15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
-16. ~~Własne wykluczenia~~ — rozwiązane (`lantern exclude`).
-17. Strumień zdarzeń z API zamiast odpytywania `status` co 2 s i `perf` co 1 s przy otwartym panelu Wydajność
-    (koszt pomijalny, ale do rozważenia).
-19. ~~Odtwarzanie od znacznika czasu~~ — wdrożone w Fazie 9 (QuickTime od momentu, podgląd ⌘Y).
-20. Zmiana skrótu ⌥Space w ustawieniach (dziś stały).
-18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).
-21. ~~Para modeli do zdjęć~~ — sprawdzone: SigLIP 2 MLX 8-bit kosztuje +339 MB tylko po załadowaniu (0,33 s, na żądanie).
-22. Wyszukiwanie fraz w nagraniach: nakładanie się fragmentów transkrypcji, znaczniki czasu słów (Whisper word timestamps),
-    tolerancja błędów ASR w FTS (indeks trigramowy FTS5 dla transkrypcji).
-23. Zestaw testowy na danych użytkownika: 50–100 zapytań z ręcznie oznaczonymi odpowiedziami (krótkie, długie, polskie,
-    slang), recall@k i MRR; test termiczny 20+ min; pełna konfiguracja każdego przebiegu zapisywana obok wyników.
-24. OCR zdjęć i zrzutów ekranu (Vision framework, lokalnie) do wyszukiwania tekstu na obrazach po słowach.
-25. Próg zdjęć (z ≥ 1) przy bardzo małych bibliotekach (kilka zdjęć) i dostrojenie reguły kolejności sekcji na
-    prawdziwych danych użytkownika; sekcja zdjęć jako siatka miniatur zamiast wierszy.
-26. Wyszukiwanie użyć symbolu (wywołania, importy) oraz deklaracji bez ciała (prototypy w nagłówkach C/C++).
-27. Skok do linii w Cursorze i edytorach JetBrains do sprawdzenia na żywo (VS Code sprawdzony); inne edytory
-    (Zed, Sublime Text, BBEdit, Nova) do dodania po sprawdzeniu ich mechanizmu.
-28. Sekcja definicji przy wielu identycznych kopiach (np. „+4 kopie”) zamiast zajmowania wszystkich miejsc.
+1. Transcription as the second audio track is accepted (ADR-003). Still open: with very many recordings, whether to
+   transcribe lazily (audio embeddings first, transcripts later in the background).
+2. The best audio window length (30 / 60 / 120 s) on real recordings.
+3. ~~MPS memory limit in the daemon~~ — superseded: MLX memory and cache limits are set at load (Phase 2), torch/MPS
+   runs only in the worker.
+4. ~~Vector size 768 vs Matryoshka 256~~ — measured in the "whole Mac" stage: 256 loses clearly (top-10 agreement
+   78–80%); we keep 768.
+5. llama.cpp: a newer build than 11429 may support `gemma-embedding2` (the GGUF is from ggml-org, unofficial). Not
+   checked.
+6. Ollama audio: why it fails at ≥ ~230 s (memory? an MLX runner limit?). Irrelevant with 30 s windows.
+7. The unofficial Swift MLX port (`Obscyra-app/EmbeddingGemma2Swift`) as a backend for the Swift app. Not needed: the
+   app is a client of the daemon.
+8. Polish inflection in FTS: the stem prefix (Phase 3) works in tests but gives false hits for short stems. Alternative:
+   a Polish stemmer or lemmatiser (e.g. Morfologik/Stempel).
+9. Stability of the `mlx-vlm` branch with EmbeddingGemma 2: watch for it to land in a PyPI release.
+10. Integration with system search (⌘Space). Spotlight cannot plug in a custom semantic ranking (Core Spotlight matches
+    its own keywords). **Direction chosen by the user (2026-10-15):** an own Spotlight-like panel (NSPanel + SwiftUI)
+    on a global shortcut, done in Phase 6. The user can turn off the Spotlight shortcut in System Settings → Keyboard →
+    Shortcuts and give ⌘Space to Lantern (as Raycast and Alfred do). Possible extras: command prefixes in the panel
+    ("audio:", "code:"), an App Intents action in Spotlight.
+11. ~~Image search~~ — implemented in Phase 7 (see "Phase 7: results"). Photos and video frames, with frame selection
+    by scene changes and a 30 s floor, perceptual-hash deduplication before embedding, and the EG2 + SigLIP 2 pair.
+12. ~~Chunker versioning~~ — solved in Phase 3 (`pipeline_version`, `model_id`).
+13. ~~Idle memory~~ — solved in Phase 5 (~490 MB: loader without torch + indexing in a separate process). Future
+    option: release the model after a long idle period (~50–100 MB, first query +0.5–1 s).
+14. Audio search quality on the user's real recordings (noise, several speakers, accents): needs a set of recordings
+    with queries. To do when the user provides them.
+15. Keyword fusion weighted by term coverage works in tests; further tuning (e.g. list weights) or a reranker once the
+    `search_events` history has grown.
+16. ~~User exclusions~~ — solved (`lantern exclude`, the folder tree, ignored extensions).
+17. An event stream from the API instead of polling `status` every 2 s and `perf` every second while the Performance
+    pane is open (negligible cost, but worth considering).
+18. Binary search with reranking once the index exceeds ~300k chunks (measured, ready to implement).
+19. ~~Playing from the timestamp~~ — implemented in Phase 9 (QuickTime from the moment, ⌘Y preview).
+20. Changing the ⌥Space shortcut in the settings (fixed today).
+21. ~~Model pair for photos~~ — checked: SigLIP 2 MLX 8-bit costs +339 MB only while loaded (0.33 s, on demand).
+22. Phrase search in recordings: overlapping transcript chunks, word timestamps (Whisper word timestamps), tolerance
+    for ASR errors in FTS (an FTS5 trigram index for transcripts).
+23. A test set on the user's data: 50–100 queries with hand-labelled answers (short, long, Polish, slang), recall@k and
+    MRR; a 20+ minute thermal test; the full configuration of every run stored next to the results.
+24. OCR of photos and screenshots (Vision framework, locally) to search text in images by words.
+25. The photo threshold (z ≥ 1) for very small libraries (a few photos) and tuning the section order rule on real user
+    data; the photos section as a thumbnail grid instead of rows.
+26. Searching symbol usages (calls, imports) and declarations without a body (prototypes in C/C++ headers).
+27. Line jumps in Cursor and JetBrains IDEs to verify live (VS Code verified); other editors (Zed, Sublime Text,
+    BBEdit, Nova) to add once their mechanism is checked.
+28. The definitions section with many identical copies (e.g. "+4 copies") instead of filling every slot.
+29. GitHub Pages: enable Pages (source: GitHub Actions) once the repository is public; the workflow and the site are
+    ready in `.github/workflows/pages.yml` and `site/`.

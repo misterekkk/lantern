@@ -9,7 +9,7 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 1. Work in phases (see `docs/ARCHITECTURE.md`). After each phase: stop, show results, run tests. Start new phases only with the user's approval.
 2. Do not assume what new libraries/models can do: verify, and record unverifiable things as open questions in `docs/DECISIONS.md`.
 3. Install nothing globally without documenting it in README. Use `uv` and the project `.venv`.
-4. Language: code, comments, identifiers, CLAUDE.md files and `README.md` in English (public repository); `docs/` in Polish.
+4. Language: code, comments, identifiers, CLAUDE.md files, `README.md` and `docs/` in English (public repository).
    App UI strings: English keys with translations in `app/Resources/<lang>.lproj` (currently Polish).
 5. Keep README in sync with reality each phase; never document features that do not exist yet.
 6. Machine has 16 GB RAM: run at most one model process at a time; stop background servers you started.

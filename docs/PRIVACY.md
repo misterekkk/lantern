@@ -1,65 +1,71 @@
-# Prywatność i bezpieczeństwo
+# Privacy and security
 
-Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaganiem nadrzędnym.
+Lantern is meant to work on company code too, so privacy is the overriding requirement.
 
-## Zasady
+## Rules
 
-1. **Lokalnie i offline.** Jedyny ruch sieciowy to jednorazowe, ręczne pobranie modelu (`hf download`, patrz README).
-   Potem biblioteki działają z `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
-2. **Tylko odczyt plików użytkownika.** Żadnych zapisów, przeniesień ani usunięć w indeksowanych folderach.
-3. **Brak telemetrii** w kodzie Lanterna: żadnych analityk, raportów awarii ani połączeń wychodzących.
-4. **API** tylko przez socket Unix z uprawnieniami `0600`, w katalogu danych z uprawnieniami `0700` (zrobione w Fazie 5,
-   sprawdzane testem). Brak portu sieciowego.
-5. **Domyślne wykluczenia sekretów:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, klucze SSH `id_*`, pliki tokenów
-   i poświadczeń, katalogi `.git`, `node_modules`, buildy, cache. Respektowany jest `.gitignore` (Faza 2).
-6. **Usunięte znaczy usunięte:** fragmenty, FTS i wektory kasowane w jednej transakcji; `PRAGMA secure_delete`,
-   FTS5 `secure-delete`, a po usunięciach `optimize` + `VACUUM` + checkpoint WAL (`lantern compact`, automatycznie
-   po dużych usunięciach i po `lantern remove`). Test sprawdza brak usuniętego tekstu w surowych bajtach pliku bazy.
-7. **iCloud i uprawnienia:** pliki iCloud nieobecne na dysku nie są czytane (odczyt pobrałby je z chmury);
-   `~/Library` (poczta, dane aplikacji) jest pomijany; folder bez uprawnień macOS jest pomijany bez usuwania jego wpisów.
-8. **Zdjęcia:** w indeksie są tylko wektory zdjęć i klatek (bez miniatur ani kopii obrazów). Miniatury w panelu
-   generuje na bieżąco macOS (Quick Look) z oryginalnych plików. Klatki filmów trafiają na czas indeksowania do
-   katalogu tymczasowego i są usuwane zaraz po wczytaniu do pamięci (przed liczeniem wektorów).
-9. **Ustawienia i podgląd:** drzewko i jego wyszukiwarka czytają tylko nazwy plików i folderów (nigdy treści,
-   nigdy folderów tylko w iCloud). Podgląd ⌘Y czyta przez API wyłącznie pliki, które już są w indeksie. Otwarcie
-   nagrania w QuickTime to lokalny skrypt (Apple Events) za zgodą macOS; nic nie wychodzi poza komputer. Panel
-   Wydajność pokazuje tylko liczby (pamięć, postęp) i ścieżkę bieżącego pliku.
-10. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
-   plików. `lantern search --no-log` pomija zapis, `lantern clear-history` usuwa całą historię i zagęszcza bazę.
+1. **Local and offline.** The only network traffic is the one-time, manual model download (`hf download`, see the
+   README). Afterwards the libraries run with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
+   `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
+2. **Read-only towards your files.** No writes, moves or deletions in indexed folders.
+3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections.
+4. **API** only through a Unix socket with mode `0600`, in a data folder with mode `0700` (tested). No network port.
+5. **Secrets excluded by default:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, SSH keys `id_*`, token and credential
+   files, plus `.git`, `node_modules`, build and cache folders. `.gitignore` files are respected.
+6. **Deleted means deleted:** text, FTS rows and vectors are deleted in one transaction; `PRAGMA secure_delete`,
+   FTS5 `secure-delete`, and after deletions `optimize` + `VACUUM` + a WAL checkpoint (`lantern compact`, automatic
+   after large deletions and after `lantern remove`). A test checks that deleted text is absent from the raw bytes of
+   the database file.
+7. **iCloud and permissions:** iCloud files that are not on the disk are never read (reading would download them);
+   `~/Library` (mail, app data) is skipped; a folder without macOS permission is skipped without removing its entries.
+8. **Photos:** the index holds only vectors of photos and frames (no thumbnails or copies). Thumbnails in the panel
+   are generated on the fly by macOS (Quick Look) from the original files. Video frames go to a temporary folder
+   during indexing and are deleted as soon as they are read into memory (before embedding).
+9. **Settings and preview:** the folder tree and its search read only file and folder names (never contents, never
+   iCloud-only folders). The ⌘Y preview reads only files that are already in the index. Opening a recording in
+   QuickTime is a local script (Apple Events) with macOS permission; nothing leaves the Mac. The Performance pane shows
+   only numbers (memory, progress) and the path of the current file.
+10. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+    `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
-## Gdzie są dane
+## Where the data is
 
-| Dane | Lokalizacja | Uwagi |
+| Data | Location | Notes |
 |---|---|---|
-| Indeks (SQLite) | `~/Library/Application Support/Lantern/index.db` | poza iCloud; wyklucz z Time Machine (README) |
-| Konfiguracja | `~/Library/Application Support/Lantern/config.toml` | `lantern config` |
-| Socket API | `~/Library/Application Support/Lantern/lantern.sock` | `0600`, tylko gdy demon działa |
-| Logi demona | `~/Library/Application Support/Lantern/logs/` | ścieżki plików i komunikaty błędów; bez treści plików i zapytań |
-| Modele | `~/.cache/huggingface/hub/` | publiczne wagi, bez danych użytkownika |
+| Index (SQLite) | `~/Library/Application Support/Lantern/index.db` | not synced with iCloud; exclude it from Time Machine (README) |
+| Settings | `~/Library/Application Support/Lantern/config.toml` | `lantern config` |
+| API socket | `~/Library/Application Support/Lantern/lantern.sock` | `0600`, only while the daemon runs |
+| Logs | `~/Library/Application Support/Lantern/logs/` | file paths and error messages; no file contents or queries |
+| Models | `~/.cache/huggingface/hub/` | public weights, no user data |
 
-Indeks zawiera **dane pochodne**: fragmenty tekstu, nazwy i sygnatury definicji z kodu oraz wektory, z których
-da się częściowo odtworzyć treść.
-`search_events` zawiera historię zapytań. Traktuj plik indeksu jak kopię indeksowanych danych.
+The index holds **derived data**: text passages, names and signatures of code definitions, and vectors from which
+content can partly be reconstructed. `search_events` holds the query history. Treat the index file like a copy of
+the indexed data.
 
-## Co robią biblioteki (zmierzone w Fazie 0)
+## What the libraries do (measured)
 
-| Biblioteka | Zachowanie sieciowe | Jak ograniczamy |
+| Library | Network behaviour | How it is contained |
 |---|---|---|
-| huggingface_hub / transformers | bez trybu offline: zapytania do huggingface.co przy ładowaniu modelu (sprawdzanie wersji) | zmienne offline; **zmierzone: 0 prób połączeń** przy ładowaniu i embedowaniu tekstu i audio |
-| sentence-transformers (backend zapasowy) | jak wyżej | jak wyżej |
-| MLX / mlx-vlm | brak własnego ruchu; wagi przez huggingface_hub | `local_files_only`; **zmierzone: 0 prób połączeń** (test `-m model`) |
-| mlx-whisper | wagi przez huggingface_hub | ładowany z lokalnej kopii (`local_files_only`); **zmierzone: 0 prób połączeń** przy transkrypcji (test `-m model`) |
-| SigLIP 2 (transformers + torch w procesie roboczym, MLX w demonie) | wagi przez huggingface_hub | `local_files_only` + zmienne offline; **zmierzone: 0 prób połączeń** przy ładowaniu i liczeniu wektorów zdjęć i zapytań (test `-m model`) |
-| Pillow, `sips` (zdjęcia) | brak ruchu sieciowego; czytają plik zdjęcia | HEIC przez `sips` do pliku tymczasowego w katalogu systemowym, usuwanego od razu |
-| ffmpeg | brak ruchu sieciowego; tylko czyta plik wejściowy, wynik idzie do potoku | wywoływany z `-nostdin`, bez plików wyjściowych |
-| Ollama (**nieużywana**) | serwer okresowo pobiera „model recommendations” z ollama.com (widoczne w logu) | nie jest częścią Lanterna |
-| Homebrew (instalacja) | analityka Homebrew przy `brew install` | opcjonalnie `brew analytics off` (nie dotyczy działania Lanterna) |
+| huggingface_hub / transformers | without offline mode: requests to huggingface.co when loading a model (version checks) | offline variables; **measured: 0 connection attempts** while loading and embedding text and audio |
+| sentence-transformers (fallback backend) | as above | as above |
+| MLX / mlx-vlm | no traffic of their own; weights through huggingface_hub | `local_files_only`; **measured: 0 connection attempts** (`-m model` test) |
+| mlx-whisper | weights through huggingface_hub | loaded from the local copy (`local_files_only`); **measured: 0 connection attempts** while transcribing (`-m model` test) |
+| SigLIP 2 (transformers + torch in the worker, MLX in the daemon) | weights through huggingface_hub | `local_files_only` + offline variables; **measured: 0 connection attempts** while loading and embedding photos and queries (`-m model` test) |
+| Pillow, `sips` (photos) | no network traffic; read the photo file | HEIC through `sips` into a temporary file that is deleted right away |
+| ffmpeg | no network traffic; reads the input file, output goes to a pipe | run with `-nostdin`, no output files |
+| Ollama (**not used**) | its server periodically fetches "model recommendations" from ollama.com (visible in its log) | not part of Lantern |
+| Homebrew (installation) | Homebrew analytics during `brew install` | optionally `brew analytics off` (does not affect Lantern itself) |
 
-Pomiar: `spikes/phase0/probe_network.py` przechwytuje `socket.connect` i `getaddrinfo` w procesie Pythona.
-W Fazie 2 dodamy analogiczny test dla backendu MLX jako test automatyczny.
+Measurement: `spikes/phase0/probe_network.py` intercepts `socket.connect` and `getaddrinfo` in the Python process;
+the `-m model` tests do the same for every model Lantern loads.
 
-## Użycie na kodzie firmowym
+## The demo website (GitHub Pages)
 
-- Uzgodnij użycie z IT/security przed indeksowaniem repozytoriów firmowych.
-- Włącz FileVault, wyklucz indeks z Time Machine, nie wyłączaj domyślnych wykluczeń sekretów.
-- Usunięcie folderu z konfiguracji usuwa jego dane z indeksu, a `VACUUM` czyści je z pliku.
+The demo page in `site/` loads nothing from third parties (no analytics, web fonts or CDNs) and sends nothing
+anywhere; it only plays a scripted walkthrough with sample data stored in the repository.
+
+## Company code
+
+- Agree on the use with IT/security before indexing company repositories.
+- Turn on FileVault, exclude the index from Time Machine, keep the default secret exclusions.
+- Removing a folder removes its data from the index, and `VACUUM` erases it from the file.

@@ -274,7 +274,7 @@ uv run lantern daemon stop | uninstall
 - Large files (> 64 MB, mostly videos) are recognised by size and content samples, not a full hash.
 - CSV/TSV and large number-heavy files are indexed by their head only (when not ignored).
 - Polish inflection in keyword search is approximated by stem prefixes, not a real stemmer.
-- Full list of open questions: [docs/DECISIONS.md](docs/DECISIONS.md#otwarte-pytania).
+- Full list of open questions: [docs/DECISIONS.md](docs/DECISIONS.md#open-questions).
 
 ## Development
 
@@ -287,7 +287,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-pa
 
 ```
 README.md, CLAUDE.md, pyproject.toml
-docs/        ARCHITECTURE.md, DECISIONS.md (decisions, measurements, open questions), PRIVACY.md — in Polish
+docs/        ARCHITECTURE.md, DECISIONS.md (decisions, measurements, open questions), PRIVACY.md
 daemon/      the daemon (Python package `lantern`): api, scanner, queue, extractors, chunking, embedding, store,
              search, service, cli.py
 app/         the menu bar app (Swift package: LanternCore + Lantern, build.sh)

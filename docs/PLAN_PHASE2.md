@@ -1,56 +1,59 @@
-# Plan Fazy 2: rdzeń (CLI, jeden folder)
+# Phase 2 plan: core (CLI, one folder)
 
-**Status:** zrealizowany (2026-10-15), wyniki w DECISIONS.md, sekcja „Faza 2: wyniki”. Zakres: tekst i kod. PDF i audio to Faza 4, RRF i higiena indeksu to Faza 3.
+**Status:** done (2026-10-15); results in DECISIONS.md, section "Phase 2: results". Scope: text and code. PDF and
+audio were planned for Phase 4, RRF and index hygiene for Phase 3.
 
-## Cel
+## Goal
 
-Działające od początku do końca: `lantern index ~/projekt` → `lantern search "optymalizacja drzewa decyzyjnego"` zwraca
-np. README, w którym jest o tym mowa (wektory), oraz pliki z dokładnym słowem (FTS jako osobna lista).
-`lantern status` pokazuje liczby plików, fragmentów, zadań i błędów.
+Working end to end: `lantern index ~/project` → `lantern search "decision tree optimisation"` returns e.g. the
+README that talks about it (vectors) and the files with the exact word (FTS as a separate list). `lantern status`
+shows the numbers of files, chunks, jobs and errors.
 
-## Moduły i pliki
+## Modules and files
 
-| Moduł | Plik(i) | Zakres |
+| Module | File(s) | Scope |
 |---|---|---|
-| store | `store/db.py`, `store/schema.sql`, `store/migrations.py` | połączenie (WAL, sqlite-vec, `foreign_keys`), `PRAGMA user_version` jako wersja schematu, lokalizacja `~/Library/Application Support/Lantern/index.db` (nadpisywalna przez `LANTERN_HOME` w testach) |
-| scanner | `scanner/walk.py`, `scanner/ignore.py`, `scanner/diff.py` | rekurencyjny walk bez podążania za symlinkami poza root, wykluczenia domyślne + `.gitignore` (`pathspec`), diff z bazą: nowe / zmienione / usunięte / przeniesione |
-| queue | `queue/jobs.py` | upsert `(file_id, kind)`, pobieranie partii, `running`→`queued` po crashu, limit prób = 3 |
-| extractors | `extractors/text.py` | wykrywanie binarek (NUL w pierwszych 8 KB), limit rozmiaru (domyślnie 2 MB), UTF-8 z fallbackiem `charset-normalizer`, mapowanie rozszerzeń na `text` lub `code` |
-| chunking | `chunking/code.py`, `chunking/text.py` | kod: tree-sitter (`tree-sitter-language-pack`) po funkcjach i klasach dla Python/JS/TS/Go/Rust/Java/Swift/C/C++; fallback i tekst: okna ~400 tokenów z nakładką 15% (Markdown po nagłówkach) |
-| embedding | `embedding/base.py`, `embedding/mlx_backend.py`, `embedding/fake.py` | Protocol `Embedder`; MLX 8-bit, ładowanie leniwe, w Fazie 2 tylko wieża tekstowa; fake deterministyczny do testów |
-| search | `search/basic.py` | wektor KNN (sqlite-vec) + FTS5 jako osobne listy; w Fazie 3 zastąpione przez RRF |
-| cli | `cli.py` | `index <path>` (skan, kolejka, przetwarzanie z paskiem postępu), `search "<q>" [-n]`, `status` |
+| store | `store/db.py`, `store/schema.sql`, `store/migrations.py` | connection (WAL, sqlite-vec, `foreign_keys`), `PRAGMA user_version` as the schema version, location `~/Library/Application Support/Lantern/index.db` (overridable with `LANTERN_HOME` in tests) |
+| scanner | `scanner/walk.py`, `scanner/ignore.py`, `scanner/diff.py` | recursive walk without following symlinks outside the root, default exclusions + `.gitignore` (`pathspec`), diff with the database: new / changed / deleted / moved |
+| queue | `queue/jobs.py` | upsert on `(file_id, kind)`, batch fetching, `running` → `queued` after a crash, at most 3 attempts |
+| extractors | `extractors/text.py` | binary detection (NUL in the first 8 KB), size limit (2 MB by default), UTF-8 with a `charset-normalizer` fallback, mapping extensions to `text` or `code` |
+| chunking | `chunking/code.py`, `chunking/text.py` | code: tree-sitter (`tree-sitter-language-pack`) by functions and classes for Python/JS/TS/Go/Rust/Java/Swift/C/C++; fallback and text: ~400-token windows with 15% overlap (Markdown by headings) |
+| embedding | `embedding/base.py`, `embedding/mlx_backend.py`, `embedding/fake.py` | `Embedder` protocol; MLX 8-bit, lazy loading, text tower only in Phase 2; a deterministic fake for tests |
+| search | `search/basic.py` | vector KNN (sqlite-vec) + FTS5 as separate lists; replaced by RRF in Phase 3 |
+| cli | `cli.py` | `index <path>` (scan, queue, processing with a progress bar), `search "<q>" [-n]`, `status` |
 
-## Kluczowe zachowania
+## Key behaviour
 
-- **Diff:** (path, size, mtime_ns). Jeśli się zmieniły, liczymy hash (blake2b z hashlib). Ten sam hash = tylko aktualizacja metadanych.
-- **Przeniesienie:** plik zniknął spod ścieżki A, a pod B pojawił się plik z tym samym hashem. Przepinamy `files.path`
-  i aktualizujemy FTS (ścieżka), bez ponownego embeddingu.
-- **Guard masowego usunięcia:** jeśli root nie istnieje lub nie jest czytelny, skan kończy się ostrzeżeniem i nic nie usuwa.
-  Dodatkowo: jeśli w roocie zniknęłoby > 50% plików, a root jest na wolumenie zewnętrznym, wymagamy `--force`.
-- **Indeksowanie pliku = jedna transakcja:** usuń stare fragmenty, FTS i wektory, potem wstaw nowe. Powtórka daje ten sam wynik.
-- **Prompty:** dokumenty `title: <ścieżka względna>[::symbol] | text: …`, zapytania `task: search result | query: …`.
-- **Polska normalizacja FTS** (ł→l) już w Fazie 2, bo to jedna funkcja i dotyczy schematu.
-- **RAM:** batch embeddingu 8 fragmentów (szczyt ~0,6 GB zamiast ~1,1 GB), `mx.clear_cache()` po każdej partii.
+- **Diff:** (path, size, mtime_ns). If they changed, hash the content (blake2b from hashlib). Same hash = metadata
+  update only.
+- **Move:** a file disappeared from path A and a file with the same hash appeared at B. Repoint `files.path` and
+  update the FTS path, without re-embedding.
+- **Mass-deletion guard:** if the root does not exist or is not readable, the scan ends with a warning and removes
+  nothing. Also: if more than 50% of a root's files vanished and the root is on an external volume, require `--force`.
+- **Indexing a file = one transaction:** delete the old chunks, FTS rows and vectors, then insert the new ones.
+  Repeating it gives the same result.
+- **Prompts:** documents `title: <relative path>[::symbol] | text: …`, queries `task: search result | query: …`.
+- **Polish FTS normalisation** (ł→l) already in Phase 2, because it is one function and affects the schema.
+- **RAM:** embedding batches of 8 chunks (peak ~0.6 GB instead of ~1.1 GB), `mx.clear_cache()` after each batch.
 
-## Testy
+## Tests
 
-- `test_scanner.py`: nowe, zmienione (mtime i treść), zmienione tylko mtime (bez reindeksu), usunięte, przeniesione
-  (bez wywołania embeddera, sprawdzane fake'iem z licznikiem), plik z sekretem pominięty, `.gitignore` respektowany.
-- `test_guard.py`: niedostępny root → zero usunięć; po ponownym podłączeniu → normalny diff.
-- `test_queue.py`: idempotentny upsert, wznowienie po „crashu”, błąd jednego pliku nie zatrzymuje reszty, limit prób.
-- `test_store.py`: usunięcie pliku czyści chunks, FTS i vec; `model_id` rozdziela tabele wektorów.
-- `test_chunking.py`: funkcje i klasy z próbki Pythona/TS, fallback na oknach.
-- `@pytest.mark.model`: MLX vs referencja ST (cos ≥ 0,999), sanity check wyszukiwania na małym repo testowym,
-  0 połączeń sieciowych przy ładowaniu i embedowaniu (przechwycenie socketów).
+- `test_scanner.py`: new, changed (mtime and content), only mtime changed (no re-index), deleted, moved (without
+  calling the embedder, checked with a counting fake), secret file skipped, `.gitignore` respected.
+- `test_guard.py`: unavailable root → zero deletions; after reconnecting → a normal diff.
+- `test_queue.py`: idempotent upsert, resume after a "crash", one failing file does not stop the rest, attempt limit.
+- `test_store.py`: deleting a file clears chunks, FTS and vectors; `model_id` separates the vector tables.
+- `test_chunking.py`: functions and classes from Python/TS samples, window fallback.
+- `@pytest.mark.model`: MLX vs the sentence-transformers reference (cos ≥ 0.999), a search sanity check on a small
+  test repo, 0 network connections while loading and embedding (socket interception).
 
-## Nowe zależności
+## New dependencies
 
-`pathspec`, `tree-sitter-language-pack`, `charset-normalizer` (wszystkie przez uv; dopiszę do README).
+`pathspec`, `tree-sitter-language-pack`, `charset-normalizer` (all through uv, listed in the README).
 
-## Kryteria ukończenia
+## Done when
 
-1. `uv run pytest` i `uv run pytest -m model` przechodzą, `ruff check` czysty.
-2. Ręczny test na tym repo i jednym prawdziwym projekcie: czas indeksowania, rozmiar bazy, szczyt RAM, 5 zapytań PL/EN z wynikami,
-   **czas odpowiedzi na zapytanie** (cel: ~100–200 ms przy załadowanym modelu, pod przyszły panel typu Spotlight).
-3. README zaktualizowane (komendy, konfiguracja wykluczeń), DECISIONS.md uzupełnione o nowe ustalenia.
+1. `uv run pytest` and `uv run pytest -m model` pass, `ruff check` is clean.
+2. Manual test on this repository and one real project: indexing time, database size, peak RAM, 5 Polish/English
+   queries with results, **query latency** (target ~100–200 ms with the model loaded, for a future Spotlight-like panel).
+3. README updated (commands, exclusions), DECISIONS.md extended with the new findings.
