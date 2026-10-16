@@ -608,6 +608,35 @@ intro with "Show it anyway"), and a DevTools-protocol test that clicks and types
 including the rejected wrong letter and playback from the timestamp). No request leaves the page except the GitHub
 link. Deployment: `.github/workflows/pages.yml` (GitHub Actions → Pages) once the repository is public.
 
+## OCR research: text in images (2026-10-16, before a possible Phase 11)
+
+Test set (`scratchpad`, not in git): 40 Flickr photos + 35 images with text (a Polish invoice rendered from a PDF and 3
+near-identical invoices, a Windows error dialog and 3 copies with other codes, a Python traceback screenshot, a
+whiteboard, a meme, a parking ticket and 2 copies with other VINs/plates, ~20 Lantern screenshots). File names were
+neutral (`IMG_9xxx`) so name matches could not help. Indexed by the real photo pipeline (EG2 vision 140 tokens +
+SigLIP 2), searched with `image_search`.
+
+- **The photo models already find text images by meaning:** 9 of 10 descriptive queries ("faktura za prąd", "błąd
+  aktualizacji windows", "mandat za parkowanie", "wykres zużycia pamięci"…) put an image of the right kind first
+  ("zrzut ekranu z kodem" did not: rank 11).
+- **They even read large, clean text:** asked for a document's own number, they picked it from its near-identical
+  siblings 15 times out of 18 (chance ~5): invoice numbers 4/4, error codes 4/4, plates 3/3, VINs 2/3, amounts 2/4.
+  **Small text fails:** "Plików w indeksie" in a UI screenshot ranked 8th, "Postgres 16" on the whiteboard 4th.
+- **Apple Vision OCR** (`VNRecognizeTextRequest`, on device, part of macOS, 30 languages including Polish) read all
+  18 exact strings; Polish diacritics come out right ("Prywatność", "Plików w indeksie: 749"); small dense text gets
+  occasional letter errors ("Sprzedawea", "Pónoc"), digits and codes stay exact. Cost: text detection 6 ms/image,
+  fast recognition 10–15 ms, accurate 25 ms for a photo and ~80–240 ms for a text-heavy screenshot; peak footprint
+  ~110 MB, no model to download.
+- **A cheap gate works:** fast recognition with "at least 2 words of 3+ letters" flagged 31/35 text images and 2/40
+  photos; the 4 misses were transparent PDF exports (below).
+- **EXIF is a weak signal:** 0/40 of the Flickr photos had any EXIF (downloads and messengers strip it), so "no EXIF"
+  cannot mean "probably a screenshot".
+- **Bug found and fixed:** transparent PNGs (PDF exports, graphics) reached both the models and Vision as black text on
+  black (pixel values 0–17). The photo loader now composites transparency onto white (image pipeline 2).
+
+Conclusion: OCR is worth adding for exact strings and small text, with Vision's own detector as the gate (no extra
+model, OpenCV or ONNX runtime). Plan and open decisions: open question 24.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -704,7 +733,11 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     for ASR errors in FTS (an FTS5 trigram index for transcripts).
 23. A test set on the user's data: 50–100 queries with hand-labelled answers (short, long, Polish, slang), recall@k and
     MRR; a 20+ minute thermal test; the full configuration of every run stored next to the results.
-24. OCR of photos and screenshots (Vision framework, locally) to search text in images by words.
+24. OCR of photos and screenshots with Apple Vision (measured, see "OCR research"): a cascade of path/name and screenshot
+    metadata (priority only) → Vision text detection on every image (6 ms) → accurate recognition only for images with
+    text → line confidence and garbage filters, watermark lines dropped → an `ocr` chunk per image (FTS for exact
+    strings, text embedding for meaning). To decide: a Swift helper vs pyobjc, OCR on by default or opt-in (screenshots
+    can hold sensitive text), PDFs (text layer through PDFKit, OCR only for scanned pages).
 25. The photo threshold (z ≥ 1) for very small libraries (a few photos) and tuning the section order rule on real user
     data; the photos section as a thumbnail grid instead of rows.
 26. Searching symbol usages (calls, imports) and declarations without a body (prototypes in C/C++ headers).
