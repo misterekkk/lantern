@@ -25,6 +25,7 @@ public enum Format {
     public static func title(_ r: SearchResult) -> String {
         let name = (r.path as NSString).lastPathComponent
         if r.isDefinition, let symbol = r.symbol { return "\(symbol)  ·  \(name)" }
+        if r.isPDF, let page = r.page { return String(localized: "\(name)  ·  page \(page)") }
         if let start = r.startMs { return "\(name)  ·  \(clock(start))" }
         if let symbol = r.symbol, !symbol.isEmpty { return "\(name)  ·  \(symbol)" }
         return name

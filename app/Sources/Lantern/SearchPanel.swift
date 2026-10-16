@@ -287,7 +287,7 @@ struct SearchView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.top, 10)
-                        PreviewView(content: preview)
+                        PreviewView(content: preview, query: model.query)
                     }
                     .transition(.opacity)
                 } else {

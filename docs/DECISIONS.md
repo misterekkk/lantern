@@ -666,7 +666,7 @@ Results:
   cases (before OCR: 15 of 18 picks among siblings by the photo models); the remaining one is a phrase that appears on
   several screenshots.
 - PDFs: "faktura za prąd", "FV/2025/10/1187" and "energia elektryczna taryfa G11" find the invoice PDF (page 1) first.
-  The user's projects contained 43 PDFs that Lantern had skipped until now.
+  The user's projects folder contained one PDF, skipped by Lantern until now and indexed after this phase.
 - Cost: indexing the 75 images took 32 s instead of 25 s; a text PDF page ~14 ms, a scanned page ~130 ms.
 - No regressions: the 12 mixed queries keep the right section first; code definitions unchanged (12/12).
 

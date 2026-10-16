@@ -21,6 +21,7 @@ enum PreviewContent: Equatable {
 
 struct PreviewView: View {
     let content: PreviewContent
+    var query = ""
 
     var body: some View {
         switch content {
@@ -38,7 +39,7 @@ struct PreviewView: View {
             }
             .padding(12)
         case .pdf(let r):
-            PDFPageView(url: URL(fileURLWithPath: r.path), page: r.page ?? 1, passage: r.preview)
+            PDFPageView(url: URL(fileURLWithPath: r.path), page: r.page ?? 1, passage: r.preview, query: query)
                 .frame(height: 360)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .padding(12)
@@ -119,6 +120,7 @@ private struct PDFPageView: NSViewRepresentable {
     let url: URL
     let page: Int
     let passage: String
+    let query: String
 
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
@@ -127,18 +129,45 @@ private struct PDFPageView: NSViewRepresentable {
         view.backgroundColor = .clear
         guard let doc = PDFDocument(url: url) else { return view }
         view.document = doc
-        let target = doc.page(at: max(0, page - 1))
-        // Highlight the start of the passage on that page (the first words; line breaks in PDFs break longer matches).
-        let words = passage.split(separator: " ").prefix(5).joined(separator: " ")
-        if !words.isEmpty, let target,
-           let hit = doc.findString(words, withOptions: .caseInsensitive).first(where: { $0.pages.contains(target) }) {
-            hit.color = NSColor.systemYellow.withAlphaComponent(0.5)
-            view.highlightedSelections = [hit]
-            view.go(to: hit)
-        } else if let target {
-            view.go(to: target)
+        guard let target = doc.page(at: max(0, page - 1)) else { return view }
+        view.go(to: target)
+        // Like Preview's search: the query's words on this page; without them, the start of the matched passage.
+        var hits = Self.queryWords(query, on: target, in: doc)
+        if hits.isEmpty, let start = Self.find(passage, on: target, in: doc) { hits = [start] }
+        hits.forEach { $0.color = NSColor.systemYellow.withAlphaComponent(0.55) }
+        view.highlightedSelections = hits
+        let hit = hits.first
+        DispatchQueue.main.async {  // once laid out: zoom to a readable width, then scroll to the passage
+            view.autoScales = false
+            view.scaleFactor = view.scaleFactorForSizeToFit * 1.9
+            if let hit { view.go(to: hit) } else { view.go(to: target) }
         }
         return view
+    }
+
+    /// Occurrences of the query's words (4+ letters, matched by their start so Polish endings may differ) on the page.
+    static func queryWords(_ query: String, on page: PDFPage, in doc: PDFDocument) -> [PDFSelection] {
+        let words = query.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" }).map(String.init)
+            .filter { $0.count >= 4 }
+        return words.flatMap { word -> [PDFSelection] in
+            let stem = word.count >= 7 ? String(word.prefix(word.count - 2)) : word
+            return doc.findString(stem, withOptions: [.caseInsensitive, .diacriticInsensitive]).filter { $0.pages.contains(page) }
+        }
+    }
+
+    /// The passage on its page. PDF text breaks lines inside sentences and the passage may start with formulas, so
+    /// try shorter pieces made of plain words: 5 words, then 3, then the longest single word.
+    static func find(_ passage: String, on page: PDFPage, in doc: PDFDocument) -> PDFSelection? {
+        let words = passage.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            .filter { $0.count >= 3 && $0.allSatisfy { $0.isLetter || $0.isNumber || "-,.".contains($0) } }
+        var tries = [words.prefix(5).joined(separator: " "), words.prefix(3).joined(separator: " ")]
+        if let longest = words.max(by: { $0.count < $1.count }) { tries.append(longest) }
+        for query in tries where !query.isEmpty {
+            if let hit = doc.findString(query, withOptions: .caseInsensitive).first(where: { $0.pages.contains(page) }) {
+                return hit
+            }
+        }
+        return nil
     }
 
     func updateNSView(_ view: PDFView, context: Context) {}

@@ -235,3 +235,4 @@
 "Text in photos and screenshots (OCR)" = "Tekst na zdjęciach i zrzutach ekranu (OCR)";
 "Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable." = "Wyłączenie typu usuwa jego pliki z indeksu przy najbliższym skanie. Tekst na obrazach czyta na tym Macu sam macOS (silnik Tekstu na żywo); zrzuty ekranu mogą zawierać prywatny tekst, który stanie się wtedy wyszukiwalny.";
 "What Lantern reads besides text, code and PDFs: photos (and the text in them), recordings and videos, and which extensions it skips." = "Co Lantern czyta oprócz tekstu, kodu i PDF-ów: zdjęcia (i tekst na nich), nagrania i filmy, oraz które rozszerzenia pomija.";
+"%@  ·  page %lld" = "%@  ·  strona %lld";
