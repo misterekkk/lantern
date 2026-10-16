@@ -28,8 +28,10 @@ def _settings():
     return settings_mod.load()
 
 
-def _excludes() -> list[str]:
-    return _settings().exclude
+def _walk_options() -> dict:
+    from lantern.service.settings import walk_options
+
+    return walk_options(_settings())
 
 
 def _daemon() -> bool:
@@ -95,7 +97,7 @@ def cmd_index_dry_run(root: Path) -> int:
     report = WalkReport()
     counts, sizes = Counter(), Counter()
     t0 = time.perf_counter()
-    for entry in iter_files(root, report, _excludes()):
+    for entry in iter_files(root, report, **_walk_options()):
         counts[entry.kind] += 1
         if entry.kind in ("text", "code"):
             sizes[entry.kind] += min(entry.size, MAX_TEXT_FILE_BYTES)
@@ -145,7 +147,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     t0 = time.perf_counter()
     try:
         settings = _settings()
-        scan = scan_root(conn, root, force=args.force, excludes=settings.exclude, include_images=settings.index_photos)
+        scan = scan_root(conn, root, force=args.force, **_walk_options())
     except RootUnavailable as exc:
         print(f"error: {exc}. Nothing was removed from the index.", file=sys.stderr)
         return 1
@@ -462,6 +464,31 @@ def cmd_exclude(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ignore(args: argparse.Namespace) -> int:
+    from lantern.service import settings as settings_mod
+
+    if args.action == "list" or not args.extensions:
+        current = (
+            protocol.call("config_get")["exclude_extensions"] if _daemon() else settings_mod.load().exclude_extensions
+        )
+        print(" ".join(current) if current else "no ignored extensions")
+        return 0
+    for raw in args.extensions:
+        try:
+            if _daemon():
+                ext = protocol.call("extensions", {"action": args.action, "extension": raw})["changed"]
+            else:
+                s = settings_mod.load()
+                ext = (settings_mod.add_extension if args.action == "add" else settings_mod.remove_extension)(s, raw)
+                settings_mod.save(s)
+        except (KeyError, ValueError, protocol.DaemonError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"{'ignored' if args.action == 'add' else 'indexed again'}: {ext}")
+    print("applied at the next scan; already indexed files with these extensions are then removed")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lantern", description="Local, offline semantic file search.")
     parser.add_argument("--version", action="version", version=f"lantern {__version__}")
@@ -519,6 +546,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("action", choices=["add", "remove", "list"])
     p.add_argument("pattern", nargs="?")
     p.set_defaults(func=cmd_exclude)
+
+    p = sub.add_parser("ignore", help="manage ignored file extensions (csv, .csv and *.csv all work)")
+    p.add_argument("action", choices=["add", "remove", "list"])
+    p.add_argument("extensions", nargs="*")
+    p.set_defaults(func=cmd_ignore)
 
     p = sub.add_parser("config", help="show or change settings (index_mode ask|auto, pause_on_battery, ...)")
     p.add_argument("key", nargs="?")

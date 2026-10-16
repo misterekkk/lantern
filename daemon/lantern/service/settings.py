@@ -17,10 +17,13 @@ class Settings:
     transcribe: bool = True
     index_photos: bool = True
     index_video_frames: bool = True
+    index_audio_video: bool = True  # audio files and videos (sound, transcripts, frames)
     notify: bool = True
     debounce_s: float = 3.0  # file events are grouped for this long before a rescan
     # Extra exclusions: absolute paths (~ allowed) or .gitignore-style patterns matched inside every indexed folder.
     exclude: list[str] = field(default_factory=list)
+    # File extensions never indexed (normalised: ".csv"). Notebooks and data tables are mostly output and numbers.
+    exclude_extensions: list[str] = field(default_factory=lambda: [".ipynb", ".csv", ".tsv"])
 
     def validate(self) -> None:
         if self.index_mode not in INDEX_MODES:
@@ -85,6 +88,35 @@ def update(settings: Settings, key: str, raw: str) -> Settings:
     setattr(settings, key, value)
     settings.validate()
     return settings
+
+
+def walk_options(settings: Settings) -> dict:
+    """Keyword arguments for scan_root / iter_files derived from the settings."""
+    return {
+        "excludes": settings.exclude, "include_images": settings.index_photos,
+        "skip_extensions": settings.exclude_extensions, "include_media": settings.index_audio_video,
+    }  # fmt: skip
+
+
+def add_extension(settings: Settings, raw: str) -> str:
+    from lantern.scanner.walk import normalize_extension
+
+    ext = normalize_extension(raw)
+    if ext is None:
+        raise ValueError(f"{raw!r} is not a file extension")
+    if ext not in settings.exclude_extensions:
+        settings.exclude_extensions.append(ext)
+    return ext
+
+
+def remove_extension(settings: Settings, raw: str) -> str:
+    from lantern.scanner.walk import normalize_extension
+
+    ext = normalize_extension(raw) or raw
+    if ext not in settings.exclude_extensions:
+        raise KeyError(f"{ext!r} is not in the ignored extensions")
+    settings.exclude_extensions.remove(ext)
+    return ext
 
 
 def add_exclude(settings: Settings, pattern: str) -> Settings:

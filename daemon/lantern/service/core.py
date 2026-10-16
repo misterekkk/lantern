@@ -28,6 +28,8 @@ from lantern.search.hybrid import clear_history, mark_opened, search
 from lantern.service import notify as notify_mod
 from lantern.service import power as power_mod
 from lantern.service import settings as settings_mod
+from lantern.service import tree as tree_mod
+from lantern.service.perf import PerfMonitor
 from lantern.store import db
 
 TICK_S = 0.5
@@ -75,6 +77,7 @@ class Daemon:
         self.worker_terminating = False
         self.worker_retry_at = 0.0
         self.progress: dict = {}
+        self.perf = PerfMonitor()
         self.last_run: dict = {}
         self.warnings: list[str] = []
         self.stopping = threading.Event()
@@ -131,13 +134,7 @@ class Daemon:
         with self.scan_lock:
             conn = self._conn()
             try:
-                result = scan_root(
-                    conn,
-                    Path(root),
-                    force=force,
-                    excludes=self.settings.exclude,
-                    include_images=self.settings.index_photos,
-                )
+                result = scan_root(conn, Path(root), force=force, **settings_mod.walk_options(self.settings))
             except RootUnavailable as exc:
                 self._warn(f"{exc}; nothing removed")
                 return {"root": root, "error": "unavailable"}
@@ -447,7 +444,7 @@ class Daemon:
             settings_mod.save(self.settings)
             if key in ("pause_on_battery", "pause_on_thermal"):
                 self._last_power_check = 0.0
-        if key == "index_photos":  # photos join or leave the index at the next scan: run it now
+        if key in ("index_photos", "index_audio_video"):  # files join or leave the index at the next scan: now
             threading.Thread(target=self.scan_all, daemon=True).start()
         return asdict(self.settings)
 
@@ -458,6 +455,89 @@ class Daemon:
             settings_mod.save(self.settings)
         threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
         return {"exclude": list(self.settings.exclude)}
+
+    def api_extensions(self, action: str, extension: str) -> dict:
+        """Ignore a file extension again or stop ignoring it (`csv`, `.csv` and `*.csv` all work)."""
+        with self.lock:
+            fn = settings_mod.add_extension if action == "add" else settings_mod.remove_extension
+            changed = fn(self.settings, extension)
+            settings_mod.save(self.settings)
+        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        return {"changed": changed, "exclude_extensions": list(self.settings.exclude_extensions)}
+
+    def api_extension_suggestions(self) -> dict:
+        """Extensions for the settings field: every type Lantern indexes, with the number of indexed files."""
+        from collections import Counter
+
+        from lantern.extractors import known_extensions
+
+        conn = self._conn()
+        counts = Counter(Path(r[0]).suffix.lower() for r in conn.execute("SELECT path FROM files"))
+        conn.close()
+        known = known_extensions()
+        items = [
+            {"ext": e, "kind": known.get(e), "indexed": counts.get(e, 0)} for e in sorted(set(known) | set(counts))
+        ]
+        return {"suggestions": [i for i in items if i["ext"]], "ignored": list(self.settings.exclude_extensions)}
+
+    def api_tree(self, path: str) -> dict:
+        conn = self._conn()
+        try:
+            return tree_mod.list_children(conn, path, self._roots(conn), self.settings)
+        finally:
+            conn.close()
+
+    def api_tree_search(self, query: str, limit: int = 100) -> dict:
+        conn = self._conn()
+        try:
+            return tree_mod.search(conn, query, self._roots(conn), self.settings, limit=limit)
+        finally:
+            conn.close()
+
+    def api_tree_preview(self, path: str) -> dict:
+        conn = self._conn()
+        try:
+            return {"path": path, "indexed": tree_mod.removal_preview(conn, path)}
+        finally:
+            conn.close()
+
+    def api_tree_set(self, path: str, included: bool) -> dict:
+        with self.lock:
+            tree_mod.set_included(self.settings, path, bool(included))
+            settings_mod.save(self.settings)
+        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        return {"exclude": list(self.settings.exclude)}
+
+    def api_preview(self, path: str, start_line: int, end_line: int | None = None, context: int = 12) -> dict:
+        """Lines of an indexed text/code file around a result, for the panel's quick look (Space). Only files in
+        the index can be read this way."""
+        from lantern.extractors.text import SkipFile, extract_text
+
+        conn = self._conn()
+        row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
+        conn.close()
+        if row is None or row["kind"] not in ("text", "code"):
+            raise ValueError("not an indexed text or code file")
+        try:
+            lines = extract_text(Path(path)).split("\n")
+        except (SkipFile, OSError) as exc:
+            raise ValueError(f"cannot read the file: {exc}") from exc
+        end_line = end_line or start_line
+        first, last = max(1, start_line - context), min(len(lines), end_line + context)
+        return {
+            "path": path, "start_line": start_line, "end_line": end_line, "total_lines": len(lines),
+            "lines": [[n, lines[n - 1]] for n in range(first, last + 1)],
+        }  # fmt: skip
+
+    def api_perf(self) -> dict:
+        with self.lock:
+            progress, worker = dict(self.progress), self.worker
+        loaded = ["embeddinggemma"] if self.embedder is not None else []
+        if getattr(self.query_embedder, "loaded", False):
+            loaded.append("siglip_text")
+        if worker is not None:
+            self.perf.tick(worker.pid, progress)
+        return self.perf.snapshot(progress, loaded, self.settings.index_video_frames)
 
     def api_compact(self) -> dict:
         with self.worker_suspended(), self.scan_lock:
@@ -569,6 +649,9 @@ class Daemon:
                 self._check_power()
                 self._manage_worker()
                 self._release_idle_query_model()
+                with self.lock:
+                    worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)
+                self.perf.tick(worker_pid, progress)
                 self.stopping.wait(TICK_S)
         finally:
             self._stop_worker(wait=True)

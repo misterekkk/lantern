@@ -107,6 +107,18 @@ VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", "
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp"})
 
 
+MEDIA_KINDS = frozenset({"audio", "video"})
+
+
+def known_extensions() -> dict[str, str]:
+    """Every extension Lantern indexes, with its kind (settings suggestions)."""
+    out = {ext: "text" for ext in TEXT_EXTENSIONS}
+    out |= {ext: "code" for ext in CODE_LANGUAGES}
+    out |= {ext: "audio" for ext in AUDIO_EXTENSIONS} | {ext: "video" for ext in VIDEO_EXTENSIONS}
+    out |= {ext: "image" for ext in IMAGE_EXTENSIONS}
+    return out
+
+
 def kind_for(path: Path) -> str | None:
     """'code', 'text', 'audio', 'video', 'image' or None (not indexed)."""
     suffix = path.suffix.lower()

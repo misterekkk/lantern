@@ -20,7 +20,7 @@ from pathlib import Path
 import pathspec
 
 from lantern.config import EXCLUDED_DIRS, GENERATED_FILES, SECRET_PATTERNS
-from lantern.extractors import kind_for
+from lantern.extractors import MEDIA_KINDS, kind_for
 
 _SECRETS = pathspec.GitIgnoreSpec.from_lines(SECRET_PATTERNS)
 
@@ -107,18 +107,59 @@ def _load_gitignore(directory: Path) -> pathspec.GitIgnoreSpec | None:
         return None
 
 
-def _skip_dir(name: str, path: Path, home: Path) -> bool:
+def normalize_extension(raw: str) -> str | None:
+    """`csv`, `.csv`, `*.csv` and `CSV` all mean ".csv"; None for something that is not an extension."""
+    ext = raw.strip().lower().lstrip("*")
+    ext = ext if ext.startswith(".") else "." + ext
+    body = ext[1:]
+    if not body or len(ext) > 24 or body.startswith(".") or not all(c.isalnum() or c in "._+-" for c in body):
+        return None
+    return ext
+
+
+@dataclass(frozen=True)
+class Filters:
+    """Settings-driven choices of what to index (besides the fixed rules above)."""
+
+    skip_extensions: frozenset[str] = frozenset()  # normalised (".csv"); multi-part ones (".tar.gz") work too
+    include_images: bool = True
+    include_media: bool = True  # audio files and videos
+
+
+def dir_skip_reason(name: str, path: Path, home: Path) -> str | None:
+    """Why a folder is never descended into (fixed rules), or None."""
     if name in EXCLUDED_DIRS:
-        return True
+        return "build"
     if name.startswith(".") and name not in HIDDEN_ALLOWED:
-        return True
+        return "hidden"
     if Path(name).suffix.lower() in BUNDLE_SUFFIXES:
-        return True
+        return "bundle"
     try:
         rel = path.relative_to(home)
     except ValueError:
-        return False
-    return rel in HOME_SKIP
+        return None
+    return "system" if rel in HOME_SKIP else None
+
+
+def file_skip_reason(name: str, path: Path, filters: Filters) -> str | None:
+    """Why a file is not indexed (fixed rules and settings, without .gitignore/user paths), or None."""
+    if name.startswith("."):
+        return "hidden"
+    if is_secret(name):
+        return "secret"
+    if name in GENERATED_FILES:
+        return "generated"
+    lower = name.lower()
+    if any(lower.endswith(ext) for ext in filters.skip_extensions):
+        return "extension"
+    kind = kind_for(path)
+    if kind is None:
+        return "unsupported"
+    if kind == "image" and not filters.include_images:
+        return "photos_off"
+    if kind in MEDIA_KINDS and not filters.include_media:
+        return "media_off"
+    return None
 
 
 def iter_files(
@@ -126,19 +167,23 @@ def iter_files(
     report: WalkReport | None = None,
     excludes: list[str] | tuple[str, ...] = (),
     include_images: bool = True,
+    skip_extensions: list[str] | tuple[str, ...] = (),
+    include_media: bool = True,
 ) -> Iterator[FileEntry]:
     """Yield indexable regular files under root. Symlinks are never followed."""
     report = report if report is not None else WalkReport()
     home = Path.home()
     user = UserExcludes(excludes)
-    yield from _walk(root, home, report, user, include_images)
+    exts = frozenset(e for e in (normalize_extension(x) for x in skip_extensions) if e)
+    filters = Filters(skip_extensions=exts, include_images=include_images, include_media=include_media)
+    yield from _walk(root, home, report, user, filters)
     # The home folder includes iCloud Drive even though ~/Library is skipped.
     icloud = home / ICLOUD_DRIVE
     if root == home and icloud.is_dir():
-        yield from _walk(icloud, home, report, user, include_images)
+        yield from _walk(icloud, home, report, user, filters)
 
 
-def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, include_images: bool) -> Iterator[FileEntry]:
+def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, filters: Filters) -> Iterator[FileEntry]:
     # Stack of (directory the .gitignore lives in, spec), inherited by subdirectories.
     specs: dict[Path, list[tuple[Path, pathspec.GitIgnoreSpec]]] = {root: []}
 
@@ -162,7 +207,7 @@ def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, includ
         keep = []
         for d in sorted(dirnames):
             sub = current / d
-            if _skip_dir(d, sub, home) or ignored(active, sub, is_dir=True) or user.match(sub, root, is_dir=True):
+            if dir_skip_reason(d, sub, home) or ignored(active, sub, is_dir=True) or user.match(sub, root, is_dir=True):
                 continue
             try:
                 st = sub.lstat()
@@ -180,15 +225,13 @@ def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, includ
         specs.pop(current, None)
 
         for name in sorted(filenames):
-            if name.startswith(".") or is_secret(name) or name in GENERATED_FILES:
-                continue
             path = current / name
-            kind = kind_for(path)
-            if kind is None:
-                continue
-            if kind == "image" and not include_images:
+            reason = file_skip_reason(name, path, filters)
+            if reason == "photos_off":
                 report.images += 1
+            if reason:
                 continue
+            kind = kind_for(path)
             if ignored(active, path, is_dir=False) or user.match(path, root, is_dir=False):
                 continue
             try:
