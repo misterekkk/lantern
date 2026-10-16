@@ -879,6 +879,13 @@ Measured on the test index (local queries vs web-like ones):
   Smitha" stays "Adwa Smytha" in every variant (the limit is the audio). File names also often have
   nothing to do with the recording, and the file name is searchable anyway (FTS path column). Pipeline audio v4 /
   video v5 re-transcribe without the prompt.
+  Decoding options suggested elsewhere, tested on the same recording: `temperature=0.0` (no fallback),
+  `no_speech_threshold=0.4`, `logprob_threshold=None` gave word-for-word the same text (no fallback or skipped
+  segment happened), so the defaults stay; `condition_on_previous_text=False` was already set. Not adopted:
+  faster-whisper (CTranslate2 has no Metal backend; mlx-whisper runs on the GPU), Silero VAD and DeepFilterNet (new
+  models to download; the raw transcript showed no hallucinations in silences, the error is unclear speech), a
+  domain `initial_prompt` (unknown per file; the file-name prompt hurt) and LLM post-correction (another large model
+  on a 16 GB Mac, and it may rewrite what was said).
 - **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
   appear over a full-screen app; confirmed by the user (Discord in full screen).
 
