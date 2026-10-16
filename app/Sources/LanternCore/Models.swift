@@ -61,6 +61,8 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var kind: String
     public var startMs: Int?
     public var endMs: Int?
+    public var page: Int?  // PDF page
+    public var textRank: Int?  // photos found by the text read from them (OCR)
 
     public init(
         path: String, chunkId: Int, startLine: Int? = nil, endLine: Int? = nil, symbol: String? = nil,
@@ -78,8 +80,9 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isMedia: Bool { startMs != nil }
     public var isVisual: Bool { kind == "image" || kind == "frame" }
     public var isDefinition: Bool { kind == "definition" }
+    public var isPDF: Bool { kind == "pdf" }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
-    public var openLine: Int? { isMedia || isVisual ? nil : startLine }
+    public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
 }
 
 /// A code definition from the symbols table: `def add_two(x, y)` in skrypt.py, line 200.
@@ -154,6 +157,7 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var exclude: [String]
     public var excludeExtensions: [String]
     public var indexAudioVideo: Bool
+    public var indexImageText: Bool
 }
 
 /// One folder level of the settings tree (`api_tree`).

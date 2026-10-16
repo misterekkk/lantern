@@ -637,6 +637,39 @@ SigLIP 2), searched with `image_search`.
 Conclusion: OCR is worth adding for exact strings and small text, with Vision's own detector as the gate (no extra
 model, OpenCV or ONNX runtime). Plan and open decisions: open question 24.
 
+## Phase 11: results — PDFs and text in images (2026-10-16)
+
+Implemented: PDFs through PDFKit (page by page, `page` on chunks, schema v4; scanned pages via OCR), text in images
+through Apple Vision with the cascade from "OCR research" (priority by name → fast gate → accurate reading →
+clean-up), `ocr` chunks in the photos section, an OCR switch (Settings → File Types, `index_image_text`).
+
+Decisions:
+- **PyObjC instead of a Swift helper.** The Python worker calls Vision and PDFKit directly (`pyobjc-framework-Vision`,
+  `pyobjc-framework-Quartz`): no second binary, no IPC, works for the CLI and in tests. Only the worker imports them
+  (first import ~5 s, then cached), so the daemon's memory is unchanged.
+- **OCR reads the original file** (≤ 4096 px), not the 1024 px copy made for the embeddings: small screen text would
+  otherwise be unreadable.
+- **No separate detector model, OpenCV or ONNX:** Vision's fast pass is the gate (10–15 ms).
+- **Camera EXIF (make, model, GPS) is not used to skip images:** photos of receipts, whiteboards and documents come
+  from cameras too, and the gate is cheap; EXIF is also missing on most downloaded or messenger photos.
+- **OCR text counts by meaning only for descriptive queries.** For "FV/2025/09/0932" the meaning list put a parking
+  ticket above the right invoice; numbers and codes now match the image text by words only.
+- **Compounds as phrases:** "187,15 zł" matched another invoice through "187,40 zł" and a date with "15". Tokens
+  joined by `.,/:-` are phrase terms: FTS retrieves the phrase and its parts (recall, e.g. Whisper writing
+  "o 01555"), but keyword coverage needs the parts adjacent (precision).
+- **PDF viewers:** Preview has no URL scheme or scripting for a page (checked: standard suite only), so ↩ opens the
+  PDF and ⌘Y shows the page in Lantern (PDFKit) with the passage highlighted.
+
+Results:
+- OCR test set (75 images: 40 photos + 35 with text, near-identical documents): OCR found text in all 35 text images
+  and in none of the 40 photos. Asked for an exact string, the right image is first in the photos section in 20 of 21
+  cases (before OCR: 15 of 18 picks among siblings by the photo models); the remaining one is a phrase that appears on
+  several screenshots.
+- PDFs: "faktura za prąd", "FV/2025/10/1187" and "energia elektryczna taryfa G11" find the invoice PDF (page 1) first.
+  The user's projects contained 43 PDFs that Lantern had skipped until now.
+- Cost: indexing the 75 images took 32 s instead of 25 s; a text PDF page ~14 ms, a scanned page ~130 ms.
+- No regressions: the 12 mixed queries keep the right section first; code definitions unchanged (12/12).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -733,7 +766,7 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     for ASR errors in FTS (an FTS5 trigram index for transcripts).
 23. A test set on the user's data: 50–100 queries with hand-labelled answers (short, long, Polish, slang), recall@k and
     MRR; a 20+ minute thermal test; the full configuration of every run stored next to the results.
-24. OCR of photos and screenshots with Apple Vision (measured, see "OCR research"): a cascade of path/name and screenshot
+24. ~~OCR~~ — implemented in Phase 11. Original plan: OCR of photos and screenshots with Apple Vision (measured, see "OCR research"): a cascade of path/name and screenshot
     metadata (priority only) → Vision text detection on every image (6 ms) → accurate recognition only for images with
     text → line confidence and garbage filters, watermark lines dropped → an `ocr` chunk per image (FTS for exact
     strings, text embedding for meaning). To decide: a Swift helper vs pyobjc, OCR on by default or opt-in (screenshots
@@ -746,3 +779,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 28. The definitions section with many identical copies (e.g. "+4 copies") instead of filling every slot.
 29. GitHub Pages: enable Pages (source: GitHub Actions) once the repository is public; the workflow and the site are
     ready in `.github/workflows/pages.yml` and `site/`.
+30. PDF page jumps in viewers other than Preview (Skim, Acrobat) to verify; Preview cannot open a page.
+31. OCR on real libraries (phone photos of documents: perspective, blur) and on large screenshot folders; tuning the
+    gate (two words of 3+ letters) if it lets through noise such as shirt numbers or shop signs.

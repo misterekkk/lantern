@@ -116,12 +116,15 @@ def known_extensions() -> dict[str, str]:
     out |= {ext: "code" for ext in CODE_LANGUAGES}
     out |= {ext: "audio" for ext in AUDIO_EXTENSIONS} | {ext: "video" for ext in VIDEO_EXTENSIONS}
     out |= {ext: "image" for ext in IMAGE_EXTENSIONS}
+    out[".pdf"] = "pdf"
     return out
 
 
 def kind_for(path: Path) -> str | None:
-    """'code', 'text', 'audio', 'video', 'image' or None (not indexed)."""
+    """'code', 'text', 'pdf', 'audio', 'video', 'image' or None (not indexed)."""
     suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return "pdf"
     if suffix in IMAGE_EXTENSIONS:
         return "image"
     if suffix in CODE_LANGUAGES:

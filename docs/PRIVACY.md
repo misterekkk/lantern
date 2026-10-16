@@ -25,7 +25,11 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
    iCloud-only folders). The ⌘Y preview reads only files that are already in the index. Opening a recording in
    QuickTime is a local script (Apple Events) with macOS permission; nothing leaves the Mac. The Performance pane shows
    only numbers (memory, progress) and the path of the current file.
-10. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+10. **Text in images and PDFs:** text is read on the Mac by macOS itself (Vision, PDFKit) through PyObjC; a test
+    checks that reading opens no network connection. The recognised text is stored in the index like document text,
+    so private text in screenshots (passwords, banking) becomes searchable: OCR can be switched off in Settings → File
+    Types. PDFs are only opened for reading, never saved.
+11. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

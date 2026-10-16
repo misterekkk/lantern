@@ -34,7 +34,9 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
 - **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
   a definition.
-- **Photos and video frames:** two models (EmbeddingGemma 2 vision tower and SigLIP 2) vote on what is in a picture.
+- **PDFs:** text page by page (Apple PDFKit); scanned pages are read with OCR. Results show the page.
+- **Photos and video frames:** two models (EmbeddingGemma 2 vision tower and SigLIP 2) vote on what is in a picture,
+  and macOS's own text recognition (Vision, on device) reads text in screenshots, scans and photos of documents.
 - **Recordings and videos:** audio embeddings plus Whisper transcripts, with the moment each phrase is spoken.
 - **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery and heat, and a
   settings window laid out like System Settings.
@@ -54,7 +56,8 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 `uv sync` installs everything else into the project's `.venv` (nothing global): MLX and a pinned `mlx-vlm` commit
 (EmbeddingGemma 2 support), `transformers`, `torch`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
-`pathspec`, `charset-normalizer`, `mlx-whisper`, `pillow`, `soundfile`, `watchdog`.
+`pathspec`, `charset-normalizer`, `mlx-whisper`, `pillow`, `soundfile`, `watchdog`, and `pyobjc-framework-Vision` /
+`pyobjc-framework-Quartz` (Python bindings for macOS's text recognition and PDFKit; no models to download).
 
 > The python.org Python (e.g. 3.13) does not work: it cannot load SQLite extensions, which `sqlite-vec` needs. The
 > Python that uv installs can.
@@ -116,6 +119,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   | ⌘↩ | show in Finder | show in Finder |
   | ↑↓ / Esc | select / close (from a preview: back to the list) | |
 
+  - PDFs open in their default app (Preview cannot be told to open a page); ⌘Y shows the matching page in Lantern
+    with the passage highlighted.
   - Files open in the app macOS uses for their type, at the right line when that app supports it: VS Code
     (verified), Cursor, Xcode, JetBrains IDEs. Other apps (TextEdit, …) open the file at the top; the ⌘Y preview
     always shows the passage. Lantern never switches to an app other than your default.
@@ -126,7 +131,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
     Look shortcut of Finder.
 - **Settings** (Settings… in the menu), laid out like System Settings:
   - **General:** open at login, language, search shortcut, ask before indexing or index automatically,
-  - **File Types:** photos, recordings and videos (with transcription and video frames), ignored extensions,
+  - **File Types:** photos and the text in them (OCR), recordings and videos (with transcription and video frames),
+    ignored extensions,
   - **Folders:** indexed folders, *Choose What to Index* (a folder tree with checkboxes, down to single files, with
     name search and the number of indexed files), exclusion patterns,
   - **Battery and Heat:** pause indexing on battery power or when the Mac is hot,
@@ -168,8 +174,24 @@ uv run lantern clear-history               # delete the local search history
   `(meaning #1 · keywords #3)`. Keyword search skips stop words and matches Polish inflections by stem.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
-  audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and photos
-  (jpg, png, heic, gif, webp, tiff, bmp).
+  PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and
+  photos (jpg, png, heic, gif, webp, tiff, bmp).
+
+### PDFs and text in images
+
+- **PDFs** are read page by page with Apple PDFKit; each result shows its page (`report.pdf (page 12)`). Pages without
+  a text layer (scans) are read with OCR. Password-protected PDFs are skipped; very large ones are capped (1000 pages,
+  100 scanned pages).
+- **Text in images** is read by macOS itself (the Vision framework behind Live Text: on device, Polish and English,
+  no model to download, ~110 MB while running) in a cascade: screenshots and scans by name go straight to reading;
+  every other image first passes a fast check (~10 ms) for at least two real words, so ordinary photos cost almost
+  nothing; low-confidence lines, symbol garbage and camera watermarks are dropped.
+- The text becomes searchable by exact words (`0x80070002`, a VIN, an invoice number, `245,30 zł`) and by meaning;
+  the photo appears in the Photos section with the matching text under it ("text in image"). Numbers and codes with
+  separators (`187,15`, `FV/2025/09/0932`) must match as a whole, not as loose parts.
+- The photo models alone already find images with text by meaning ("faktura za prąd", "błąd aktualizacji
+  windows"); OCR adds exact strings and small print. Measured: DECISIONS.md, "OCR research" and Phase 11.
+- Off switch: Settings → File Types → Text in photos and screenshots, or `lantern config index_image_text false`.
 
 ### Code definitions
 

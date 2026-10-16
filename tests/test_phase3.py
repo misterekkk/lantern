@@ -58,12 +58,14 @@ def test_migration_from_schema_v1(lantern_home):
     conn.execute("ALTER TABLE files DROP COLUMN pipeline_version")
     conn.execute("ALTER TABLE files DROP COLUMN model_id")
     conn.execute("DROP TABLE symbols")
+    conn.execute("ALTER TABLE chunks DROP COLUMN page")
     conn.execute("PRAGMA user_version = 1")
     conn.close()
     conn = db.connect(path)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
     assert {"pipeline_version", "model_id"} <= cols
     assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'symbols'").fetchone()  # v2 -> v3
+    assert "page" in {r[1] for r in conn.execute("PRAGMA table_info(chunks)")}  # v3 -> v4
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
 
 

@@ -1,4 +1,4 @@
--- Lantern index schema (version 3; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
+-- Lantern index schema (version 4; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
 -- Vector tables are created per embedding model at runtime: vec_chunks_<embedding_models.id> (see store/db.py).
 
 -- Indexed root folders. A root that is unavailable must never trigger a purge.
@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     start_ms    INTEGER,                     -- audio windows / transcript segments (Phase 4)
     end_ms      INTEGER,
     symbol      TEXT,                        -- function/class name for code
+    page        INTEGER,                     -- PDF page (1-based)
     text        TEXT                         -- NULL for pure audio windows
 );
 CREATE INDEX IF NOT EXISTS chunks_file ON chunks(file_id);

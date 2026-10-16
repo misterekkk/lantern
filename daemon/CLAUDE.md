@@ -64,6 +64,16 @@ with their video. Every search is logged to `search_events` (features only, neve
 - `search/symbols.py` parses the query (name, kind hint, parent, arity) and matches exact > prefix > fragment.
   New language: add a sample to `SAMPLES` in `tests/test_symbols.py` first, then fix the rules until it passes.
 
+## PDFs and text in images (Phase 11)
+
+- `extractors/pdf.py` (PDFKit) and `extractors/vision.py` (Apple Vision OCR) use PyObjC and are imported **only in the
+  worker** (lazily); the daemon must never import them. OCR reads the original file (up to 4096 px, transparency on
+  white), not the 1024 px embedding copy. The gate (fast pass, ≥ 2 words of 3+ letters) keeps ordinary photos cheap.
+- PDF chunks carry `page` (schema v4); OCR text is stored as `ocr` chunks of the image, with text vectors, and joins
+  the photos section in `hybrid.photo_results` (by words always, by meaning only for descriptive queries).
+- `textnorm`: compounds with separators (`187,15`, `FV/2025/09/0932`) are phrase terms: retrieved with their parts,
+  but coverage needs them adjacent.
+
 ## Photos and video frames (Phase 7)
 
 - Two models per photo: EmbeddingGemma 2 vision tower (`IMAGE_TOKENS = 140`) and SigLIP 2 base (`embedding/siglip.py`:

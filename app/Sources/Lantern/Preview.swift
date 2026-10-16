@@ -1,6 +1,7 @@
 import AppKit
 import AVKit
 import LanternCore
+import PDFKit
 import SwiftUI
 
 /// Quick look inside the search panel (⌘Y): the matched text range highlighted, or the recording from the moment
@@ -9,10 +10,11 @@ enum PreviewContent: Equatable {
     case text(TextPreview, SearchResult)
     case media(SearchResult)
     case image(SearchResult)
+    case pdf(SearchResult)
 
     var result: SearchResult {
         switch self {
-        case .text(_, let r), .media(let r), .image(let r): r
+        case .text(_, let r), .media(let r), .image(let r), .pdf(let r): r
         }
     }
 }
@@ -25,9 +27,21 @@ struct PreviewView: View {
         case .text(let preview, _): TextPreviewView(preview: preview)
         case .media(let r): MediaPreviewView(result: r)
         case .image(let r):
-            if let image = NSImage(contentsOfFile: r.path) {
-                Image(nsImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: 380).padding(12)
+            VStack(spacing: 6) {
+                if let image = NSImage(contentsOfFile: r.path) {
+                    Image(nsImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: r.preview.isEmpty ? 380 : 330)
+                }
+                if !r.preview.isEmpty {  // the text Lantern read from the image (OCR) that matched
+                    Text(r.preview).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
+            .padding(12)
+        case .pdf(let r):
+            PDFPageView(url: URL(fileURLWithPath: r.path), page: r.page ?? 1, passage: r.preview)
+                .frame(height: 360)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(12)
         }
     }
 }
@@ -97,6 +111,37 @@ private struct MediaPreviewView: View {
         }
         .padding(12)
     }
+}
+
+/// A PDF page (PDFKit) with the matched passage highlighted. Preview cannot be told to open a page, so Lantern shows
+/// it here; ↩ opens the file in the default PDF app.
+private struct PDFPageView: NSViewRepresentable {
+    let url: URL
+    let page: Int
+    let passage: String
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePage
+        view.backgroundColor = .clear
+        guard let doc = PDFDocument(url: url) else { return view }
+        view.document = doc
+        let target = doc.page(at: max(0, page - 1))
+        // Highlight the start of the passage on that page (the first words; line breaks in PDFs break longer matches).
+        let words = passage.split(separator: " ").prefix(5).joined(separator: " ")
+        if !words.isEmpty, let target,
+           let hit = doc.findString(words, withOptions: .caseInsensitive).first(where: { $0.pages.contains(target) }) {
+            hit.color = NSColor.systemYellow.withAlphaComponent(0.5)
+            view.highlightedSelections = [hit]
+            view.go(to: hit)
+        } else if let target {
+            view.go(to: target)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: PDFView, context: Context) {}
 }
 
 /// System player (the one QuickTime and Quick Look use), started at `start` seconds.

@@ -51,6 +51,8 @@ def _clock(ms: int) -> str:
 
 
 def _location(r) -> str:
+    if getattr(r, "page", None):
+        return f"{r.path}  (page {r.page})"
     if r.start_ms is not None:
         return f"{r.path} @ {_clock(r.start_ms)}–{_clock(r.end_ms)}"
     lines = f":{r.start_line}-{r.end_line}" if r.start_line else ""
@@ -115,7 +117,7 @@ def cmd_index_dry_run(root: Path) -> int:
     for p in report.unreadable[:10]:
         print(f"    no access: {p}")
     if report.images:
-        print(f"  photos: {report.images} (searchable from Phase 7)")
+        print(f"  photos (not indexed, switched off): {report.images}")
     print(f"  rough first-index time: text/code ~{text_s / 3600:.1f} h, audio/video ~{media_s / 3600:.1f} h "
           "(later runs only process changes)")  # fmt: skip
     return 0
@@ -170,6 +172,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     stats = run_queue(
         conn, make_embedder(), progress, make_transcriber(not args.no_transcribe),
         image_embedder=make_image_embedder(settings), video_frames=settings.index_video_frames,
+        image_text=settings.index_image_text,
     )  # fmt: skip
     if sys.stderr.isatty():
         print("\r" + " " * 70 + "\r", end="", file=sys.stderr)
@@ -181,7 +184,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     if stats.media or stats.transcribed:
         print(f"audio/video: {stats.media} files, {stats.audio_windows} audio windows, {stats.transcribed} transcribed")
     if stats.images or stats.frames:
-        print(f"photos: {stats.images}, video frames: {stats.frames}")
+        print(f"photos: {stats.images} ({stats.image_texts} with text), video frames: {stats.frames}")
     for path, msg in stats.errors[:10]:
         print(f"  failed: {path}: {msg}", file=sys.stderr)
     if scan.deleted and db.maybe_compact(conn):

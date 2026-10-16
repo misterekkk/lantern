@@ -26,6 +26,7 @@ class Hit:
     start_ms: int | None = None  # audio windows and transcript chunks
     end_ms: int | None = None
     coverage: float = 1.0  # keyword hits: share of query terms matched (used to weight fusion)
+    page: int | None = None  # PDF page
     full_text: str = field(default="", repr=False, compare=False)
 
 
@@ -36,7 +37,7 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
     rows = {
         r["id"]: r
         for r in conn.execute(
-            f"SELECT c.id, c.start_line, c.end_line, c.symbol, c.text, c.kind, c.start_ms, c.end_ms, f.path "
+            f"SELECT c.id, c.start_line, c.end_line, c.symbol, c.text, c.kind, c.start_ms, c.end_ms, c.page, f.path "
             f"FROM chunks c "
             f"JOIN files f ON f.id = c.file_id WHERE c.id IN ({marks})",
             [cid for cid, _ in scored],
@@ -61,6 +62,7 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]]) -> list[Hit
                 kind=r["kind"],
                 start_ms=r["start_ms"],
                 end_ms=r["end_ms"],
+                page=r["page"],
                 full_text=text or "",
             )
         )

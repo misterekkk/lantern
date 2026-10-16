@@ -11,6 +11,9 @@ import unicodedata
 
 _FOLD = str.maketrans({"ł": "l", "Ł": "L"})
 _TOKEN = re.compile(r"\w+", re.UNICODE)
+# Numbers and codes with separators ("187,15", "FV/2025/09/0932", "2025-10-14", "config.toml"): FTS splits them at the
+# punctuation, so they are searched as phrases (the parts next to each other), not as loose words.
+_COMPOUND = re.compile(r"\w+(?:[.,/:\-]\w+)+", re.UNICODE)
 
 # Folded (ł -> l), lowercase.
 STOPWORDS = frozenset(
@@ -32,10 +35,14 @@ def fold(text: str) -> str:
 
 def query_terms(query: str) -> list[tuple[str, bool]]:
     """Content terms of a query as (term, is_prefix): stopwords removed (unless that leaves nothing), long words
-    reduced to a stem prefix; identifiers (snake_case), numbers and short words stay exact."""
-    tokens = [t for t in _TOKEN.findall(fold(query).lower()) if len(t) > 1]
-    content = [t for t in tokens if t not in STOPWORDS] or tokens
-    terms = []
+    reduced to a stem prefix; identifiers (snake_case), numbers and short words stay exact. A compound with separators
+    becomes one phrase term: its parts joined by spaces ("187 15")."""
+    text = fold(query).lower()
+    phrases = [" ".join(_TOKEN.findall(m.group())) for m in _COMPOUND.finditer(text)]
+    text = _COMPOUND.sub(" ", text)
+    tokens = [t for t in _TOKEN.findall(text) if len(t) > 1]
+    content = [t for t in tokens if t not in STOPWORDS] or ([] if phrases else tokens)
+    terms = [(phrase, False) for phrase in dict.fromkeys(phrases)]
     for token in dict.fromkeys(content):
         if token.isalpha() and len(token) >= 5:
             keep = len(token) - (3 if len(token) >= 7 else 2)
@@ -50,7 +57,12 @@ def fts_query(query: str) -> str | None:
     terms = query_terms(query)
     if not terms:
         return None
-    return " OR ".join(f'"{t}"*' if prefix else f'"{t}"' for t, prefix in terms)
+    parts = []
+    for term, prefix in terms:
+        parts.append(f'"{term}"*' if prefix else f'"{term}"')
+        if " " in term:  # a phrase also retrieves its loose parts (recall); coverage still needs them adjacent
+            parts += [f'"{w}"' for w in term.split() if len(w) > 1]
+    return " OR ".join(dict.fromkeys(parts))
 
 
 def _plain(text: str) -> str:
@@ -64,10 +76,14 @@ def term_coverage(query: str, text: str) -> float:
     terms = query_terms(query)
     if not terms:
         return 0.0
-    words = set(_TOKEN.findall(_plain(text)))
+    sequence = _TOKEN.findall(_plain(text))
+    words = set(sequence)
+    joined = f" {' '.join(sequence)} "
     hit = 0
     for term, prefix in terms:
         term = _plain(term)
-        if (prefix and any(w.startswith(term) for w in words)) or (not prefix and term in words):
+        if " " in term:  # phrase: its parts must stand next to each other
+            hit += f" {term} " in joined
+        elif (prefix and any(w.startswith(term) for w in words)) or (not prefix and term in words):
             hit += 1
     return hit / len(terms)

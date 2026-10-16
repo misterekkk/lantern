@@ -96,10 +96,12 @@ def main() -> int:
         should_stop=lambda: stop,
         image_embedder=make_image_embedder(settings),
         video_frames=settings.index_video_frames,
+        image_text=settings.index_image_text,
     )
     emit(
         event="done", indexed=stats.indexed, chunks=stats.chunks, skipped=stats.skipped, failed=stats.failed,
-        transcribed=stats.transcribed, images=stats.images, frames=stats.frames, stopped=stats.stopped,
+        transcribed=stats.transcribed, images=stats.images, frames=stats.frames, image_texts=stats.image_texts,
+        stopped=stats.stopped,
         errors=stats.errors[:20],
     )  # fmt: skip
     return 0

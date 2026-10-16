@@ -210,6 +210,8 @@ final class SearchModel: ObservableObject {
         }
         if hit.isMedia {
             preview = .media(hit)
+        } else if hit.isPDF {
+            preview = .pdf(hit)
         } else if hit.isVisual {
             preview = .image(hit)
         } else if let line = hit.startLine {

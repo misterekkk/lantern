@@ -11,7 +11,7 @@ Daemon (LaunchAgent or child of the app; text model in memory for search, ~490 M
         │ starts it when work is approved, stops it (pause)
   Index worker (background priority; exits when the queue is empty) · job queue (SQLite)
         │
-  Extractors (text, code, audio, photos, frames) → chunker → embedder (MLX, EmbeddingGemma 2 8-bit)
+  Extractors (text, code, PDF, audio, photos, frames; OCR via Apple Vision) → chunker → embedder (MLX, EmbeddingGemma 2 8-bit)
         │                                   ├─ audio/video: audio windows + transcripts (mlx-whisper)
         │                                   └─ photos/frames: EG2 vision tower + SigLIP 2 (second model)
         ▼
@@ -59,6 +59,7 @@ All logic lives in the daemon. Clients only call the API.
 | 8 | precise code search: tree-sitter symbol table (name, kind, signature, line), correct names in C/C++/Go and methods of small classes, "Definitions" section, opening at the line in the default editor | done |
 | 9 | settings and media (plan below): folder tree with search, ignored extensions, Performance pane, audio/video switch, ⌘Y preview, recordings from the timestamp, settings window like System Settings | done |
 | 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | ready in `site/`; goes live when the repository is public |
+| 11 | PDFs (PDFKit, page by page; scanned pages via OCR) and text in images (Apple Vision OCR with a cheap gate); exact numbers and codes matched as phrases | done |
 
 ### Phase 9 plan (agreed with the user, 2026-10-16)
 

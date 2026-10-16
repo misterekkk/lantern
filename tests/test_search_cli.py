@@ -12,7 +12,7 @@ def test_fold_polish_l_stroke():
 
 
 def test_fts_query_escapes_syntax():
-    assert fts_query('ORA-01555 "drop" OR *') == '"ora" OR "01555" OR "drop"'
+    assert fts_query('ORA-01555 "drop" OR *') == '"ora 01555" OR "ora" OR "01555" OR "drop"'
     assert fts_query("!!") is None
 
 
@@ -21,6 +21,16 @@ def test_fts_query_drops_stopwords_and_uses_stems():
     assert fts_query("optymalizacja drzewa decyzyjnego") == '"optymaliza"* OR "drze"* OR "decyzyjn"*'
     assert fts_query("backoff_wrapper") == '"backoff_wrapper"'
     assert fts_query("jak to") == '"jak" OR "to"'  # stopword-only query still searches
+
+
+def test_numbers_and_codes_with_separators_are_phrases():
+    from lantern.textnorm import term_coverage
+
+    assert fts_query("187,15 zł") == '"187 15" OR "187" OR "15" OR "zl"'
+    assert fts_query("FV/2025/09/0932").startswith('"fv 2025 09 0932" OR "fv"')
+    # coverage needs the parts next to each other: another invoice with "187,40" and a date with "15" does not count
+    assert term_coverage("187,15 zł", "Do zapłaty 187,15 zł") == 1.0
+    assert term_coverage("187,15 zł", "Energia 187,40 zł, data 15.10.2025") == 0.5
 
 
 def test_keyword_search_handles_polish_l(conn, project, embedder):

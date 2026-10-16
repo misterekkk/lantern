@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
@@ -28,6 +28,7 @@ _MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS symbols_key ON symbols(name_key)",
         "CREATE INDEX IF NOT EXISTS symbols_file ON symbols(file_id)",
     ],
+    3: ["ALTER TABLE chunks ADD COLUMN page INTEGER"],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.
@@ -47,13 +48,14 @@ class ModelInfo:
 @dataclass(frozen=True)
 class ChunkRecord:
     ord: int
-    kind: str  # text | code | audio | transcript
-    text: str | None  # None for audio windows (vector only)
+    kind: str  # text | code | pdf | audio | transcript | image | frame | ocr (text read from an image)
+    text: str | None  # None for audio windows and photos (vector only)
     start_line: int | None = None
     end_line: int | None = None
     symbol: str | None = None
     start_ms: int | None = None
     end_ms: int | None = None
+    page: int | None = None  # PDF page
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -208,8 +210,8 @@ def replace_file_chunks(
     extra_tables = [(vec_table(mid, images=True), vecs) for mid, vecs in extra]
     for i, (chunk, vec) in enumerate(zip(chunks, vectors, strict=True)):
         cur = conn.execute(
-            "INSERT INTO chunks(file_id, ord, kind, start_line, end_line, start_ms, end_ms, symbol, text) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO chunks(file_id, ord, kind, start_line, end_line, start_ms, end_ms, symbol, text, page) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 file_id,
                 chunk.ord,
@@ -220,6 +222,7 @@ def replace_file_chunks(
                 chunk.end_ms,
                 chunk.symbol,
                 chunk.text,
+                chunk.page,
             ),  # fmt: skip
         )
         chunk_id = cur.lastrowid

@@ -34,6 +34,7 @@ public enum Format {
     public static func subtitle(_ r: SearchResult) -> String {
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)
         if r.isDefinition, let line = r.startLine { return String(localized: "\(folder)  —  line \(line)") }
+        if r.isPDF, let page = r.page { return String(localized: "\(folder)  —  page \(page)") }
         if let start = r.startLine, let end = r.endLine { return String(localized: "\(folder)  —  lines \(start)–\(end)") }
         return folder
     }
@@ -44,7 +45,8 @@ public enum Format {
         var parts: [String] = []
         if r.vectorRank != nil { parts.append(String(localized: "meaning")) }
         if r.imageRank != nil { parts.append(String(localized: "image")) }
-        if r.keywordRank != nil { parts.append(String(localized: "words")) }
+        if r.textRank != nil { parts.append(String(localized: "text in image")) }
+        if r.keywordRank != nil && r.textRank == nil { parts.append(String(localized: "words")) }
         return parts.joined(separator: " · ")
     }
 }

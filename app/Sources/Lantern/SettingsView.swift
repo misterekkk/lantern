@@ -310,12 +310,16 @@ private struct FileTypesPane: View {
     var body: some View {
         SettingsPage {
             PaneHeader(symbol: "doc.on.doc.fill", color: .orange, title: "File Types",
-                       text: "What Lantern reads besides text and code: photos, recordings and videos, and which extensions it skips.")
+                       text: "What Lantern reads besides text, code and PDFs: photos (and the text in them), recordings and videos, and which extensions it skips.")
             if let s = state.settings {
                 Section {
                     Toggle(isOn: binding("index_photos", s.indexPhotos)) {
                         IconLabel(title: "Photos", symbol: "photo.fill", color: .pink)
                     }
+                    Toggle(isOn: binding("index_image_text", s.indexImageText)) {
+                        IconLabel(title: "Text in photos and screenshots (OCR)", symbol: "text.viewfinder", color: .teal)
+                    }
+                    .disabled(!s.indexPhotos)
                     Toggle(isOn: binding("index_audio_video", s.indexAudioVideo)) {
                         IconLabel(title: "Recordings and videos", symbol: "waveform", color: .red)
                     }
@@ -328,7 +332,7 @@ private struct FileTypesPane: View {
                     }
                     .disabled(!s.indexAudioVideo)  // dimmed, not indented: like dependent rows in System Settings
                 } footer: {
-                    Text("Switching a type off removes its files from the index at the next scan.").font(.caption)
+                    Text("Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable.").font(.caption)
                 }
                 Section {
                     ExtensionField()

@@ -20,6 +20,7 @@ import numpy as np
 
 from lantern.chunking import chunk_file
 from lantern.chunking.symbols import extract_symbols
+from lantern.chunking.text import chunk_text
 from lantern.chunking.transcript import group_segments
 from lantern.config import AUDIO_SAMPLE_RATE, MAX_TRANSCRIBE_S
 from lantern.embedding.base import Embedder, ImageEmbedder, document_title, format_document
@@ -41,7 +42,7 @@ IMAGE_BATCH = 8
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
-PIPELINE_VERSIONS = {"text": 2, "code": 3, "audio": 2, "video": 3, "image": 2}
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 1, "audio": 2, "video": 3, "image": 3}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -58,6 +59,7 @@ class IndexStats:
     transcribed: int = 0
     images: int = 0
     frames: int = 0
+    image_texts: int = 0  # photos and screenshots with readable text (OCR)
     stopped: bool = False  # interrupted by should_stop; unprocessed jobs went back to the queue
     errors: list[tuple[str, str]] = field(default_factory=list)
 
@@ -83,6 +85,22 @@ def _file_row(conn: sqlite3.Connection, file_id: int) -> sqlite3.Row | None:
 
 def _rel(row: sqlite3.Row) -> str:
     return Path(row["path"]).relative_to(row["root"]).as_posix()
+
+
+def _prepare_pdf(job: Job, row: sqlite3.Row, ocr: bool) -> _Prepared:
+    """PDF text page by page (PDFKit; scanned pages through Vision OCR), each page cut into windows."""
+    from lantern.extractors.pdf import extract_pdf
+
+    rel = _rel(row)
+    records = []
+    for page in extract_pdf(Path(row["path"]), ocr=ocr):
+        for piece in chunk_text(page.text):
+            records.append(db.ChunkRecord(
+                ord=len(records), kind="pdf", text=piece.text, start_line=piece.start_line, end_line=piece.end_line,
+                page=page.number,
+            ))  # fmt: skip
+    texts = [format_document(f"{rel} p. {r.page}", r.text) for r in records]
+    return _Prepared(job, row["id"], "pdf", row["path"], rel, records, texts)
 
 
 def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
@@ -124,7 +142,9 @@ def run_queue(
     should_stop: Callable[[], bool] = lambda: False,
     image_embedder: ImageEmbedder | None = None,
     video_frames: bool = True,
+    image_text: bool = True,
 ) -> IndexStats:
+    """image_text: read text in photos, screenshots and scanned PDF pages (Apple Vision OCR)."""
     """Process queued jobs; should_stop is checked between files (pause, battery, shutdown)."""
     stats = IndexStats()
     dim = embedder.model_info().dim
@@ -185,10 +205,27 @@ def run_queue(
         return vecs, extra
 
     def index_image(job: Job, row: sqlite3.Row) -> None:
-        image = load_image(Path(row["path"]))
+        path, rel = Path(row["path"]), _rel(row)
+        image = load_image(path)
         vecs, extra = embed_visual([image])
+        text = ""
+        if image_text:
+            from lantern.extractors.vision import image_text as read_text
+
+            text = read_text(path)
         record = db.ChunkRecord(ord=0, kind="image", text=None)
-        write(_Prepared(job, row["id"], "image", row["path"], _rel(row), [record], []), vecs, extra=extra)
+        # The photo vector goes to the photo tables; its text (if any) becomes "ocr" chunks with text vectors.
+        write(_Prepared(job, row["id"], "image", row["path"], rel, [record], []), vecs, kinds={"image", "ocr"},
+              extra=extra, complete=not text)  # fmt: skip
+        if text:
+            records = [
+                db.ChunkRecord(ord=1 + i, kind="ocr", text=p.text, start_line=p.start_line, end_line=p.end_line)
+                for i, p in enumerate(chunk_text(text))
+            ]
+            texts = [format_document(f"{rel} (text in image)", r.text) for r in records]
+            write(_Prepared(job, row["id"], "image", row["path"], rel, records, texts), embedder.embed_text(texts),
+                  kinds={"ocr"})  # fmt: skip
+            stats.image_texts += 1
         stats.images += 1
         stats.indexed += 1
 
@@ -272,6 +309,8 @@ def run_queue(
                     index_media(job, row)
                 elif row["kind"] == "image":
                     index_image(job, row)
+                elif row["kind"] == "pdf":
+                    prepared.append(_prepare_pdf(job, row, image_text))
                 else:
                     prepared.append(_prepare_text(job, row))
             except SkipFile as exc:

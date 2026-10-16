@@ -25,6 +25,8 @@ dependencies = [
     "tokenizers>=0.23.3",
     "mlx-whisper>=0.4.3",
     "watchdog>=6.0.0",
+    "pyobjc-framework-vision>=11",
+    "pyobjc-framework-quartz>=11",
 ]
 
 [project.optional-dependencies]

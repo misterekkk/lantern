@@ -68,6 +68,8 @@ class Result:
     kind: str = "text"
     start_ms: int | None = None
     end_ms: int | None = None
+    page: int | None = None  # PDF page
+    text_rank: int | None = None  # photos: rank by the text read from the image (OCR), words or meaning
 
 
 @dataclass(frozen=True)
@@ -118,38 +120,50 @@ def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> l
                 kind=best.kind,
                 start_ms=best.start_ms,
                 end_ms=best.end_ms,
+                page=best.page,
             )
         )
     fused.sort(key=lambda r: (-r.score, r.vector_rank or 10**6))
     return fused[:limit]
 
 
-def photo_results(image: list[Hit], keyword: list[Hit], limit: int = PHOTO_SECTION_SIZE) -> list[Result]:
-    """Photos section: photos matched by content, then photos whose name matches the query."""
-    by_name = [h for h in keyword if h.kind == "image" and h.coverage >= MIN_KEYWORD_COVERAGE]
-    seen = {h.path for h in image}
-    hits = [(h, True) for h in image] + [(h, False) for h in by_name if h.path not in seen]
-    return [
-        Result(
-            path=h.path,
-            chunk_id=h.chunk_id,
-            start_line=None,
-            end_line=None,
-            symbol=None,
-            preview="",
-            score=round(h.score, 4),
-            vector_rank=None,
-            vector_score=None,
-            keyword_rank=None if visual else i + 1,
-            keyword_score=None if visual else round(h.score, 4),
-            image_rank=i + 1 if visual else None,
-            image_score=round(h.score, 4) if visual else None,
-            kind=h.kind,
-            start_ms=h.start_ms,
-            end_ms=h.end_ms,
-        )  # fmt: skip
-        for i, (h, visual) in enumerate(hits[:limit])
-    ]
+OCR_VECTOR_TOP = 5  # text read from an image counts by meaning only among the very best vector hits
+
+
+def photo_results(
+    image: list[Hit],
+    keyword: list[Hit],
+    vector: list[Hit] = (),
+    limit: int = PHOTO_SECTION_SIZE,
+    k: int = RRF_K,
+    query: str = "",
+) -> list[Result]:
+    """Photos section, fused with RRF from three lists: what the photo shows (both photo models), the words of the
+    text read from it (OCR, or its file name), and the meaning of that text (only near the top of the vector list,
+    so screenshots full of text do not join every query)."""
+    visual = {h.path: (i + 1, h) for i, h in enumerate(image)}
+    words = [h for h in keyword if h.kind in ("image", "ocr") and h.coverage >= MIN_KEYWORD_COVERAGE]
+    by_words = {h.path: (i + 1, h) for i, h in enumerate(words)}
+    # By meaning only for descriptive queries: the meaning of a number or code says nothing about which image holds it.
+    lookup = looks_like_code(query) or any(c.isdigit() for c in query)
+    meaning = [] if lookup else [h for h in vector[:OCR_VECTOR_TOP] if h.kind == "ocr"]
+    by_meaning = {h.path: (i + 1, h) for i, h in enumerate(meaning)}
+    fused = []
+    for path in visual.keys() | by_words.keys() | by_meaning.keys():
+        v, w, m = visual.get(path), by_words.get(path), by_meaning.get(path)
+        score = (1 / (k + v[0]) if v else 0) + (w[1].coverage / (k + w[0]) if w else 0) + (1 / (k + m[0]) if m else 0)
+        text_hit = w or m
+        shown = text_hit[1] if text_hit and text_hit[1].kind == "ocr" else (v or text_hit)[1]
+        fused.append(Result(
+            path=path, chunk_id=shown.chunk_id, start_line=None, end_line=None, symbol=None,
+            preview=shown.preview if shown.kind == "ocr" else "", score=round(score, 5),
+            vector_rank=None, vector_score=None, keyword_rank=w[0] if w else None,
+            keyword_score=round(w[1].score, 4) if w else None, keyword_coverage=round(w[1].coverage, 3) if w else None,
+            image_rank=v[0] if v else None, image_score=round(v[1].score, 4) if v else None,
+            kind="image", text_rank=(m[0] if m else None) if not w else w[0],
+        ))  # fmt: skip
+    fused.sort(key=lambda r: -r.score)
+    return fused[:limit]
 
 
 def _log_item(section: str, item: Result | Definition) -> dict:
@@ -196,14 +210,19 @@ def search(
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query)
     t4 = time.perf_counter()
-    # Photos only appear in the photos section (video frames stay with their video file in the files section).
-    results = fuse([h for h in vector if h.kind != "image"], [h for h in keyword if h.kind != "image"], limit)
-    photos = photo_results(image, keyword)
+    # Photos (and the text read from them) only appear in the photos section; video frames stay with their video.
+    is_photo = ("image", "ocr")
+    file_vector = [h for h in vector if h.kind not in is_photo]
+    results = fuse(file_vector, [h for h in keyword if h.kind not in is_photo], limit)
+    photos = photo_results(image, keyword, vector, query=query)
     models = 2 if query_embedder is not None else 1
+    # Every word of the query found in the text of an image near the top of the word list: an exact answer.
+    exact_text = any(h.kind == "ocr" and h.coverage == 1.0 for h in keyword[:3])
+    photo_confidence = max(photo_list_confidence(image, models) if image else 0.0, 1.0 if exact_text else 0.0)
     photos_first = (
-        bool(image)
-        and not looks_like_code(query)
-        and photo_list_confidence(image, models) > text_list_confidence(vector)
+        bool(photos)
+        and (exact_text or not looks_like_code(query))
+        and photo_confidence > text_list_confidence(file_vector)
     )
     resp = SearchResponse(
         results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,

@@ -10,22 +10,12 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from lantern.extractors.text import SkipFile
+from lantern.extractors.vision import flatten
 
 MAX_SIDE = 1024  # both models resize further (EmbeddingGemma ~140 tokens, SigLIP 224 px)
 MIN_SIDE = 96  # smaller images are icons and UI assets, not photos
 MAX_IMAGE_BYTES = 100 * 1024 * 1024
 SIPS_FIRST = frozenset({".heic", ".heif"})
-
-
-def _flatten(im: Image.Image) -> Image.Image:
-    """RGB with transparency composited onto white, as Preview shows it. A plain convert("RGB") keeps the colour of
-    transparent pixels, usually black: black text on a transparent PDF export or graphic became black on black."""
-    if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
-        rgba = im.convert("RGBA")
-        background = Image.new("RGB", rgba.size, (255, 255, 255))
-        background.paste(rgba, mask=rgba.getchannel("A"))
-        return background
-    return im.convert("RGB")
 
 
 def _via_sips(path: Path) -> Image.Image:
@@ -54,7 +44,7 @@ def load_image(path: Path) -> Image.Image:
                 im.seek(0)  # first frame of animated GIF/WebP
                 im = ImageOps.exif_transpose(im)
                 im.draft("RGB", (MAX_SIDE, MAX_SIDE))  # fast JPEG downscale while decoding
-                image = _flatten(im)
+                image = flatten(im)  # transparency onto white (see extractors/vision.py)
         except (OSError, ValueError, Image.DecompressionBombError):
             image = _via_sips(path)
     if min(image.size) < MIN_SIDE:
