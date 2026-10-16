@@ -15,7 +15,9 @@ struct MenuView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let s = state.status {
-                if s.awaitingApproval {
+                if s.waitingForSettings == true {
+                    settingsCard(s).transition(.move(edge: .top).combined(with: .opacity))
+                } else if s.awaitingApproval {
                     approvalCard(s).transition(.move(edge: .top).combined(with: .opacity))
                 }
                 if s.worker.running {
@@ -38,6 +40,7 @@ struct MenuView: View {
         .padding(16)
         .frame(width: 320)
         .animation(.smooth(duration: 0.28), value: state.status?.awaitingApproval)
+        .animation(.smooth(duration: 0.28), value: state.status?.waitingForSettings)
         .animation(.smooth(duration: 0.28), value: state.status?.worker.running)
         .animation(.smooth(duration: 0.28), value: state.phase)
     }
@@ -87,6 +90,27 @@ struct MenuView: View {
         }
     }
 
+    /// Work set up in Settings waits until they close (the folder tree may still exclude parts of it).
+    private func settingsCard(_ s: DaemonStatus) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Indexing starts when you close Settings")
+                .font(.callout.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("You can still choose what to skip in Choose What to Index.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Close Settings and Index") {
+                MenuBarMenu.close()
+                SettingsWindowController.shared.close()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.blue.opacity(0.08)))
+    }
+
     private func approvalCard(_ s: DaemonStatus) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Found \(s.queuedTotal) new or changed files")
@@ -133,6 +157,7 @@ struct MenuView: View {
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
             MenuButton(title: "Search…", systemImage: "magnifyingglass", shortcut: "⌥Space") {
+                MenuBarMenu.close()
                 SearchPanelController.shared.show()
             }
             if state.status?.paused == "manual" {
@@ -141,15 +166,24 @@ struct MenuView: View {
                 MenuButton(title: "Pause Indexing", systemImage: "pause.fill") { state.pause() }
                     .disabled(state.status == nil)
             }
-            MenuButton(title: "Add Folder…", systemImage: "folder.badge.plus") { state.chooseFolder() }
+            MenuButton(title: "Add Folder…", systemImage: "folder.badge.plus") {
+                MenuBarMenu.close()
+                state.chooseFolder()
+            }
                 .disabled(state.status == nil)
-            MenuButton(title: "Settings…", systemImage: "gearshape") { SettingsWindowController.shared.show() }
+            MenuButton(title: "Settings…", systemImage: "gearshape") {
+                MenuBarMenu.close()
+                SettingsWindowController.shared.show()
+            }
             MenuButton(title: "Quit Lantern", systemImage: "power") { NSApp.terminate(nil) }
         }
     }
 
     private func kindLabel(_ kind: String) -> String {
-        ["code": String(localized: "code"), "text": String(localized: "text"), "audio": String(localized: "audio"), "video": String(localized: "video"), "image": String(localized: "photos"), "transcribe": String(localized: "transcription")][kind] ?? kind
+        // Same names as the panel's filter pills, capitalised like other labels in the menu.
+        ["code": String(localized: "Code"), "text": String(localized: "Documents"), "pdf": String(localized: "PDFs"),
+         "audio": String(localized: "Audio"), "video": String(localized: "Videos"), "image": String(localized: "Photos"),
+         "transcribe": String(localized: "Transcripts")][kind] ?? kind.capitalized
     }
 }
 

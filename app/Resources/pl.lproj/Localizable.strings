@@ -252,3 +252,18 @@
 "Bar at the bottom" = "Pasek na dole";
 "Hidden" = "Ukryte";
 "Shortcut hints in the panel" = "Podpowiedzi skrótów w panelu";
+
+"Compact Index…" = "Kompaktuj indeks…";
+"Compact the index?" = "Skompaktować indeks?";
+"Compact" = "Kompaktuj";
+"Data of removed files and cleared history is physically erased from the index file, and the space is freed. It takes a few seconds; search keeps working. Lantern also does this by itself after large deletions." = "Dane usuniętych plików i wyczyszczonej historii zostaną fizycznie wymazane z pliku indeksu, a miejsce zwolnione. Trwa to kilka sekund; wyszukiwanie działa dalej. Lantern robi to też sam po dużych usunięciach.";
+"Done: %@ → %@. Deleted data is erased from the file." = "Gotowe: %@ → %@. Usunięte dane są wymazane z pliku.";
+"Lantern works offline and sends no telemetry. Indexed files are only read, never changed, moved or deleted. The index lives in this Mac's Application Support folder and is not synced to iCloud." = "Lantern działa offline i nie wysyła telemetrii. Indeksowane pliki są tylko czytane, nigdy zmieniane, przenoszone ani usuwane. Indeks leży w folderze Application Support tego Maca i nie synchronizuje się z iCloud.";
+"Show files Lantern can't index" = "Pokaż pliki, których Lantern nie indeksuje";
+"Audio" = "Audio";
+"Videos" = "Filmy";
+"Transcripts" = "Transkrypcje";
+"Indexing starts when you close Settings" = "Indeksowanie zacznie się po zamknięciu Ustawień";
+"You can still choose what to skip in Choose What to Index." = "Możesz jeszcze wybrać, co pominąć, w „Wybierz, co indeksować”.";
+"Close Settings and Index" = "Zamknij Ustawienia i indeksuj";
+"Indexing starts when you close Settings, so you can still choose what to skip below." = "Indeksowanie zacznie się po zamknięciu Ustawień, więc możesz jeszcze wybrać poniżej, co pominąć.";

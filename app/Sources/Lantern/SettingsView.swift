@@ -7,6 +7,9 @@ import SwiftUI
 final class SettingsWindowController {
     static let shared = SettingsWindowController()
     private(set) var window: NSWindow?
+    var isOpen: Bool { window?.isVisible == true }
+
+    func close() { window?.close() }
 
     func show() {
         if window == nil {
@@ -21,6 +24,13 @@ final class SettingsWindowController {
             w.setContentSize(NSSize(width: 880, height: 680))
             w.center()
             window = w
+            // Closing the window releases indexing held while it was open: tell the daemon right away.
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // after isVisible turns false
+                    await AppState.shared.refresh()
+                }
+            }
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
@@ -394,6 +404,12 @@ private struct FoldersPane: View {
                     Spacer()
                     Button("Add Folder…") { state.chooseFolder() }
                 }
+            } footer: {
+                if state.status?.waitingForSettings == true {
+                    Label("Indexing starts when you close Settings, so you can still choose what to skip below.",
+                          systemImage: "clock")
+                        .font(.caption)
+                }
             }
             Section {
                 NavigationLink(value: SettingsSubpage.tree) {
@@ -422,11 +438,16 @@ private struct TreePage: View {
         FolderTree(query: query, showAll: showAll)
             .navigationTitle("Choose What to Index")
             .searchable(text: $query, placement: .toolbar, prompt: Text("Find a file or folder"))
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Toggle(isOn: $showAll) { Label("Show All Files", systemImage: "eye") }
-                        .help("Show files Lantern does not index")
+            .safeAreaInset(edge: .bottom) {  // a labelled option at the bottom, like Finder's view options
+                HStack {
+                    Toggle("Show files Lantern can't index", isOn: $showAll)
+                        .toggleStyle(.checkbox)
+                    Spacer()
                 }
+                .font(.callout)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(.bar)
             }
     }
 }
@@ -497,24 +518,28 @@ private struct PowerPane: View {
 private struct PrivacyPane: View {
     @EnvironmentObject var state: AppState
     @State private var confirmClear = false
+    @State private var confirmCompact = false
+    @State private var compacting = false
+    @State private var compactResult: String?
 
     var body: some View {
         SettingsPage {
             PaneHeader(symbol: "hand.raised.fill", color: .indigo, title: "Privacy",
                        text: "Everything stays on this Mac. Lantern only reads your files and never sends anything.")
             Section {
-                IconLabel(title: "Runs offline, no telemetry", symbol: "lock.shield.fill", color: .green)
-                IconLabel(title: "Indexed files are only read, never changed", symbol: "doc.text.magnifyingglass", color: .blue)
-            }
-            Section {
                 Button { confirmClear = true } label: {
                     IconLabel(title: "Clear Search History…", symbol: "clock.arrow.circlepath", color: .red)
                 }
                 .buttonStyle(.plain)
-                Button { state.compact() } label: {
-                    IconLabel(title: "Compact Index (erase deleted data)", symbol: "archivebox.fill", color: .brown)
+                Button { confirmCompact = true } label: {
+                    HStack {
+                        IconLabel(title: "Compact Index…", symbol: "archivebox.fill", color: .brown)
+                        Spacer()
+                        if compacting { ProgressView().controlSize(.small) }
+                    }
                 }
                 .buttonStyle(.plain)
+                .disabled(compacting)
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: DaemonClient.dataDirectory)])
                 } label: {
@@ -523,6 +548,8 @@ private struct PrivacyPane: View {
                 .buttonStyle(.plain)
             } header: {
                 Text("Data")
+            } footer: {
+                if let compactResult { Text(compactResult).font(.caption) }
             }
             Section {
                 Button {
@@ -537,6 +564,24 @@ private struct PrivacyPane: View {
                 Text("Desktop, Documents, Downloads and iCloud Drive need macOS permission. Folders without access are skipped, and their previously indexed files are kept.")
                     .font(.caption)
             }
+            // Facts, not settings: small print at the bottom of the pane, as System Settings does.
+            Section {} footer: {
+                Text("Lantern works offline and sends no telemetry. Indexed files are only read, never changed, moved or deleted. The index lives in this Mac's Application Support folder and is not synced to iCloud.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .confirmationDialog("Compact the index?", isPresented: $confirmCompact) {
+            Button("Compact") {
+                compacting = true
+                compactResult = nil
+                Task {
+                    compactResult = await state.compact()
+                    compacting = false
+                }
+            }
+        } message: {
+            Text("Data of removed files and cleared history is physically erased from the index file, and the space is freed. It takes a few seconds; search keeps working. Lantern also does this by itself after large deletions.")
         }
         .confirmationDialog("Delete the search history?", isPresented: $confirmClear) {
             Button("Delete History", role: .destructive) { state.clearHistory() }

@@ -29,6 +29,7 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var mode: String
     public var approved: Bool
     public var awaitingApproval: Bool
+    public var waitingForSettings: Bool?  // new work waits until the Settings window closes
     public var paused: String?
     public var worker: Worker
     public var queued: [String: Int]

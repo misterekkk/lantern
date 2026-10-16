@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if args.contains("--show-menu") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                Self.statusItemButton()?.performClick(nil)
+                MenuBarMenu.button()?.performClick(nil)
             }
         }
         guard let query = value(after: "--show-search") else { return }
@@ -84,16 +84,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    /// Development: the menu bar button created by MenuBarExtra (to open the menu window for screenshots).
-    @MainActor private static func statusItemButton() -> NSStatusBarButton? {
-        func find(_ view: NSView?) -> NSStatusBarButton? {
-            guard let view else { return nil }
-            if let button = view as? NSStatusBarButton { return button }
-            return view.subviews.lazy.compactMap { find($0) }.first
-        }
-        return NSApp.windows.lazy.compactMap { find($0.contentView) }.first
-    }
-
     // Notification buttons: "Index Now" / "Later".
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completion: @escaping () -> Void) {
@@ -108,5 +98,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                             withCompletionHandler completion: @escaping (UNNotificationPresentationOptions) -> Void) {
         completion([.banner, .sound])
+    }
+}
+
+/// The menu bar window of MenuBarExtra. SwiftUI has no API to dismiss it, so an action that opens a window closes it
+/// the way a click on the icon does: the system's own quick fade, and the next click opens it again normally.
+@MainActor enum MenuBarMenu {
+    static func button() -> NSStatusBarButton? {
+        func find(_ view: NSView?) -> NSStatusBarButton? {
+            guard let view else { return nil }
+            if let button = view as? NSStatusBarButton { return button }
+            return view.subviews.lazy.compactMap { find($0) }.first
+        }
+        return NSApp.windows.lazy.compactMap { find($0.contentView) }.first
+    }
+
+    static var isOpen: Bool {
+        NSApp.windows.contains { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtraWindow") }
+    }
+
+    static func close() {
+        if isOpen { button()?.performClick(nil) }
     }
 }

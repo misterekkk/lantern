@@ -24,7 +24,7 @@ final class AppState: ObservableObject {
     var phase: Phase {
         guard let status else { return connectionError == nil ? .starting : .offline }
         if status.paused != nil { return .paused }
-        if status.awaitingApproval { return .awaitingApproval }
+        if status.awaitingApproval || status.waitingForSettings == true { return .awaitingApproval }
         if status.worker.running { return .indexing }
         return .idle
     }
@@ -56,10 +56,12 @@ final class AppState: ObservableObject {
 
     func refresh() async {
         do {
-            let s = try await client.call("status", as: DaemonStatus.self, timeout: 5)
+            // The open Settings window holds back new indexing (the daemon releases it when we stop saying so).
+            let s = try await client.call("status", ["settings_open": SettingsWindowController.shared.isOpen],
+                                          as: DaemonStatus.self, timeout: 5)
             status = s
             connectionError = nil
-            if s.awaitingApproval && !wasAwaiting { notifyApprovalNeeded(s) }
+            if s.awaitingApproval && !wasAwaiting && s.waitingForSettings != true { notifyApprovalNeeded(s) }
             wasAwaiting = s.awaitingApproval
         } catch {
             status = nil
@@ -110,7 +112,18 @@ final class AppState: ObservableObject {
     }
     func removeFolder(_ path: String) { run("remove", ["path": path], message: String(localized: "Removed \(Format.shortPath(path)) from the index.")) }
     func clearHistory() { run("clear_history", message: String(localized: "Search history deleted.")) }
-    func compact() { run("compact", message: String(localized: "Index compacted.")) }
+    /// Compacts the index and returns a line for the window that asked (sizes before and after).
+    func compact() async -> String {
+        struct Sizes: Decodable { let before: Int; let after: Int }
+        do {
+            let r = try await client.call("compact", as: Sizes.self, timeout: 600)
+            await refresh()
+            let mb = { (bytes: Int) in String(format: "%.1f MB", Double(bytes) / 1_048_576) }
+            return String(localized: "Done: \(mb(r.before)) → \(mb(r.after)). Deleted data is erased from the file.")
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
 
     func chooseFolder() {
         let panel = NSOpenPanel()

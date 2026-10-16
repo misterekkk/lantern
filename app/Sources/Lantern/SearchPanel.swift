@@ -7,13 +7,14 @@ import SwiftUI
 /// SwiftUI sizes the window, and the top edge stays put while the results list grows downwards.
 final class SearchPanel: NSPanel {
     var anchorTop: CGFloat?
+    var anchorMidX: CGFloat?
 
     init<Content: View>(rootView: Content) {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 720, height: 72),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isFloatingPanel = true
         level = .floating
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false  // always centred, like Spotlight after a reset; never left where dragged
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         isOpaque = false
@@ -34,7 +35,10 @@ final class SearchPanel: NSPanel {
 
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {
         var rect = frameRect
+        // SwiftUI resizes the window as content changes (results, preview): keep the top edge and the horizontal
+        // centre fixed, otherwise a width change would leave the panel off-centre.
         if let anchorTop { rect.origin.y = anchorTop - rect.height }
+        if let anchorMidX { rect.origin.x = (anchorMidX - rect.width / 2).rounded() }
         super.setFrame(rect, display: flag)
         invalidateShadow()  // the shadow is computed from the (rounded) content
     }
@@ -90,7 +94,8 @@ final class SearchPanelController {
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         guard let frame = screen?.visibleFrame else { return }
         panel.anchorTop = frame.minY + frame.height * 0.78
-        panel.setFrameTopLeftPoint(NSPoint(x: frame.midX - panel.frame.width / 2, y: panel.anchorTop!))
+        panel.anchorMidX = frame.midX
+        panel.setFrame(panel.frame, display: false)  // applies both anchors
     }
 
     var windowNumber: Int { panel.windowNumber }
