@@ -29,7 +29,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 ## Features
 
-- **Spotlight-style search panel** (⌥Space) with sections for code definitions, photos and files; the section that
+- **A quick search panel** (⌥Space) with sections for code definitions, photos and files; the section that
   fits the query best comes first.
 - **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
 - **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
@@ -363,6 +363,9 @@ uv run lantern daemon stop | uninstall
 Lantern is licensed under the [Apache License 2.0](LICENSE). The model weights are not part of this repository; you
 download them yourself, and each has its own license (see [NOTICE](NOTICE)): EmbeddingGemma 2 and SigLIP 2 are
 Apache 2.0, Whisper is MIT.
+
+Apple, macOS and Spotlight are trademarks of Apple Inc. Lantern is an independent project, not affiliated with
+or endorsed by Apple.
 
 ## Development
 
