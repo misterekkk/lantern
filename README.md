@@ -174,6 +174,9 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 
 ## Command line
 
+Full reference with every option, output format, environment variable, exit code and the socket API:
+[docs/CLI.md](docs/CLI.md).
+
 ```bash
 uv run lantern index ~/Projects            # first run: scan + index; later runs: only changes
 uv run lantern search "decision tree pruning"
