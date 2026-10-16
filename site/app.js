@@ -2,6 +2,7 @@
  * Steps: open Lantern in the menu bar → start it → index new files → close the menu → ⌥Space → type a suggested
  * phrase → results → ⌘Y preview → another search … → the end card.
  * Development: ?step=menu|found|indexing|ready|shortcut|type|results|preview&scenario=photo|video|code|song
+ *   (&typed=N: the first N characters already typed)
  */
 "use strict";
 
@@ -32,14 +33,22 @@ const ICON = {
   menuPower: `<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M8 2v5.5"/><path d="M4.6 4.2a5 5 0 1 0 6.8 0"/></svg>`,
 };
 
+// Dock icons: own drawings on a 58×58 canvas; the rounded shape comes from CSS (clip), so drawings may bleed.
 const DOCK = [
-  ["folder", `<svg viewBox="0 0 58 58"><rect width="58" height="58" rx="13" fill="#e9eef6"/><path d="M10 20a3 3 0 0 1 3-3h10l4 4h18a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H13a3 3 0 0 1-3-3z" fill="#5aa9f8"/><path d="M10 25a3 3 0 0 1 3-3h32a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H13a3 3 0 0 1-3-3z" fill="#79bdfb"/></svg>`],
-  ["notes", `<svg viewBox="0 0 58 58"><rect width="58" height="58" rx="13" fill="#fff6d1"/><rect width="58" height="15" rx="13" fill="#f6c443"/><rect y="8" width="58" height="7" fill="#f6c443"/><g stroke="#d5c79a" stroke-width="2"><path d="M10 26h38M10 34h38M10 42h28"/></g></svg>`],
-  ["terminal", `<svg viewBox="0 0 58 58"><rect width="58" height="58" rx="13" fill="#1f2328"/><rect x="5" y="5" width="48" height="48" rx="9" fill="#0d1014" stroke="#3a4048"/><path d="M14 22l8 6-8 6" stroke="#e6edf3" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 36h14" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>`],
-  ["pictures", `<svg viewBox="0 0 58 58"><defs><linearGradient id="dp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect width="58" height="58" rx="13" fill="url(#dp)"/><circle cx="40" cy="18" r="6" fill="#fde68a"/><path d="M0 44l16-16 12 12 8-7 22 18v7H0z" fill="#16a34a"/><path d="M0 50l18-12 16 20H0z" fill="#15803d"/></svg>`],
-  ["music", `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="58" height="58" rx="13" fill="url(#dm)"/><path d="M36 15v21a6 6 0 1 1-3.5-5.5V21l-11 2.8V40a6 6 0 1 1-3.5-5.5V18.8z" fill="#fff"/></svg>`],
+  ["files", true, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#e9eef6"/><path d="M11 19a3 3 0 0 1 3-3h10l4 4h16a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H14a3 3 0 0 1-3-3z" fill="#5aa9f8"/><path d="M11 24a3 3 0 0 1 3-3h30a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H14a3 3 0 0 1-3-3z" fill="#79bdfb"/></svg>`],
+  ["browser", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="db" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><rect width="58" height="58" fill="#f8fafc"/><circle cx="29" cy="29" r="20" fill="url(#db)"/><g fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="1.6"><ellipse cx="29" cy="29" rx="8" ry="20"/><path d="M9 29h40M12 19h34M12 39h34"/></g></svg>`],
+  ["mail", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dmail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect width="58" height="58" fill="url(#dmail)"/><rect x="11" y="17" width="36" height="25" rx="3" fill="#fff"/><path d="M12 19l17 13 17-13" fill="none" stroke="#93c5fd" stroke-width="2.4" stroke-linejoin="round"/></svg>`],
+  ["chat", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#16a34a"/></linearGradient></defs><rect width="58" height="58" fill="url(#dc)"/><path d="M29 14c-10 0-18 6.5-18 14.5 0 4.6 2.6 8.6 6.7 11.3L16 46l7.6-3.9c1.7.5 3.5.7 5.4.7 10 0 18-6.5 18-14.3S39 14 29 14z" fill="#fff"/></svg>`],
+  ["calendar", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff"/><rect width="58" height="17" fill="#ef4444"/><text x="29" y="13" font-family="-apple-system,Helvetica,Arial" font-size="9" font-weight="700" fill="#fff" text-anchor="middle" id="calMonth">OCT</text><text x="29" y="46" font-family="-apple-system,Helvetica,Arial" font-size="26" font-weight="300" fill="#1f2937" text-anchor="middle" id="calDay">16</text></svg>`],
+  ["notes", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff6d1"/><rect width="58" height="15" fill="#f6c443"/><g stroke="#d5c79a" stroke-width="2"><path d="M10 26h38M10 34h38M10 42h28"/></g></svg>`],
+  ["pictures", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect width="58" height="58" fill="url(#dp)"/><circle cx="40" cy="18" r="6" fill="#fde68a"/><path d="M0 44l16-16 12 12 8-7 22 18v7H0z" fill="#16a34a"/><path d="M0 50l18-12 16 20H0z" fill="#15803d"/></svg>`],
+  ["music", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="58" height="58" fill="url(#dm)"/><path d="M39 13v23.5a6.2 6.2 0 1 1-3.6-5.6V21.2l-12.8 3.2V40a6.2 6.2 0 1 1-3.6-5.6V18.7z" fill="#fff"/></svg>`],
+  ["code", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dcode" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="58" height="58" fill="url(#dcode)"/><path d="M21 19l-10 10 10 10M37 19l10 10-10 10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 16l-6 26" stroke="#bae6fd" stroke-width="3" stroke-linecap="round"/></svg>`],
+  ["terminal", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#1f2328"/><rect x="5" y="5" width="48" height="48" rx="9" fill="#0d1014" stroke="#3a4048"/><path d="M15 22l8 6-8 6" stroke="#e6edf3" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 36h15" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>`],
+  ["settings", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dset" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d1d5db"/><stop offset="1" stop-color="#6b7280"/></linearGradient></defs><rect width="58" height="58" fill="url(#dset)"/><g fill="#374151"><circle cx="29" cy="29" r="12"/><g id="teeth">${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="26" y="9" width="6" height="9" rx="1.5" transform="rotate(${r} 29 29)"/>`).join("")}</g></g><circle cx="29" cy="29" r="5.5" fill="#d1d5db"/></svg>`],
   "divider",
-  ["lantern", `<svg viewBox="0 0 58 58"><defs><linearGradient id="dl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect width="58" height="58" rx="13" fill="url(#dl)"/><circle cx="25" cy="25" r="11" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M33.5 33.5l9 9" stroke="#fff" stroke-width="4.6" stroke-linecap="round"/><path d="M25 17.7l1.5 5.8 5.8 1.5-5.8 1.5-1.5 5.8-1.5-5.8-5.8-1.5 5.8-1.5z" fill="#fff"/></svg>`],
+  ["lantern", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect width="58" height="58" fill="url(#dl)"/><circle cx="26" cy="26" r="11" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M34.5 34.5l8.5 8.5" stroke="#fff" stroke-width="4.6" stroke-linecap="round"/><path d="M26 18.7l1.5 5.8 5.8 1.5-5.8 1.5-1.5 5.8-1.5-5.8-5.8-1.5 5.8-1.5z" fill="#fff"/></svg>`],
+  ["trash", false, `<svg viewBox="0 0 58 58" class="bare"><path d="M16 17h26l-2.2 31a3 3 0 0 1-3 2.8H21.2a3 3 0 0 1-3-2.8z" fill="rgba(255,255,255,.28)" stroke="rgba(255,255,255,.75)" stroke-width="1.6"/><path d="M13 15h32" stroke="rgba(255,255,255,.85)" stroke-width="2.4" stroke-linecap="round"/><g stroke="rgba(255,255,255,.55)" stroke-width="1.4"><path d="M24 22l1 24M29 22v24M34 22l-1 24"/></g></svg>`],
 ];
 
 /* ---------- illustrations for results (own drawings, no stock photos) ---------- */
@@ -157,7 +166,10 @@ function buildChrome() {
   $(".panel-glyph").innerHTML = ICON.glyph;
   $("#dock").innerHTML = DOCK.map((d) =>
     d === "divider" ? `<span class="dock-divider"></span>` :
-      `<span class="dock-icon${d[0] === "lantern" || d[0] === "folder" ? " running" : ""}">${d[1]}</span>`).join("");
+      `<span class="dock-icon${d[1] ? " running" : ""}${d[0] === "trash" ? " bare" : ""}" title="${d[0]}">${d[2]}</span>`).join("");
+  const now = new Date();  // the calendar icon shows today, like the real one
+  $("#calMonth").textContent = now.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  $("#calDay").textContent = String(now.getDate());
   tickClock();
   setInterval(tickClock, 15000);
 }
@@ -598,6 +610,7 @@ function start() {
   if (["type", "results", "preview"].includes(step)) {
     $("#panel").hidden = false;
     pickScenario(sc);
+    if (step === "type" && q.get("typed")) { state.typed = sc.phrase.slice(0, Number(q.get("typed"))); renderQuery(); }
     if (step !== "type") { state.typed = sc.phrase; renderQuery(); go("results"); }
     if (step === "preview") go("preview");
     return;
