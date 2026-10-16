@@ -13,6 +13,7 @@ INDEX_MODES = ("ask", "auto")
 class Settings:
     index_mode: str = "ask"  # ask: new/changed files wait for approval; auto: index right away
     pause_on_battery: bool = True
+    pause_on_low_power: bool = True  # Low Power Mode is on: the user is saving energy
     pause_on_thermal: bool = True
     transcribe: bool = True
     index_photos: bool = True

@@ -17,7 +17,7 @@ from lantern.embedding.fake import FakeEmbedder
 from lantern.indexer import run_queue
 from lantern.queue import jobs
 from lantern.scanner.diff import scan_root
-from lantern.service import power, settings
+from lantern.service import power, qos, settings
 from lantern.service.core import Daemon
 from lantern.service.power import PowerState
 from lantern.store import db
@@ -43,12 +43,12 @@ def sock(monkeypatch):
 def start_daemon(sock, lantern_home):
     started = []
 
-    def start(mode="ask", on_battery=False, debounce=0.2):
+    def start(mode="ask", on_battery=False, debounce=0.2, power_state=None):
         s = settings.Settings(index_mode=mode, notify=False, debounce_s=debounce)
         settings.save(s)
         d = Daemon(
             embedder=FakeEmbedder(),
-            power_reader=lambda: PowerState(on_battery=on_battery),
+            power_reader=lambda: power_state or PowerState(on_battery=on_battery),
             worker_env={"LANTERN_EMBEDDER": "fake"},
         )
         t = threading.Thread(target=d.run, daemon=True)
@@ -146,6 +146,15 @@ def test_battery_pauses_indexing(start_daemon, project):
     assert files_by_status().get("indexed", 0) == 0
 
 
+def test_low_power_mode_pauses_indexing_unless_switched_off(start_daemon, project):
+    register_root(project)
+    start_daemon(mode="auto", power_state=PowerState(low_power=True, thermal="fair"))
+    status = protocol.call("status")
+    assert status["paused"] == "low_power" and status["power"]["low_power"] and status["power"]["thermal"] == "fair"
+    protocol.call("config_set", {"key": "pause_on_low_power", "value": "false"})
+    assert wait_until(lambda: files_by_status().get("indexed") == 3)
+
+
 def test_remove_and_shutdown(start_daemon, project, sock):
     d = start_daemon(mode="auto")
     protocol.call("index", {"path": str(project)})
@@ -195,6 +204,30 @@ def test_pmset_parsers():
         "CPU Power notify\n\tCPU_Scheduler_Limit \t= 100\n\tCPU_Available_CPUs \t= 10\n\tCPU_Speed_Limit \t= 70"
     )
     assert power.parse_therm("Thermal warning level set to 2.")
+    assert power.parse_low_power("System-wide power settings:\n lowpowermode         1\n sleep                1")
+    assert not power.parse_low_power(" lowpowermode         0\n powermode            0")
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS frameworks")
+def test_power_state_reads_the_system_without_pyobjc():
+    state = power.read()  # IOKit + NSProcessInfo through ctypes; values depend on this Mac
+    assert state.thermal in power.THERMAL_STATES and isinstance(state.on_battery, bool)
+    assert "Foundation" not in sys.modules and "objc" not in sys.modules
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS QoS")
+def test_thread_qos():
+    seen = {}
+
+    def body():
+        seen["before"] = qos.thread_qos()
+        qos.set_thread_qos("utility")
+        seen["after"] = qos.thread_qos()
+
+    t = threading.Thread(target=body)
+    t.start()
+    t.join()
+    assert seen == {"before": "default", "after": "utility"}
 
 
 def test_settings_roundtrip_and_validation(lantern_home):

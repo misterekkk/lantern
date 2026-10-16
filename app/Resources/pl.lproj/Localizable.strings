@@ -5,6 +5,7 @@
 "Off" = "Wyłączony";
 "Paused: battery" = "Pauza: bateria";
 "Paused: heat" = "Pauza: temperatura";
+"Paused: Low Power Mode" = "Pauza: niskie zużycie energii";
 "Paused" = "Wstrzymany";
 "Waiting for approval" = "Czeka na zgodę";
 "Indexing" = "Indeksuje";
@@ -79,6 +80,7 @@
 "Search video frames" = "Wyszukiwanie w klatkach filmów";
 "Pause on battery power" = "Wstrzymuj na zasilaniu z baterii";
 "Pause when the Mac is hot" = "Wstrzymuj przy wysokiej temperaturze";
+"Pause in Low Power Mode" = "Wstrzymuj w trybie niskiego zużycia energii";
 "Connecting to the daemon…" = "Łączenie z demonem…";
 "Searched folders" = "Przeszukiwane foldery";
 "unavailable" = "niedostępny";
@@ -206,7 +208,7 @@
 "Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files that are not on this Mac." = "Zawsze pomijane: ~/Library (poza iCloud Drive), pliki z sekretami, .git, node_modules, pliki iCloud, których nie ma na tym Macu.";
 "Show All Files" = "Pokaż wszystkie pliki";
 "Patterns work like .gitignore and apply inside every indexed folder." = "Wzorce działają jak .gitignore i obowiązują w każdym indeksowanym folderze.";
-"Indexing uses the GPU. Lantern can wait for the charger and pause while your Mac is hot." = "Indeksowanie korzysta z GPU. Lantern może poczekać na ładowarkę i wstrzymać pracę, gdy Mac jest gorący.";
+"Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode and pause while your Mac is hot." = "Indeksowanie korzysta z GPU. Lantern może poczekać na ładowarkę, uszanować tryb niskiego zużycia energii i wstrzymać pracę, gdy Mac jest gorący.";
 "Search always works, also while indexing is paused." = "Wyszukiwanie działa zawsze, także podczas pauzy w indeksowaniu.";
 "Everything stays on this Mac. Lantern only reads your files and never sends anything." = "Wszystko zostaje na tym Macu. Lantern tylko czyta Twoje pliki i niczego nie wysyła.";
 "Runs offline, no telemetry" = "Działa offline, bez telemetrii";

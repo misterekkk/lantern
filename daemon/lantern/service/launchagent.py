@@ -1,4 +1,10 @@
-"""Install / uninstall the per-user LaunchAgent (runs `lantern daemon run` at login, background priority)."""
+"""Install / uninstall the per-user LaunchAgent (runs `lantern daemon run` at login).
+
+The daemon answers searches, so the agent runs without launchd's resource limits (`Interactive`: the panel's
+responsiveness depends on it and it cannot be `Adaptive`, which only follows XPC traffic). Background work is demoted
+inside: scans run at utility QoS and indexing in the worker process with the background policy (qos.py, worker.py).
+A `Background` agent made a query embedding 2.5x slower (DECISIONS.md, "Power and QoS").
+"""
 
 import os
 import plistlib
@@ -27,9 +33,7 @@ def render() -> bytes:
             "EnvironmentVariables": env,
             "RunAtLoad": True,
             "KeepAlive": {"SuccessfulExit": False},  # restart after a crash, not after `lantern daemon stop`
-            "ProcessType": "Background",
-            "LowPriorityIO": True,
-            "Nice": 5,
+            "ProcessType": "Interactive",
             "StandardOutPath": str(logs / "daemon.log"),
             "StandardErrorPath": str(logs / "daemon.err.log"),
         }

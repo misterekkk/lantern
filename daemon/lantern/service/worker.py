@@ -18,7 +18,9 @@ from lantern.service import settings as settings_mod
 from lantern.store import db
 
 PRIO_DARWIN_PROCESS = 4  # <sys/resource.h>
-PRIO_DARWIN_BG = 0x1000  # background policy: throttled CPU, disk I/O and GPU priority
+PRIO_DARWIN_BG = 0x1000  # background policy: throttled CPU and disk I/O (`ps` shows priority 4, not 31).
+# Measured: batched embeddings on the GPU are as fast as at normal priority (963 vs 980 ms for 16 passages);
+# only small CPU-bound steps slow down, which is what keeps the Mac responsive while indexing.
 
 
 def make_embedder():

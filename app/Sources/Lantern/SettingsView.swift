@@ -474,11 +474,14 @@ private struct PowerPane: View {
     var body: some View {
         SettingsPage {
             PaneHeader(symbol: "bolt.fill", color: .green, title: "Battery and Heat",
-                       text: "Indexing uses the GPU. Lantern can wait for the charger and pause while your Mac is hot.")
+                       text: "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode and pause while your Mac is hot.")
             if let s = state.settings {
                 Section {
                     Toggle(isOn: Binding(get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") })) {
                         IconLabel(title: "Pause on battery power", symbol: "battery.50percent", color: .green)
+                    }
+                    Toggle(isOn: Binding(get: { s.pauseOnLowPower }, set: { state.setConfig("pause_on_low_power", $0 ? "true" : "false") })) {
+                        IconLabel(title: "Pause in Low Power Mode", symbol: "leaf.fill", color: .yellow)
                     }
                     Toggle(isOn: Binding(get: { s.pauseOnThermal }, set: { state.setConfig("pause_on_thermal", $0 ? "true" : "false") })) {
                         IconLabel(title: "Pause when the Mac is hot", symbol: "thermometer.medium", color: .orange)

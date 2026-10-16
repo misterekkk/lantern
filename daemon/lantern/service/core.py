@@ -27,6 +27,7 @@ from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_avai
 from lantern.search.hybrid import clear_history, mark_opened, search
 from lantern.service import notify as notify_mod
 from lantern.service import power as power_mod
+from lantern.service import qos
 from lantern.service import settings as settings_mod
 from lantern.service import tree as tree_mod
 from lantern.service.perf import PerfMonitor
@@ -65,7 +66,12 @@ class Daemon:
         self.scan_lock = threading.Lock()  # scans and maintenance (one writer besides the worker)
         # MLX streams belong to the thread that created them: load and run the model on one dedicated thread
         # (this also serialises model calls from concurrent API requests).
-        self.model_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lantern-model")
+        self.model_thread = ThreadPoolExecutor(  # searches run here: keep them responsive (qos.py)
+            max_workers=1,
+            thread_name_prefix="lantern-model",
+            initializer=qos.set_thread_qos,
+            initargs=("user_initiated",),
+        )
         self.query_embedder = None  # SigLIP 2 text side (photos), loaded on demand on the model thread
         self.query_embedder_used = 0.0
         self.has_images = False
@@ -84,6 +90,7 @@ class Daemon:
         self.watcher = None
         self.server: socketserver.ThreadingUnixStreamServer | None = None
         self._last_power_check = 0.0
+        self.power_state = power_mod.PowerState()
         # Started by the menu bar app: exit if the app goes away (crash, force quit) instead of staying orphaned.
         self.parent_pid = os.getppid() if os.environ.get("LANTERN_EXIT_WITH_PARENT") == "1" else None
 
@@ -280,10 +287,20 @@ class Daemon:
         reason = None
         if self.settings.pause_on_battery and state.on_battery:
             reason = "battery"
+        elif self.settings.pause_on_low_power and state.low_power:
+            reason = "low_power"
         elif self.settings.pause_on_thermal and state.thermal_pressure:
             reason = "thermal"
         with self.lock:
             self.auto_pause = reason
+            self.power_state = state
+
+    def _scan_all_soon(self) -> None:
+        def scan() -> None:
+            qos.set_thread_qos("utility")  # housekeeping, not something the user waits for
+            self.scan_all()
+
+        threading.Thread(target=scan, daemon=True).start()
 
     # ---------- API ----------
 
@@ -318,7 +335,8 @@ class Daemon:
             return {
                 "pid": os.getpid(), "memory_mb": round(footprint_mb()), "mode": self.settings.index_mode,
                 "approved": self.approved, "awaiting_approval": self.awaiting_approval,
-                "paused": self._paused(), "worker": worker, "queued": queued, "failed_jobs": failed,
+                "paused": self._paused(), "power": asdict(self.power_state),
+                "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
                 "photo_model_loaded": bool(self.query_embedder and self.query_embedder.loaded),
                 "warnings": self.warnings[-5:],
@@ -446,10 +464,10 @@ class Daemon:
         with self.lock:
             settings_mod.update(self.settings, key, str(value))
             settings_mod.save(self.settings)
-            if key in ("pause_on_battery", "pause_on_thermal"):
+            if key in ("pause_on_battery", "pause_on_low_power", "pause_on_thermal"):
                 self._last_power_check = 0.0
         if key in ("index_photos", "index_audio_video"):  # files join or leave the index at the next scan: now
-            threading.Thread(target=self.scan_all, daemon=True).start()
+            self._scan_all_soon()
         return asdict(self.settings)
 
     def api_exclude(self, action: str, pattern: str) -> dict:
@@ -457,7 +475,7 @@ class Daemon:
             fn = settings_mod.add_exclude if action == "add" else settings_mod.remove_exclude
             fn(self.settings, pattern)
             settings_mod.save(self.settings)
-        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        self._scan_all_soon()  # apply now
         return {"exclude": list(self.settings.exclude)}
 
     def api_extensions(self, action: str, extension: str) -> dict:
@@ -466,7 +484,7 @@ class Daemon:
             fn = settings_mod.add_extension if action == "add" else settings_mod.remove_extension
             changed = fn(self.settings, extension)
             settings_mod.save(self.settings)
-        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        self._scan_all_soon()  # apply now
         return {"changed": changed, "exclude_extensions": list(self.settings.exclude_extensions)}
 
     def api_extension_suggestions(self) -> dict:
@@ -509,7 +527,7 @@ class Daemon:
         with self.lock:
             tree_mod.set_included(self.settings, path, bool(included))
             settings_mod.save(self.settings)
-        threading.Thread(target=self.scan_all, daemon=True).start()  # apply now
+        self._scan_all_soon()  # apply now
         return {"exclude": list(self.settings.exclude)}
 
     def api_preview(self, path: str, start_line: int, end_line: int | None = None, context: int = 12) -> dict:
@@ -639,6 +657,7 @@ class Daemon:
         self._after_scan(conn, found_new=True)  # also files left waiting by an earlier run
         conn.close()
         self._serve(path)
+        qos.set_thread_qos("utility")  # this thread now only scans and supervises; API threads keep default QoS
         if threading.current_thread() is threading.main_thread():  # launchd stops agents with SIGTERM
             signal.signal(signal.SIGTERM, lambda *_: self.stopping.set())
 

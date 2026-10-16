@@ -173,6 +173,7 @@ public struct ResultSection: Equatable, Sendable, Identifiable {
 public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var indexMode: String
     public var pauseOnBattery: Bool
+    public var pauseOnLowPower: Bool
     public var pauseOnThermal: Bool
     public var transcribe: Bool
     public var indexPhotos: Bool

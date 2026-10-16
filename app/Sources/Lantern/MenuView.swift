@@ -65,7 +65,12 @@ struct MenuView: View {
         case .starting: "Starting…"
         case .offline: "Off"
         case .paused:
-            state.status?.paused == "battery" ? "Paused: battery" : state.status?.paused == "thermal" ? "Paused: heat" : "Paused"
+            switch state.status?.paused {
+            case "battery": "Paused: battery"
+            case "low_power": "Paused: Low Power Mode"
+            case "thermal": "Paused: heat"
+            default: "Paused"
+            }
         case .awaitingApproval: "Waiting for approval"
         case .indexing: "Indexing"
         case .idle: "Ready"

@@ -339,6 +339,10 @@ def cmd_status(args: argparse.Namespace) -> int:
     s = protocol.call("status")
     paused = f", paused ({s['paused']})" if s["paused"] else ""
     print(f"daemon: running (pid {s['pid']}, {s['memory_mb']} MB), mode {s['mode']}{paused}")
+    if power := s.get("power"):
+        source = "battery" if power["on_battery"] else "AC power"
+        low = ", Low Power Mode" if power["low_power"] else ""
+        print(f"power: {source}{low}, thermal state {power['thermal']}")
     w = s["worker"]
     if w["running"]:
         stage = w.get("stage", "")
