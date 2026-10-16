@@ -98,14 +98,19 @@ final class SearchPanelController {
     private func position() {
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         guard let frame = screen?.visibleFrame else { return }
+        // The offset is kept as a share of the screen, so a position chosen on a big display means the same spot on a
+        // smaller one.
         let offset = UserDefaults.standard.array(forKey: Self.offsetKey) as? [Double] ?? [0, 0]
-        place(midX: frame.midX + offset[0], top: Self.homeTop(frame) + offset[1], in: frame)
+        place(midX: frame.midX + offset[0] * frame.width, top: Self.homeTop(frame) + offset[1] * frame.height, in: frame)
     }
 
     // MARK: Dragging, with magnets at the centre line and at the home spot
 
-    private static let offsetKey = "panelOffset"
-    private static let magnet: CGFloat = 26  // points: inside it the panel snaps; pulling past it lets go
+    private static let offsetKey = "panelOffsetShare"  // [x, y] as shares of the screen (an older point offset is ignored)
+    // Magnets with hysteresis: they catch within 15 pt and let go only past 20 pt, so the panel never flickers at the
+    // edge and leaving a magnet is a clear, deliberate pull.
+    private static let catchDistance: CGFloat = 15
+    private static let releaseDistance: CGFloat = 20
     private var dragStart: (mouse: NSPoint, midX: CGFloat, top: CGFloat)?
     private var snapped = (x: false, home: false)
 
@@ -127,9 +132,11 @@ final class SearchPanelController {
         dragStart = start
         var midX = start.midX + mouse.x - start.mouse.x
         var top = start.top + mouse.y - start.mouse.y
-        let onCentre = abs(midX - frame.midX) < Self.magnet
+        let xLimit = snapped.x ? Self.releaseDistance : Self.catchDistance
+        let onCentre = abs(midX - frame.midX) < xLimit
         if onCentre { midX = frame.midX }
-        let atHome = onCentre && abs(top - Self.homeTop(frame)) < Self.magnet
+        let yLimit = snapped.home ? Self.releaseDistance : Self.catchDistance
+        let atHome = onCentre && abs(top - Self.homeTop(frame)) < yLimit
         if atHome { top = Self.homeTop(frame) }
         if (onCentre && !snapped.x) || (atHome && !snapped.home) {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -142,7 +149,7 @@ final class SearchPanelController {
         dragStart = nil
         guard let frame = (panel.screen ?? NSScreen.main)?.visibleFrame, let midX = panel.anchorMidX,
               let top = panel.anchorTop else { return }
-        let offset = [Double(midX - frame.midX), Double(top - Self.homeTop(frame))]
+        let offset = [Double((midX - frame.midX) / frame.width), Double((top - Self.homeTop(frame)) / frame.height)]
         if offset == [0, 0] {
             UserDefaults.standard.removeObject(forKey: Self.offsetKey)  // back home
         } else {
@@ -151,6 +158,13 @@ final class SearchPanelController {
     }
 
     var windowNumber: Int { panel.windowNumber }
+
+    /// Displays were added, removed or rearranged: a panel left on a screen that is gone (or now smaller) moves back
+    /// onto the screen with the mouse, at its usual place.
+    func screensChanged() {
+        guard panel.isVisible else { return }
+        position()
+    }
 
     /// The daemon answered for the first time: a query typed while it was still starting gets its results now.
     func daemonCameUp() {
@@ -701,7 +715,7 @@ struct SearchView: View {
             model.cycleCategory(back ? -1 : 1)
             return .handled
         }
-        .onKeyPress(keys: ["1", "2", "3", "4", "5", "6"], phases: .down) { press in
+        .onKeyPress(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], phases: .down) { press in
             guard press.modifiers.contains(.command), scopeStyle == .icons || model.showsPills,
                   let n = Int(String(press.characters)) else {
                 return .ignored

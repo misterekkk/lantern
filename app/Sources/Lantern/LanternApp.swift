@@ -28,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             AppState.shared.start()
             AppState.shared.registerShortcut()
             ClipboardHistory.shared.start()
+            NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                                   object: nil, queue: .main) { _ in
+                Task { @MainActor in SearchPanelController.shared.screensChanged() }
+            }
             handleLaunchArguments()
         }
     }
