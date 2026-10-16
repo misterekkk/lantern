@@ -94,8 +94,13 @@ def now() -> int:
     return int(time.time())
 
 
-def vec_table(model_id: int) -> str:
-    return f"vec_chunks_{int(model_id)}"
+VISUAL_KINDS = frozenset({"image", "frame"})  # chunks whose vectors live in the photo tables
+
+
+def vec_table(model_id: int, images: bool = False) -> str:
+    """Vector table of a model: text/code/audio chunks, or photos and video frames (kept apart: text-to-image
+    similarities are on another scale and are fused separately, see search/hybrid.py)."""
+    return f"vec_{'images' if images else 'chunks'}_{int(model_id)}"
 
 
 def find_model(conn: sqlite3.Connection, info: ModelInfo) -> int | None:
@@ -106,15 +111,15 @@ def find_model(conn: sqlite3.Connection, info: ModelInfo) -> int | None:
     return row[0] if row else None
 
 
-def ensure_model(conn: sqlite3.Connection, info: ModelInfo) -> int:
-    """Register an embedding model and create its vector table. Returns embedding_models.id."""
+def ensure_model(conn: sqlite3.Connection, info: ModelInfo, images: bool = False) -> int:
+    """Register an embedding model and create its vector table (text or photo). Returns embedding_models.id."""
     conn.execute(
         "INSERT OR IGNORE INTO embedding_models(name, revision, backend, dtype, dim) VALUES (?, ?, ?, ?, ?)",
         (info.name, info.revision, info.backend, info.dtype, info.dim),
     )
     model_id = find_model(conn, info)
     conn.execute(
-        f"CREATE VIRTUAL TABLE IF NOT EXISTS {vec_table(model_id)} USING vec0("
+        f"CREATE VIRTUAL TABLE IF NOT EXISTS {vec_table(model_id, images)} USING vec0("
         f"chunk_id INTEGER PRIMARY KEY, embedding FLOAT[{info.dim}] distance_metric=cosine)"
     )
     return model_id
@@ -122,6 +127,16 @@ def ensure_model(conn: sqlite3.Connection, info: ModelInfo) -> int:
 
 def all_model_ids(conn: sqlite3.Connection) -> list[int]:
     return [r[0] for r in conn.execute("SELECT id FROM embedding_models")]
+
+
+def vector_tables(conn: sqlite3.Connection) -> list[str]:
+    """All vec0 tables (text and photo tables of every model)."""
+    return [
+        r[0]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND sql LIKE 'CREATE VIRTUAL TABLE%USING vec0%'"
+        )
+    ]
 
 
 def ensure_root(conn: sqlite3.Connection, path: Path) -> int:
@@ -136,8 +151,8 @@ def _delete_chunk_rows(conn: sqlite3.Connection, chunk_ids: Sequence[int]) -> No
         batch = list(chunk_ids[start : start + 500])
         marks = ",".join("?" * len(batch))
         conn.execute(f"DELETE FROM chunks_fts WHERE rowid IN ({marks})", batch)
-        for model_id in all_model_ids(conn):
-            conn.execute(f"DELETE FROM {vec_table(model_id)} WHERE chunk_id IN ({marks})", batch)
+        for table in vector_tables(conn):
+            conn.execute(f"DELETE FROM {table} WHERE chunk_id IN ({marks})", batch)
         conn.execute(f"DELETE FROM chunks WHERE id IN ({marks})", batch)
 
 
@@ -171,14 +186,19 @@ def replace_file_chunks(
     model_id: int,
     pipeline_version: int,
     kinds: Iterable[str] | None = None,
+    extra: Sequence[tuple[int, np.ndarray]] = (),
 ) -> None:
     """Idempotent re-index of one file: drop its old chunks (only `kinds` if given), insert new chunks, FTS rows
-    and vectors. Audio windows (text None) get an FTS row with an empty text, so the file name stays searchable."""
-    if len(chunks) != len(vectors):
+    and vectors. Audio windows and photos (text None) get an FTS row with an empty text, so the file name stays
+    searchable. Photos/frames go to the photo tables; `extra` adds vectors of a second photo model
+    as (model_id, vectors)."""
+    if len(chunks) != len(vectors) or any(len(v) != len(chunks) for _, v in extra):
         raise ValueError("chunks and vectors length mismatch")
     delete_file_chunks(conn, file_id, kinds)
-    table = vec_table(model_id)
-    for chunk, vec in zip(chunks, vectors, strict=True):
+    visual = bool(chunks) and all(c.kind in VISUAL_KINDS for c in chunks)
+    table = vec_table(model_id, images=visual)
+    extra_tables = [(vec_table(mid, images=True), vecs) for mid, vecs in extra]
+    for i, (chunk, vec) in enumerate(zip(chunks, vectors, strict=True)):
         cur = conn.execute(
             "INSERT INTO chunks(file_id, ord, kind, start_line, end_line, start_ms, end_ms, symbol, text) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -203,6 +223,11 @@ def replace_file_chunks(
             f"INSERT INTO {table}(chunk_id, embedding) VALUES (?, ?)",
             (chunk_id, np.asarray(vec, dtype=np.float32).tobytes()),
         )
+        for extra_table, vecs in extra_tables:
+            conn.execute(
+                f"INSERT INTO {extra_table}(chunk_id, embedding) VALUES (?, ?)",
+                (chunk_id, np.asarray(vecs[i], dtype=np.float32).tobytes()),
+            )
     conn.execute(
         "UPDATE files SET status = 'indexed', error = NULL, indexed_at = ?, pipeline_version = ?, model_id = ? "
         "WHERE id = ?",

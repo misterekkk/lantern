@@ -15,6 +15,8 @@ class Settings:
     pause_on_battery: bool = True
     pause_on_thermal: bool = True
     transcribe: bool = True
+    index_photos: bool = True
+    index_video_frames: bool = True
     notify: bool = True
     debounce_s: float = 3.0  # file events are grouped for this long before a rescan
     # Extra exclusions: absolute paths (~ allowed) or .gitignore-style patterns matched inside every indexed folder.

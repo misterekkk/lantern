@@ -31,6 +31,7 @@ from lantern.service import settings as settings_mod
 from lantern.store import db
 
 TICK_S = 0.5
+QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
 WORKER_RETRY_S = 30.0  # after a worker crash with work left
 
@@ -63,6 +64,9 @@ class Daemon:
         # MLX streams belong to the thread that created them: load and run the model on one dedicated thread
         # (this also serialises model calls from concurrent API requests).
         self.model_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lantern-model")
+        self.query_embedder = None  # SigLIP 2 text side (photos), loaded on demand on the model thread
+        self.query_embedder_used = 0.0
+        self.has_images = False
         self.approved = False
         self.awaiting_approval = False
         self.manual_pause = False
@@ -127,7 +131,13 @@ class Daemon:
         with self.scan_lock:
             conn = self._conn()
             try:
-                result = scan_root(conn, Path(root), force=force, excludes=self.settings.exclude)
+                result = scan_root(
+                    conn,
+                    Path(root),
+                    force=force,
+                    excludes=self.settings.exclude,
+                    include_images=self.settings.index_photos,
+                )
             except RootUnavailable as exc:
                 self._warn(f"{exc}; nothing removed")
                 return {"root": root, "error": "unavailable"}
@@ -253,6 +263,15 @@ class Daemon:
         if has_work:
             self._start_worker()
 
+    def _release_idle_query_model(self) -> None:
+        q = self.query_embedder
+        if (
+            q is not None
+            and getattr(q, "loaded", False)
+            and time.monotonic() - self.query_embedder_used > QUERY_MODEL_IDLE_S
+        ):
+            self.model_thread.submit(q.unload)
+
     # ---------- power ----------
 
     def _check_power(self) -> None:
@@ -291,6 +310,10 @@ class Daemon:
             ]
             queued = self._queued(conn)
             chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+            kinds = {
+                r[0]: r[1]
+                for r in conn.execute("SELECT kind, COUNT(*) FROM files WHERE status = 'indexed' GROUP BY kind")
+            }
         finally:
             conn.close()
         with self.lock:
@@ -299,22 +322,53 @@ class Daemon:
                 "pid": os.getpid(), "memory_mb": round(footprint_mb()), "mode": self.settings.index_mode,
                 "approved": self.approved, "awaiting_approval": self.awaiting_approval,
                 "paused": self._paused(), "worker": worker, "queued": queued, "failed_jobs": failed,
-                "files": files, "chunks": chunks, "roots": roots, "last_run": self.last_run,
+                "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
+                "photo_model_loaded": bool(self.query_embedder and self.query_embedder.loaded),
                 "warnings": self.warnings[-5:],
             }  # fmt: skip
 
-    def _search(self, query: str, limit: int, log: bool):
+    def _refresh_has_images(self, conn) -> None:
+        self.has_images = (
+            conn.execute("SELECT 1 FROM chunks WHERE kind IN ('image', 'frame') LIMIT 1").fetchone() is not None
+        )
+
+    def _photo_model(self):
+        """Model thread only: the second photo model's text encoder, loaded when photos are indexed (~0.33 s)."""
+        if not self.has_images or self.query_embedder is None:
+            return None
+        self.query_embedder.load()
+        self.query_embedder_used = time.monotonic()
+        return self.query_embedder
+
+    def _search(self, query: str, limit: int, log: bool, lang: str):
         conn = self._conn()
         try:
-            return search(conn, self.embedder, query, limit, log=log)
+            self._refresh_has_images(conn)
+            return search(conn, self.embedder, query, limit, log=log, lang=lang, query_embedder=self._photo_model())
         finally:
             conn.close()
 
-    def api_search(self, query: str, limit: int = 10, log: bool = True) -> dict:
-        resp = self.model_thread.submit(self._search, query, limit, log).result()
+    def api_warmup(self) -> dict:
+        """The search panel opened: load the photo query model now, while the user types."""
+
+        def warm():
+            conn = self._conn()
+            try:
+                self._refresh_has_images(conn)
+            finally:
+                conn.close()
+            return self._photo_model() is not None
+
+        return {"photo_model": self.model_thread.submit(warm).result()}
+
+    def api_search(self, query: str, limit: int = 10, log: bool = True, lang: str | None = None) -> dict:
+        from lantern.syslang import system_language
+
+        resp = self.model_thread.submit(self._search, query, limit, log, lang or system_language()).result()
         return {
             "results": [asdict(r) for r in resp.results], "event_id": resp.event_id,
-            "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms,
+            "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms, "image_ms": resp.image_ms,
+            "photos": [asdict(r) for r in resp.photos], "photos_first": resp.photos_first,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
@@ -392,6 +446,8 @@ class Daemon:
             settings_mod.save(self.settings)
             if key in ("pause_on_battery", "pause_on_thermal"):
                 self._last_power_check = 0.0
+        if key == "index_photos":  # photos join or leave the index at the next scan: run it now
+            threading.Thread(target=self.scan_all, daemon=True).start()
         return asdict(self.settings)
 
     def api_exclude(self, action: str, pattern: str) -> dict:
@@ -473,6 +529,10 @@ class Daemon:
             self.embedder = make_embedder()
         if hasattr(self.embedder, "load"):
             self.model_thread.submit(self.embedder.load).result()  # warm model: first search is fast
+        if self.query_embedder is None:
+            from lantern.service.worker import make_query_embedder
+
+            self.query_embedder = make_query_embedder()
         conn = self._conn()
         from lantern.queue import jobs
 
@@ -507,6 +567,7 @@ class Daemon:
                         self.scan(root)
                 self._check_power()
                 self._manage_worker()
+                self._release_idle_query_model()
                 self.stopping.wait(TICK_S)
         finally:
             self._stop_worker(wait=True)

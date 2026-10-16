@@ -43,6 +43,30 @@ def make_transcriber(enabled: bool):
     return WhisperTranscriber()
 
 
+def make_image_embedder(settings):
+    """Second photo model (SigLIP 2) when photos or frames are indexed and it is downloaded; None otherwise."""
+    if not (settings.index_photos or settings.index_video_frames):
+        return None
+    if os.environ.get("LANTERN_EMBEDDER") == "fake":
+        from lantern.embedding.fake import FakeImageEmbedder
+
+        return FakeImageEmbedder()
+    from lantern.embedding import siglip
+
+    return siglip.SiglipImageEmbedder() if siglip.available() else None
+
+
+def make_query_embedder():
+    """Text side of the second photo model for searches (None when not downloaded)."""
+    if os.environ.get("LANTERN_EMBEDDER") == "fake":
+        from lantern.embedding.fake import FakeImageEmbedder
+
+        return FakeImageEmbedder()
+    from lantern.embedding import siglip
+
+    return siglip.SiglipQueryEmbedder() if siglip.available() else None
+
+
 def emit(**event) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 
@@ -70,10 +94,13 @@ def main() -> int:
         ),
         transcriber=make_transcriber(settings.transcribe),
         should_stop=lambda: stop,
+        image_embedder=make_image_embedder(settings),
+        video_frames=settings.index_video_frames,
     )
     emit(
         event="done", indexed=stats.indexed, chunks=stats.chunks, skipped=stats.skipped, failed=stats.failed,
-        transcribed=stats.transcribed, stopped=stats.stopped, errors=stats.errors[:20],
+        transcribed=stats.transcribed, images=stats.images, frames=stats.frames, stopped=stats.stopped,
+        errors=stats.errors[:20],
     )  # fmt: skip
     return 0
 

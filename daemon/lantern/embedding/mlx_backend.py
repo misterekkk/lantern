@@ -1,8 +1,9 @@
 """EmbeddingGemma 2 on MLX (ADR-001): mlx-community 8-bit weights via the pinned mlx-vlm branch.
 
-The text tower stays loaded (~275 MB). The audio tower (~0.9 GB) is loaded only for audio jobs and released with
-unload_audio(); the vision tower is never loaded. Text is tokenised with `tokenizers` (tokenizer.json); audio goes
-through the model's own processor (mel features, capped explicitly: the default silently truncates at 30 s).
+The text tower stays loaded (~275 MB). The audio tower (~0.9 GB) and the vision tower (~0.35 GB) are loaded only
+for audio / image jobs and released with unload_audio() / unload_vision(). Text is tokenised with `tokenizers`
+(tokenizer.json); audio and images go through the model's own processor (audio mel features capped explicitly:
+the default silently truncates at 30 s).
 Loading is strictly offline: the weights must already be in the Hugging Face cache (see README).
 """
 
@@ -19,6 +20,7 @@ REVISION = "7505ef2f8ddef45efef6d060865f27989b3c9cec"
 DIM = 768
 MAX_TOKENS = 1024  # chunks are ~400 tokens (<= 1600 chars); hard cap protects memory
 BATCH = 8  # ~1.1 GB MLX peak on M4 for ~500-token chunks
+IMAGE_TOKENS = 140  # image token budget: 2.2x faster than the default 280 for a small quality loss (DECISIONS.md)
 # MLX allocator limits (16 GB machine shared with the user's apps).
 MEMORY_LIMIT = 3 * 1024**3
 CACHE_LIMIT = 256 * 1024**2
@@ -36,6 +38,7 @@ class MLXEmbedder:
         self._tokenizer = None
         self._processor = None
         self._has_audio = False
+        self._has_vision = False
 
     def model_info(self) -> ModelInfo:
         return ModelInfo(name=self.repo, revision=self.revision, backend="mlx", dtype="8bit", dim=DIM)
@@ -54,7 +57,7 @@ class MLXEmbedder:
                 ) from exc
         return self._path
 
-    def _load_model(self, with_audio: bool) -> None:
+    def _load_model(self, with_audio: bool, with_vision: bool = False) -> None:
         import mlx.core as mx
 
         from lantern.embedding.mlx_loader import load_embedding_gemma2
@@ -66,9 +69,10 @@ class MLXEmbedder:
         model = load_embedding_gemma2(self._snapshot(), lazy=True)
         if not with_audio:  # drop towers before their weights are materialised
             model.audio_tower = model.embed_audio = None
-        model.vision_tower = model.embed_vision = None
+        if not with_vision:
+            model.vision_tower = model.embed_vision = None
         mx.eval(model.parameters())
-        self._model, self._has_audio = model, with_audio
+        self._model, self._has_audio, self._has_vision = model, with_audio, with_vision
 
     def load(self) -> None:
         if self._model is not None:
@@ -101,7 +105,16 @@ class MLXEmbedder:
     def _ensure_audio(self) -> None:
         self.load()
         if not self._has_audio:
-            self._load_model(with_audio=True)
+            self._load_model(with_audio=True, with_vision=self._has_vision)
+        self._ensure_processor()
+
+    def _ensure_vision(self) -> None:
+        self.load()
+        if not self._has_vision:
+            self._load_model(with_audio=self._has_audio, with_vision=True)
+        self._ensure_processor()
+
+    def _ensure_processor(self) -> None:
         if self._processor is None:
             from transformers import AutoProcessor
 
@@ -126,6 +139,32 @@ class MLXEmbedder:
             out[i] = np.array(emb.astype(mx.float32))[0]
         mx.clear_cache()
         return out
+
+    def embed_images(self, images: list) -> np.ndarray:
+        """PIL images -> vectors in the same space as text (vision tower, IMAGE_TOKENS soft tokens per image)."""
+        import mlx.core as mx
+
+        self._ensure_vision()
+        out = np.zeros((len(images), DIM), dtype=np.float32)
+        for i, image in enumerate(images):
+            inputs = self._processor(
+                text=self._processor.image_token, images=[image], return_tensors="np",
+                images_kwargs={"max_soft_tokens": IMAGE_TOKENS},
+            )  # fmt: skip
+            emb = self._model(**{k: mx.array(v) for k, v in inputs.items()}).text_embeds
+            mx.eval(emb)
+            out[i] = np.array(emb.astype(mx.float32))[0]
+        mx.clear_cache()
+        return out
+
+    def unload_vision(self) -> None:
+        if self._model is not None and self._has_vision:
+            import mlx.core as mx
+
+            self._model.vision_tower = self._model.embed_vision = None
+            self._has_vision = False
+            gc.collect()
+            mx.clear_cache()
 
     def unload_audio(self) -> None:
         if self._model is not None and self._has_audio:

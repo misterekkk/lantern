@@ -73,12 +73,13 @@ def test_unreadable_folder_keeps_its_entries(conn, project, embedder):
     assert conn.execute("SELECT COUNT(*) FROM files WHERE path LIKE '%net.py'").fetchone()[0] == 1
 
 
-def test_photos_are_counted_for_later(tmp_path):
+def test_photos_are_indexed_unless_disabled(tmp_path):
     root = tmp_path / "r"
     for name in ("a.jpg", "b.HEIC", "c.png"):
         write(root, name, "x\n")
+    assert rel_paths(root) == {"a.jpg", "b.HEIC", "c.png"}
     report = WalkReport()
-    assert rel_paths(root, report) == set() and report.images == 3
+    assert {e.path.name for e in iter_files(root, report, include_images=False)} == set() and report.images == 3
 
 
 def test_dry_run_reads_and_writes_nothing(project, lantern_home):

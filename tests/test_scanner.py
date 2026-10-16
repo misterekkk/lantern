@@ -79,7 +79,7 @@ def test_default_exclusions_and_secrets(tmp_path):
     write(root, "config/secrets.yaml", "token: abc\n")
     write(root, "node_modules/lib/index.js", "module.exports = 1\n")
     write(root, ".git/config", "[core]\n")
-    write(root, "image.png", "not really\n")
+    write(root, "archive.bin", "not indexed\n")
     assert paths(root) == {"app.py"}
 
 

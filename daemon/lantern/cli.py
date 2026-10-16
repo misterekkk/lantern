@@ -22,10 +22,14 @@ def _connect():
     return db.connect(config.db_path())
 
 
-def _excludes() -> list[str]:
+def _settings():
     from lantern.service import settings as settings_mod
 
-    return settings_mod.load().exclude
+    return settings_mod.load()
+
+
+def _excludes() -> list[str]:
+    return _settings().exclude
 
 
 def _daemon() -> bool:
@@ -56,6 +60,8 @@ def _sources(r) -> str:
     parts = []
     if r.vector_rank:
         parts.append(f"meaning #{r.vector_rank}")
+    if getattr(r, "image_rank", None):
+        parts.append(f"image #{r.image_rank}")
     if r.keyword_rank:
         parts.append(f"keywords #{r.keyword_rank}")
     return " · ".join(parts)
@@ -131,14 +137,15 @@ def cmd_index(args: argparse.Namespace) -> int:
 
     from lantern.indexer import run_queue
     from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, scan_root
-    from lantern.service.worker import make_embedder, make_transcriber
+    from lantern.service.worker import make_embedder, make_image_embedder, make_transcriber
     from lantern.store import db
 
     conn = _connect()
     root = Path(args.path).expanduser().resolve()
     t0 = time.perf_counter()
     try:
-        scan = scan_root(conn, root, force=args.force, excludes=_excludes())
+        settings = _settings()
+        scan = scan_root(conn, root, force=args.force, excludes=settings.exclude, include_images=settings.index_photos)
     except RootUnavailable as exc:
         print(f"error: {exc}. Nothing was removed from the index.", file=sys.stderr)
         return 1
@@ -158,7 +165,10 @@ def cmd_index(args: argparse.Namespace) -> int:
             print(f"\r  {label} {done}/{total} {name:<40}", end="", file=sys.stderr, flush=True)
 
     t1 = time.perf_counter()
-    stats = run_queue(conn, make_embedder(), progress, make_transcriber(not args.no_transcribe))
+    stats = run_queue(
+        conn, make_embedder(), progress, make_transcriber(not args.no_transcribe),
+        image_embedder=make_image_embedder(settings), video_frames=settings.index_video_frames,
+    )  # fmt: skip
     if sys.stderr.isatty():
         print("\r" + " " * 70 + "\r", end="", file=sys.stderr)
     stale = f", {stats.stale} re-indexed after a pipeline/model change" if stats.stale else ""
@@ -168,6 +178,8 @@ def cmd_index(args: argparse.Namespace) -> int:
     )
     if stats.media or stats.transcribed:
         print(f"audio/video: {stats.media} files, {stats.audio_windows} audio windows, {stats.transcribed} transcribed")
+    if stats.images or stats.frames:
+        print(f"photos: {stats.images}, video frames: {stats.frames}")
     for path, msg in stats.errors[:10]:
         print(f"  failed: {path}: {msg}", file=sys.stderr)
     if scan.deleted and db.maybe_compact(conn):
@@ -179,21 +191,42 @@ def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log})
         results = [SimpleNamespace(**r) for r in resp["results"]]
-        took, logged = resp["vector_ms"] + resp["keyword_ms"], resp["event_id"]
+        photos = [SimpleNamespace(**r) for r in resp.get("photos", [])]
+        took, logged, photos_first = (
+            resp["vector_ms"] + resp["keyword_ms"] + resp.get("image_ms", 0),
+            resp["event_id"],
+            resp.get("photos_first", False),
+        )
     else:
         from lantern.search.hybrid import search
-        from lantern.service.worker import make_embedder
+        from lantern.service.worker import make_embedder, make_query_embedder
+        from lantern.syslang import system_language
 
         embedder = make_embedder()
         if hasattr(embedder, "load"):
             embedder.load()  # keep model loading out of the query timing
-        r = search(_connect(), embedder, args.query, args.limit, log=not args.no_log)
-        results, took, logged = r.results, r.vector_ms + r.keyword_ms, r.event_id
-    print(f"{len(results)} results ({took:.0f} ms)")
-    for i, r in enumerate(results, 1):
-        print(f"  {i:2d}. {_location(r)}   ({_sources(r)})")
-        print(f"      {r.preview or '(audio match)'}")
-    if results and logged:
+        r = search(_connect(), embedder, args.query, args.limit, log=not args.no_log, lang=system_language(),
+                   query_embedder=make_query_embedder())  # fmt: skip
+        results, photos, photos_first = r.results, r.photos, r.photos_first
+        took, logged = r.vector_ms + r.keyword_ms + r.image_ms, r.event_id
+    print(f"{len(results) + len(photos)} results ({took:.0f} ms)")
+    n = 0
+
+    def section(title: str, items) -> None:
+        nonlocal n
+        if not items:
+            return
+        print(title)
+        for r in items:
+            n += 1
+            print(f"  {n:2d}. {_location(r)}   ({_sources(r)})")
+            if r.preview:
+                print(f"      {r.preview}")
+
+    order = [("Photos:", photos), ("Files:", results)] if photos_first else [("Files:", results), ("Photos:", photos)]
+    for title, items in order:
+        section(title, items)
+    if (results or photos) and logged:
         print("open a result with: lantern open <number>")
     return 0
 

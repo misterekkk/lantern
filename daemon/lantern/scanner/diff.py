@@ -67,7 +67,12 @@ def root_available(root: Path) -> bool:
 
 
 def scan_root(
-    conn: sqlite3.Connection, root: Path, *, force: bool = False, excludes: list[str] | tuple[str, ...] = ()
+    conn: sqlite3.Connection,
+    root: Path,
+    *,
+    force: bool = False,
+    excludes: list[str] | tuple[str, ...] = (),
+    include_images: bool = True,
 ) -> ScanResult:
     root = root.expanduser().resolve()
     if not root_available(root):
@@ -75,7 +80,7 @@ def scan_root(
 
     root_id = db.ensure_root(conn, root)
     report = WalkReport()
-    disk: dict[str, FileEntry] = {str(e.path): e for e in iter_files(root, report, excludes)}
+    disk: dict[str, FileEntry] = {str(e.path): e for e in iter_files(root, report, excludes, include_images)}
     indexed = {
         r["path"]: r
         for r in conn.execute("SELECT id, path, size, mtime_ns, content_hash FROM files WHERE root_id = ?", (root_id,))

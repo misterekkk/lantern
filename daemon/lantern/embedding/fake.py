@@ -18,6 +18,8 @@ class FakeEmbedder:
         self.texts_embedded = 0
         self.audio_windows = 0
         self.audio_unloads = 0
+        self.images_embedded = 0
+        self.vision_unloads = 0
 
     def model_info(self) -> ModelInfo:
         return ModelInfo(name="fake-bow", revision="0", backend="fake", dtype="f32", dim=self.dim)
@@ -47,3 +49,44 @@ class FakeEmbedder:
 
     def unload_audio(self) -> None:
         self.audio_unloads += 1
+
+    def embed_images(self, images: list) -> np.ndarray:
+        """Deterministic vector from the mean colour of each image (tests check plumbing, not quality)."""
+        self.images_embedded += len(images)
+        out = np.zeros((len(images), self.dim), dtype=np.float32)
+        for row, image in enumerate(images):
+            r, g, b = (int(c) for c in np.asarray(image.convert("RGB").resize((1, 1)))[0, 0])
+            out[row, (r * 3 + g * 5 + b * 7) % self.dim] = 1.0
+        return out
+
+    def unload_vision(self) -> None:
+        self.vision_unloads += 1
+
+
+class FakeImageEmbedder:
+    """Second photo model for tests (its own space, like SigLIP)."""
+
+    def __init__(self, dim: int = 32):
+        self.dim = dim
+        self.images_embedded = 0
+        self.unloads = 0
+
+    def model_info(self) -> ModelInfo:
+        return ModelInfo(name="fake-siglip", revision="0", backend="fake", dtype="f32", dim=self.dim)
+
+    def embed_images(self, images: list) -> np.ndarray:
+        self.images_embedded += len(images)
+        out = np.zeros((len(images), self.dim), dtype=np.float32)
+        for row, image in enumerate(images):
+            r, g, b = (int(c) for c in np.asarray(image.convert("RGB").resize((1, 1)))[0, 0])
+            out[row, (r + g + b) % self.dim] = 1.0
+        return out
+
+    def embed_queries(self, texts: list[str]) -> np.ndarray:
+        out = np.zeros((len(texts), self.dim), dtype=np.float32)
+        for row, text in enumerate(texts):
+            out[row, sum(map(ord, text)) % self.dim] = 1.0
+        return out
+
+    def unload(self) -> None:
+        self.unloads += 1

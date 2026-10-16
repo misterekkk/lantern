@@ -4,6 +4,8 @@ Stage 1, `index` jobs:
   - text/code: extract -> chunk -> embed (chunks of several files embedded together) -> one transaction per file;
   - audio/video: ffmpeg soundtrack -> 30 s windows (25 s hop) -> audio embeddings with timestamps; the audio tower
     is loaded for this stage only.
+  - images: EmbeddingGemma 2 vision tower + SigLIP 2 (second photo model) -> one chunk with two vectors;
+  - video files also get key frames (scene changes, near-duplicates dropped) embedded by both photo models.
 Stage 2, `transcribe` jobs (audio/video, when a transcriber is given): Whisper -> ~30 s transcript chunks ->
   text embeddings + FTS. Whisper is loaded for this stage only.
 A failure stays confined to its file.
@@ -19,7 +21,9 @@ import numpy as np
 from lantern.chunking import chunk_file
 from lantern.chunking.transcript import group_segments
 from lantern.config import AUDIO_SAMPLE_RATE, MAX_TRANSCRIBE_S
-from lantern.embedding.base import Embedder, document_title, format_document
+from lantern.embedding.base import Embedder, ImageEmbedder, document_title, format_document
+from lantern.extractors.frames import extract_frames
+from lantern.extractors.image import load_image
 from lantern.extractors.media import decode_all, iter_windows
 from lantern.extractors.text import SkipFile, extract_text
 from lantern.queue import jobs
@@ -30,11 +34,12 @@ from lantern.transcription.whisper import Transcriber
 FILES_PER_ROUND = 32
 AUDIO_BATCH = 8  # windows per embed_audio call; only one batch of samples is held in memory
 MEDIA_KINDS = frozenset({"audio", "video"})
+IMAGE_BATCH = 8
 
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
-# audio/video 2 = 20 s transcript chunks.
-PIPELINE_VERSIONS = {"text": 2, "code": 2, "audio": 2, "video": 2}
+# audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
+PIPELINE_VERSIONS = {"text": 2, "code": 2, "audio": 2, "video": 3, "image": 1}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -49,6 +54,8 @@ class IndexStats:
     media: int = 0
     audio_windows: int = 0
     transcribed: int = 0
+    images: int = 0
+    frames: int = 0
     stopped: bool = False  # interrupted by should_stop; unprocessed jobs went back to the queue
     errors: list[tuple[str, str]] = field(default_factory=list)
 
@@ -109,14 +116,19 @@ def run_queue(
     progress: Progress | None = None,
     transcriber: Transcriber | None = None,
     should_stop: Callable[[], bool] = lambda: False,
+    image_embedder: ImageEmbedder | None = None,
+    video_frames: bool = True,
 ) -> IndexStats:
     """Process queued jobs; should_stop is checked between files (pause, battery, shutdown)."""
     stats = IndexStats()
     dim = embedder.model_info().dim
     with db.transaction(conn):
         model_id = db.ensure_model(conn, embedder.model_info())
+        db.ensure_model(conn, embedder.model_info(), images=True)  # photo table of the same model
+        image_model_id = db.ensure_model(conn, image_embedder.model_info(), images=True) if image_embedder else None
         jobs.recover(conn)
         stats.stale = enqueue_stale(conn, model_id)
+    used_vision = False
 
     def failed(job: Job, file_id: int, path: str, exc: Exception, mark_file: bool = True) -> None:
         msg = f"{type(exc).__name__}: {exc}"
@@ -137,15 +149,40 @@ def run_queue(
             conn.execute("UPDATE files SET status = 'skipped', error = ? WHERE id = ?", (reason, file_id))
             jobs.complete(conn, job)
 
-    def write(item: _Prepared, vectors: np.ndarray, kinds: set[str] | None = None, then_transcribe=False) -> None:
+    def write(
+        item: _Prepared, vectors: np.ndarray, kinds: set[str] | None = None, then_transcribe=False,
+        extra: list[tuple[int, np.ndarray]] = (), complete: bool = True,
+    ) -> None:  # fmt: skip
         with db.transaction(conn):
             db.replace_file_chunks(
-                conn, item.file_id, item.rel, item.records, vectors, model_id, PIPELINE_VERSIONS[item.kind], kinds
-            )
+                conn, item.file_id, item.rel, item.records, vectors, model_id, PIPELINE_VERSIONS[item.kind], kinds,
+                extra,
+            )  # fmt: skip
             if then_transcribe:
                 jobs.enqueue(conn, item.file_id, "transcribe")
-            jobs.complete(conn, item.job)
+            if complete:
+                jobs.complete(conn, item.job)
         stats.chunks += len(item.records)
+
+    def embed_visual(images: list) -> tuple[np.ndarray, list[tuple[int, np.ndarray]]]:
+        """Both photo models: EmbeddingGemma vectors + (SigLIP model id, vectors) when the second model is present."""
+        nonlocal used_vision
+        used_vision = True
+        if not images:
+            return np.zeros((0, dim), dtype=np.float32), []
+        vecs = np.concatenate(
+            [embedder.embed_images(images[i : i + IMAGE_BATCH]) for i in range(0, len(images), IMAGE_BATCH)]
+        )
+        extra = [(image_model_id, image_embedder.embed_images(images))] if image_embedder else []
+        return vecs, extra
+
+    def index_image(job: Job, row: sqlite3.Row) -> None:
+        image = load_image(Path(row["path"]))
+        vecs, extra = embed_visual([image])
+        record = db.ChunkRecord(ord=0, kind="image", text=None)
+        write(_Prepared(job, row["id"], "image", row["path"], _rel(row), [record], []), vecs, extra=extra)
+        stats.images += 1
+        stats.indexed += 1
 
     def release(unprocessed: list[Job]) -> None:
         stats.stopped = True
@@ -154,6 +191,7 @@ def run_queue(
                 conn.execute("UPDATE jobs SET status = 'queued' WHERE id = ? AND status = 'running'", (job.id,))
 
     def index_media(job: Job, row: sqlite3.Row) -> None:
+        path, rel = Path(row["path"]), _rel(row)
         records, vectors, batch, starts = [], [], [], []
 
         def flush() -> None:
@@ -161,21 +199,45 @@ def run_queue(
                 vectors.append(embedder.embed_audio(batch))
                 batch.clear()
 
-        for start_s, samples in iter_windows(Path(row["path"])):
-            starts.append((start_s, len(samples)))
-            batch.append(samples)
-            if len(batch) == AUDIO_BATCH:
-                flush()
-        flush()
+        has_audio = True
+        try:
+            for start_s, samples in iter_windows(path):
+                starts.append((start_s, len(samples)))
+                batch.append(samples)
+                if len(batch) == AUDIO_BATCH:
+                    flush()
+            flush()
+        except SkipFile:
+            if row["kind"] != "video":
+                raise  # an audio file without audio is skipped
+            has_audio = False  # silent video: frames only
+        frames = []
+        if row["kind"] == "video" and video_frames:
+            try:
+                frames = extract_frames(path)
+            except SkipFile:
+                frames = []
+        if not has_audio and not frames:
+            raise SkipFile("no audio track and no video frames")
+
         for i, (start_s, n) in enumerate(starts):
             end_ms = int((start_s + n / AUDIO_SAMPLE_RATE) * 1000)
             records.append(db.ChunkRecord(ord=i, kind="audio", text=None, start_ms=int(start_s * 1000), end_ms=end_ms))
         vecs = np.concatenate(vectors) if vectors else np.zeros((0, dim), dtype=np.float32)
-        item = _Prepared(job, row["id"], row["kind"], row["path"], _rel(row), records, [])
-        write(item, vecs, kinds={"audio"}, then_transcribe=transcriber is not None)
+        item = _Prepared(job, row["id"], row["kind"], row["path"], rel, records, [])
+        write(item, vecs, kinds={"audio"}, then_transcribe=transcriber is not None and has_audio, complete=False)
+
+        frame_records = [
+            db.ChunkRecord(ord=i, kind="frame", text=None, start_ms=int(f.start_s * 1000), end_ms=int(f.end_s * 1000))
+            for i, f in enumerate(frames)
+        ]
+        fvecs, extra = embed_visual([f.image for f in frames])
+        write(_Prepared(job, row["id"], row["kind"], row["path"], rel, frame_records, []), fvecs, kinds={"frame"},
+              extra=extra)  # fmt: skip
         stats.media += 1
         stats.indexed += 1
         stats.audio_windows += len(records)
+        stats.frames += len(frame_records)
 
     # ---- stage 1: index ----
     total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued' AND kind = 'index'").fetchone()[0]
@@ -200,6 +262,8 @@ def run_queue(
             try:
                 if row["kind"] in MEDIA_KINDS:
                     index_media(job, row)
+                elif row["kind"] == "image":
+                    index_image(job, row)
                 else:
                     prepared.append(_prepare_text(job, row))
             except SkipFile as exc:
@@ -235,6 +299,10 @@ def run_queue(
 
     if stats.media:
         embedder.unload_audio()
+    if used_vision:
+        embedder.unload_vision()
+        if image_embedder:
+            image_embedder.unload()
 
     # ---- stage 2: transcribe ----
     if transcriber is None or stats.stopped:

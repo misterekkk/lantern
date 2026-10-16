@@ -1,4 +1,4 @@
-"""Content extractors (text, code, audio and video soundtracks). Read-only access to user files."""
+"""Content extractors (text, code, audio and video soundtracks, images). Read-only access to user files."""
 
 from pathlib import Path
 
@@ -104,9 +104,14 @@ AUDIO_EXTENSIONS = frozenset(
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".wmv", ".mpg", ".mpeg", ".3gp"})
 
 
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp"})
+
+
 def kind_for(path: Path) -> str | None:
-    """'code', 'text', 'audio', 'video' or None (not indexed)."""
+    """'code', 'text', 'audio', 'video', 'image' or None (not indexed)."""
     suffix = path.suffix.lower()
+    if suffix in IMAGE_EXTENSIONS:
+        return "image"
     if suffix in CODE_LANGUAGES:
         return "code"
     if suffix in AUDIO_EXTENSIONS:

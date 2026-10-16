@@ -133,3 +133,83 @@ def test_daemon_search_with_mlx_from_api_threads(tmp_path, monkeypatch, lantern_
     d.run()  # main thread, like the real daemon
     assert "error" not in outcome, outcome.get("error")
     assert isinstance(outcome["results"], list)
+
+
+def test_photo_matches_sentence_transformers_reference(mlx_embedder):
+    from PIL import Image
+
+    ref = np.load(Path(__file__).parent / "data" / "photo_st_ref.npy")  # ST fp32, 140 image tokens
+    vec = mlx_embedder.embed_images([Image.open(Path(__file__).parent / "data" / "photo.png").convert("RGB")])[0]
+    mlx_embedder.unload_vision()
+    assert float(vec @ ref) >= 0.999
+
+
+def test_siglip_query_encoder_on_mlx_matches_torch_and_needs_no_torch():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, numpy as np\n"
+        "from lantern.embedding.siglip import SiglipQueryEmbedder\n"
+        "q = SiglipQueryEmbedder(); v = q.embed_queries(['a house with a red roof', 'pies', 'zupa pomidorowa'])\n"
+        "assert 'torch' not in sys.modules, 'torch imported'\n"
+        "np.save(sys.argv[1], v)\n"
+    )
+    import tempfile
+
+    out = Path(tempfile.mkdtemp()) / "q.npy"
+    subprocess.run([sys.executable, "-c", code, str(out)], check=True)
+    mlx_vecs = np.load(out)
+
+    import torch
+    from transformers import AutoModel, AutoProcessor
+
+    from lantern.embedding import siglip
+
+    path = siglip._snapshot(siglip.IMAGE_REPO, siglip.IMAGE_REVISION)
+    model = AutoModel.from_pretrained(path, dtype=torch.float32).eval()
+    proc = AutoProcessor.from_pretrained(path)
+    with torch.no_grad():
+        inp = proc(text=["a house with a red roof", "pies", "zupa pomidorowa"], padding="max_length", max_length=64,
+                   return_tensors="pt")  # fmt: skip
+        ref = model.get_text_features(**inp)
+        ref = torch.nn.functional.normalize(ref if torch.is_tensor(ref) else ref.pooler_output, dim=-1).numpy()
+    assert np.all((mlx_vecs * ref).sum(1) >= 0.999)
+
+
+def test_photo_search_ranks_the_matching_photo_first(conn, tmp_path, mlx_embedder):
+    import shutil
+
+    from lantern.embedding.siglip import SiglipImageEmbedder, SiglipQueryEmbedder
+    from lantern.search.hybrid import search
+
+    root = tmp_path / "Zdjecia"
+    root.mkdir()
+    shutil.copy(Path(__file__).parent / "data" / "photo.png", root / "dom.png")
+    from PIL import Image, ImageDraw
+
+    soup = Image.new("RGB", (640, 480), (245, 240, 230))
+    ImageDraw.Draw(soup).ellipse((170, 110, 470, 410), fill=(200, 40, 30))  # a red bowl from above
+    soup.save(root / "talerz.png")
+    scan_root(conn, root)
+    run_queue(conn, mlx_embedder, image_embedder=SiglipImageEmbedder())
+    resp = search(conn, mlx_embedder, "dom z dachem", log=False, lang="pl", query_embedder=SiglipQueryEmbedder())
+    assert resp.photos[0].path.endswith("dom.png") and resp.photos[0].image_rank == 1
+
+
+def test_no_network_access_with_photo_models(monkeypatch, mlx_embedder):
+    from PIL import Image
+
+    from lantern.embedding.siglip import SiglipImageEmbedder, SiglipQueryEmbedder
+
+    attempts = []
+    real_connect, real_gai = socket.socket.connect, socket.getaddrinfo
+    monkeypatch.setattr(socket.socket, "connect", lambda self, a: (attempts.append(a), real_connect(self, a))[1])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: (attempts.append(a[0]), real_gai(*a, **k))[1])
+    photo = Image.open(Path(__file__).parent / "data" / "photo.png").convert("RGB")
+    images, queries = SiglipImageEmbedder(), SiglipQueryEmbedder()  # fresh instances: includes loading
+    images.embed_images([photo])
+    queries.embed_queries(["pies"])
+    mlx_embedder.embed_images([photo])
+    images.unload(), queries.unload(), mlx_embedder.unload_vision()
+    assert attempts == []

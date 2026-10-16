@@ -94,7 +94,8 @@ def test_audio_and_video_are_indexed_with_timestamps_and_transcripts(conn, tmp_p
     transcriber = FakeTranscriber("krowa stała na środku drogi")
     stats = run_queue(conn, embedder, transcriber=transcriber)
 
-    assert stats.media == 2 and stats.skipped == 1 and stats.transcribed == 2
+    # The silent video is no longer skipped: it is searchable by its frames (no audio, no transcription).
+    assert stats.media == 3 and stats.skipped == 0 and stats.transcribed == 2 and stats.frames >= 2
     assert embedder.audio_windows == 3 + 2 and embedder.audio_unloads == 1 and transcriber.unloaded == 1
     rows = conn.execute(
         "SELECT c.kind, c.start_ms, c.end_ms FROM chunks c JOIN files f ON f.id = c.file_id "

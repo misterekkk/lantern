@@ -35,7 +35,6 @@ BUNDLE_SUFFIXES = frozenset(
     }
 )  # fmt: skip
 ICLOUD_DRIVE = Path("Library") / "Mobile Documents" / "com~apple~CloudDocs"
-IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp", ".tif", ".tiff", ".bmp"})
 HOME_SKIP = (Path("Library"), Path("Applications"), Path("Music") / "Music", Path("Music") / "iTunes")
 
 
@@ -55,7 +54,7 @@ class WalkReport:
     unreadable: list[Path] = field(default_factory=list)  # no permission (macOS privacy, chmod)
     cloud_dirs: list[Path] = field(default_factory=list)  # iCloud folders not on the disk
     cloud_files: set[str] = field(default_factory=set)  # iCloud files not on the disk
-    images: int = 0  # photos seen (not indexed until Phase 7)
+    images: int = 0  # photos seen while photo indexing is off
 
     @property
     def cloud_only(self) -> int:
@@ -123,20 +122,23 @@ def _skip_dir(name: str, path: Path, home: Path) -> bool:
 
 
 def iter_files(
-    root: Path, report: WalkReport | None = None, excludes: list[str] | tuple[str, ...] = ()
+    root: Path,
+    report: WalkReport | None = None,
+    excludes: list[str] | tuple[str, ...] = (),
+    include_images: bool = True,
 ) -> Iterator[FileEntry]:
     """Yield indexable regular files under root. Symlinks are never followed."""
     report = report if report is not None else WalkReport()
     home = Path.home()
     user = UserExcludes(excludes)
-    yield from _walk(root, home, report, user)
+    yield from _walk(root, home, report, user, include_images)
     # The home folder includes iCloud Drive even though ~/Library is skipped.
     icloud = home / ICLOUD_DRIVE
     if root == home and icloud.is_dir():
-        yield from _walk(icloud, home, report, user)
+        yield from _walk(icloud, home, report, user, include_images)
 
 
-def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes) -> Iterator[FileEntry]:
+def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, include_images: bool) -> Iterator[FileEntry]:
     # Stack of (directory the .gitignore lives in, spec), inherited by subdirectories.
     specs: dict[Path, list[tuple[Path, pathspec.GitIgnoreSpec]]] = {root: []}
 
@@ -183,8 +185,9 @@ def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes) -> Ite
             path = current / name
             kind = kind_for(path)
             if kind is None:
-                if path.suffix.lower() in IMAGE_SUFFIXES:
-                    report.images += 1
+                continue
+            if kind == "image" and not include_images:
+                report.images += 1
                 continue
             if ignored(active, path, is_dir=False) or user.match(path, root, is_dir=False):
                 continue
