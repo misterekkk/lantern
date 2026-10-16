@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import iTunesLibrary
 
 /// The user's Apple Music library, read on the Mac through Apple's iTunesLibrary framework: songs (title, artist,
@@ -116,6 +116,35 @@ final class MusicSync {
 /// control Music). Only persistent IDs (16 hex digits) go into the script.
 enum MusicPlayer {
     enum Command { case playSong, revealSong, revealPlaylist, playPlaylist }
+
+    /// Spotify rows: ids are "sp-" + a Spotify ID; the Spotify app takes spotify: URIs (its AppleScript `play track …
+    /// in context …`; opening a URI shows it without playing).
+    static func spotify(_ command: Command, song: String? = nil, playlist: String? = nil) {
+        let valid = { (id: String?) in id.map { $0.range(of: "^sp-[A-Za-z0-9]{1,40}$", options: .regularExpression) != nil } }
+        guard valid(song) ?? true, valid(playlist) ?? true else { return }
+        let track = song.map { "spotify:track:" + $0.dropFirst(3) }
+        let list = playlist.flatMap { $0 == "sp-liked" ? nil : "spotify:playlist:" + $0.dropFirst(3) }
+        switch command {
+        case .playSong:
+            guard let track else { return }
+            let context = list.map { " in context \"\($0)\"" } ?? ""
+            osascript("tell application \"Spotify\" to play track \"\(track)\"\(context)")
+        case .revealSong:
+            if let track, let url = URL(string: track) { NSWorkspace.shared.open(url) }
+        case .revealPlaylist:
+            if let url = URL(string: list ?? "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
+        case .playPlaylist:
+            guard let list else { return }
+            osascript("tell application \"Spotify\" to play track \"\(list)\"")
+        }
+    }
+
+    private static func osascript(_ script: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        try? process.run()
+    }
 
     static func run(_ command: Command, song: String? = nil, playlist: String? = nil) {
         let valid = { (id: String?) in id.map { $0.range(of: "^[0-9A-F]{16}$", options: .regularExpression) != nil } }

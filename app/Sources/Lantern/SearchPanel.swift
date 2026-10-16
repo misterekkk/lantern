@@ -386,11 +386,12 @@ final class SearchModel: ObservableObject {
             } else if let music = MusicResult.parse(hit.path) {
                 // A song plays at once, in the context of its playlist; ⌥↩ shows it in Music. A playlist opens
                 // without playing; ⌥↩ plays it from the start.
+                let player = music.source == "spotify" ? MusicPlayer.spotify : MusicPlayer.run
                 switch (music.kind, action) {
-                case ("song", .atLocation): MusicPlayer.run(.playSong, song: music.id, playlist: music.playlist)
-                case ("song", _): MusicPlayer.run(.revealSong, song: music.id)
-                case (_, .atLocation): MusicPlayer.run(.revealPlaylist, playlist: music.id)
-                default: MusicPlayer.run(.playPlaylist, playlist: music.id)
+                case ("song", .atLocation): player(.playSong, music.id, music.playlist)
+                case ("song", _): player(.revealSong, music.id, nil)
+                case (_, .atLocation): player(.revealPlaylist, nil, music.id)
+                default: player(.playPlaylist, nil, music.id)
                 }
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()

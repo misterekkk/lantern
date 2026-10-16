@@ -101,10 +101,17 @@ import Testing
         let rows = resp.sections.first { $0.kind == .music }?.results ?? []
         #expect(rows.count == 2 && rows[0].isAction && rows[0].kind == "song")
         let song = try #require(MusicResult.parse(rows[0].path))
-        #expect(song.kind == "song" && song.id == "17AFDBA96AC7754E" && song.playlist == "105C4C31744622C1")
+        #expect(song.source == "apple" && song.kind == "song" && song.id == "17AFDBA96AC7754E"
+                && song.playlist == "105C4C31744622C1")
         #expect(MusicResult.parse(rows[1].path)?.playlist == "105C4C31744622C1")
         #expect(Format.subtitle(rows[0]).hasPrefix("Travis Scott · ASTROWORLD"))
         #expect(ResultCategory.music.rawValue == "music" && ResultCategory.allCases.count == 10)
+        let spotify = MusicResult(id: "sp-3eekarcy7kvgVJJE", kind: "song", source: "spotify", title: "Skeletons",
+                                  artist: "Travis Scott", album: "ASTROWORLD", track: 5, downloaded: false,
+                                  playlistId: "sp-liked", playlistName: "Liked Songs", count: 0, match: "title_exact")
+        let parsed = try #require(MusicResult.parse(spotify.asResult.path))
+        #expect(parsed.source == "spotify" && parsed.id == "sp-3eekarcy7kvgVJJE" && parsed.playlist == "sp-liked")
+        #expect(spotify.asResult.iconPath == "/Applications/Spotify.app")
     }
 
     @Test func onlyPlainWordsAreSpellChecked() {

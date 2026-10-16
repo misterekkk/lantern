@@ -16,7 +16,9 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 
 ## Hard privacy requirements
 
-- Everything local and offline after the one-time model download. No telemetry, no external API calls.
+- Everything local and offline after the one-time model download. No telemetry, no external API calls. The one
+  exception is opt-in and documented: the Spotify library sync (off by default, user's own key, only
+  accounts.spotify.com / api.spotify.com, only names; docs/PRIVACY.md). Nothing else may go online.
 - Model libraries run with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1`.
 - Index DB lives in `~/Library/Application Support/Lantern/` (not iCloud-synced).
 - Default exclusions: `.git`, `node_modules`, build/cache dirs, secrets (`.env*`, `*.pem`, `*.p12`, `*.key`, `id_*`, token files); respect `.gitignore`.
@@ -26,7 +28,7 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 ## Never
 
 - Modify, move or delete indexed user files (Lantern is read-only towards them).
-- Add telemetry, analytics, crash reporting or any outbound network call at runtime.
+- Add telemetry, analytics, crash reporting or any outbound network call at runtime (beyond the opt-in Spotify sync).
 - Mix vectors from different `model_id`s (name, revision, backend, quantization, dim). Model change = reindex.
 - Purge index entries of a root that is currently unavailable (unmounted disk, network share).
 - Implement the LightGBM reranker or add Treelite (only collect `search_events` for now).

@@ -48,7 +48,9 @@ public enum Format {
             let about = [r.musicArtist, r.musicAlbum].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             guard let list = r.musicPlaylist else { return about }
             return about + "  ·  " + String(localized: "from playlist “\(list)”")
-        case "playlist": return String(localized: "Playlist · \(r.musicCount ?? 0) songs")
+        case "playlist":  // Spotify gives no songs for others' playlists: then just "Playlist"
+            guard let count = r.musicCount, count > 0 else { return String(localized: "Playlist") }
+            return String(localized: "Playlist · \(count) songs")
         default: break
         }
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)

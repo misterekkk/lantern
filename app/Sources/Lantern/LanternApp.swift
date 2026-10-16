@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             AppState.shared.registerShortcut()
             ClipboardHistory.shared.start()
             MusicSync.shared.start()
+            SpotifySync.shared.start()
             NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                    object: nil, queue: .main) { _ in
                 Task { @MainActor in SearchPanelController.shared.screensChanged() }

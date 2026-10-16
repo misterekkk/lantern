@@ -594,12 +594,15 @@ private struct PrivacyPane: View {
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
     @AppStorage(MenuCommands.key) private var menuCommands = false
     @AppStorage(MusicSync.key) private var appleMusic = false
+    @AppStorage(SpotifySync.enabledKey) private var spotify = false
+    @AppStorage(SpotifySync.clientKey) private var spotifyClient = ""
+    @ObservedObject private var spotifySync = SpotifySync.shared
     @State private var accessibilityOK = MenuCommands.trusted
 
     var body: some View {
         SettingsPage {
             PaneHeader(symbol: "hand.raised.fill", color: .indigo, title: "Privacy",
-                       text: "Everything stays on this Mac. Lantern only reads your files and never sends anything.")
+                       text: "Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on.")
             Section {
                 Button { confirmClear = true } label: {
                     IconLabel(title: "Clear Search History…", symbol: "clock.arrow.circlepath", color: .red)
@@ -677,6 +680,39 @@ private struct PrivacyPane: View {
                 Text("Apple Music")
             } footer: {
                 Text("Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song in Music, in the context of its playlist. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose.")
+                    .font(.caption)
+            }
+            Section {
+                Toggle(isOn: $spotify) {
+                    IconLabel(title: "Spotify playlists and liked songs", symbol: "music.note.list", color: .green)
+                }
+                .onChange(of: spotify) { _, on in
+                    if on { Task { await SpotifySync.shared.sync() } } else { SpotifySync.shared.clear() }
+                }
+                if spotify {
+                    TextField("", text: $spotifyClient, prompt: Text("Client ID"))
+                        .labelsHidden()
+                        .font(.system(.body, design: .monospaced))
+                    HStack {
+                        if spotifySync.signedIn {
+                            Button("Sync Now") { Task { await SpotifySync.shared.sync() } }
+                                .disabled(spotifySync.busy)
+                            Button("Sign Out") { SpotifySync.shared.signOut() }
+                        } else {
+                            Button("Sign In to Spotify…") { SpotifySync.shared.signIn() }
+                                .disabled(spotifyClient.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        Spacer()
+                        if spotifySync.busy { ProgressView().controlSize(.small) }
+                    }
+                    if let message = spotifySync.message {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Spotify")
+            } footer: {
+                Text("Spotify keeps no readable list of your music on this Mac, so Lantern fetches it from Spotify with your own key: create an app at developer.spotify.com (Web API, redirect URI http://127.0.0.1/callback), paste its Client ID here and sign in. Only then, once a day and on Sync Now, Lantern connects to accounts.spotify.com and api.spotify.com and reads only playlist and song names; searching works offline and ↩ plays in the Spotify app. Songs of playlists made by others are not available from Spotify.")
                     .font(.caption)
             }
             Section {

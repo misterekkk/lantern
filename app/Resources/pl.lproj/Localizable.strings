@@ -210,7 +210,7 @@
 "Patterns work like .gitignore and apply inside every indexed folder." = "Wzorce działają jak .gitignore i obowiązują w każdym indeksowanym folderze.";
 "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode and pause while your Mac is hot." = "Indeksowanie korzysta z GPU. Lantern może poczekać na ładowarkę, uszanować tryb niskiego zużycia energii i wstrzymać pracę, gdy Mac jest gorący.";
 "Search always works, also while indexing is paused." = "Wyszukiwanie działa zawsze, także podczas pauzy w indeksowaniu.";
-"Everything stays on this Mac. Lantern only reads your files and never sends anything." = "Wszystko zostaje na tym Macu. Lantern tylko czyta Twoje pliki i niczego nie wysyła.";
+"Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on." = "Wszystko zostaje na tym Macu. Lantern tylko czyta Twoje pliki; łączy się z internetem wyłącznie dla Spotify, jeśli to włączysz.";
 "Runs offline, no telemetry" = "Działa offline, bez telemetrii";
 "Indexed files are only read, never changed" = "Indeksowane pliki są tylko czytane, nigdy zmieniane";
 "Clear Search History…" = "Wyczyść historię wyszukiwania…";
@@ -335,3 +335,26 @@
 "Apple Music" = "Apple Music";
 "play" = "odtwórz";
 "Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song in Music, in the context of its playlist. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose." = "Wyszukiwanie znajduje utwory i playlisty z biblioteki Muzyki po tytule, wykonawcy i albumie; ↩ odtwarza utwór w Muzyce, w kontekście jego playlisty. macOS poprosi o dostęp do Multimediów i Apple Music; Lantern tylko odczytuje nazwy i odtwarza to, co wybierzesz.";
+
+/* Spotify */
+"Spotify playlists and liked songs" = "Playlisty i polubione utwory ze Spotify";
+"Sync Now" = "Synchronizuj teraz";
+"Sign Out" = "Wyloguj";
+"Sign In to Spotify…" = "Zaloguj w Spotify…";
+"Client ID" = "Client ID";
+"Liked Songs" = "Polubione utwory";
+"Playlist" = "Playlista";
+"Enter your Client ID first." = "Najpierw wpisz Client ID.";
+"Could not start the sign-in." = "Nie udało się rozpocząć logowania.";
+"Finish signing in in your browser." = "Dokończ logowanie w przeglądarce.";
+"Signing in to Spotify was cancelled or failed." = "Logowanie do Spotify zostało przerwane lub się nie udało.";
+"Signing in to Spotify failed: %@" = "Logowanie do Spotify nie powiodło się: %@";
+"Sign in to Spotify again." = "Zaloguj się ponownie w Spotify.";
+"Spotify sync failed: %@" = "Synchronizacja ze Spotify nie powiodła się: %@";
+"Synced %lld songs and %lld playlists." = "Zsynchronizowano utwory: %lld, playlisty: %lld.";
+"Spotify answered with HTTP %lld." = "Spotify odpowiedział kodem HTTP %lld.";
+"Not signed in to Spotify." = "Nie zalogowano w Spotify.";
+"Cancelled." = "Przerwano.";
+"Lantern is connected to Spotify. You can close this tab." = "Lantern jest połączony ze Spotify. Możesz zamknąć tę kartę.";
+"Signing in to Spotify did not finish. You can close this tab." = "Logowanie do Spotify nie zostało dokończone. Możesz zamknąć tę kartę.";
+"Spotify keeps no readable list of your music on this Mac, so Lantern fetches it from Spotify with your own key: create an app at developer.spotify.com (Web API, redirect URI http://127.0.0.1/callback), paste its Client ID here and sign in. Only then, once a day and on Sync Now, Lantern connects to accounts.spotify.com and api.spotify.com and reads only playlist and song names; searching works offline and ↩ plays in the Spotify app. Songs of playlists made by others are not available from Spotify." = "Spotify nie trzyma na tym Macu czytelnej listy Twojej muzyki, więc Lantern pobiera ją ze Spotify Twoim własnym kluczem: utwórz aplikację na developer.spotify.com (Web API, redirect URI http://127.0.0.1/callback), wklej tu jej Client ID i zaloguj się. Tylko wtedy, raz dziennie i po „Synchronizuj teraz”, Lantern łączy się z accounts.spotify.com i api.spotify.com i odczytuje wyłącznie nazwy playlist i utworów; wyszukiwanie działa offline, a ↩ odtwarza w aplikacji Spotify. Utwory z playlist utworzonych przez innych nie są dostępne w Spotify.";

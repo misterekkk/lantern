@@ -9,7 +9,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
    libraries run with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
    `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
 2. **Read-only towards your files.** No writes, moves or deletions in indexed folders.
-3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections.
+3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections. The one connection Lantern
+   itself can make is the opt-in Spotify sync below, which you switch on and sign in to yourself.
 4. **API** only through a Unix socket with mode `0600`, in a data folder with mode `0700` (tested). No network port.
 5. **Secrets excluded by default:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, SSH keys `id_*`, token and credential
    files, plus `.git`, `node_modules`, build and cache folders. `.gitignore` files are respected (also those
@@ -46,9 +47,16 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     and playlists through Apple's iTunesLibrary framework (macOS asks for Media & Apple Music) and keeps them in the
     local index; the account name or e-mail stored in the downloaded files is never read. Songs play through the Music
     app (AppleScript; macOS asks once). Switching it off deletes the list from the index.
-15. **Spelling:** guesses come from macOS's spell checker (NSSpellChecker, on the Mac); Lantern never teaches it
+15. **Spotify** (off by default; Settings → Privacy): Spotify keeps no readable list of your music on the Mac (its
+    downloads are an encrypted cache, never read), so the app fetches your playlists and liked songs from Spotify's
+    Web API with **your own** app key (Client ID; sign-in with PKCE in your browser, Lantern never sees the password).
+    Connections: accounts.spotify.com (sign-in, token refresh) and api.spotify.com (the library), only at sign-in,
+    once a day and on "Sync Now"; during sign-in a listener waits on 127.0.0.1 (never other interfaces) for the one
+    redirect back. Read: playlist names, song titles, artists, albums. The refresh token is kept in your login
+    keychain. Searching and playing work offline from the local copy. Switching it off or signing out deletes the list.
+16. **Spelling:** guesses come from macOS's spell checker (NSSpellChecker, on the Mac); Lantern never teaches it
     words and sends nothing out. The daemon only compares the guesses with the index.
-16. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+17. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

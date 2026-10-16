@@ -190,6 +190,7 @@ public struct ShortcutResult: Decodable, Equatable, Sendable {
 public struct MusicResult: Decodable, Equatable, Sendable {
     public var id: String
     public var kind: String  // song | playlist
+    public var source: String?  // apple | spotify (older daemons: apple)
     public var title: String
     public var artist: String
     public var album: String
@@ -201,10 +202,11 @@ public struct MusicResult: Decodable, Equatable, Sendable {
     public var match: String
 
     public var asResult: SearchResult {
-        let path = kind == "playlist" ? "music:playlist:\(id)"
-            : "music:song:\(id)" + (playlistId.map { ":\($0)" } ?? "")
+        let from = source ?? "apple"
+        let path = kind == "playlist" ? "music:\(from):playlist:\(id)"
+            : "music:\(from):song:\(id)" + (playlistId.map { ":\($0)" } ?? "")
         var row = SearchResult(path: path, chunkId: 0, symbol: title, kind: kind == "playlist" ? "playlist" : "song")
-        row.iconPath = "/System/Applications/Music.app"
+        row.iconPath = from == "spotify" ? "/Applications/Spotify.app" : "/System/Applications/Music.app"
         row.musicArtist = artist
         row.musicAlbum = album
         row.musicPlaylist = playlistName
@@ -212,11 +214,11 @@ public struct MusicResult: Decodable, Equatable, Sendable {
         return row
     }
 
-    /// The parts of a music row's path: (kind, item id, playlist id).
-    public static func parse(_ path: String) -> (kind: String, id: String, playlist: String?)? {
+    /// The parts of a music row's path: (source, kind, item id, playlist id).
+    public static func parse(_ path: String) -> (source: String, kind: String, id: String, playlist: String?)? {
         let parts = path.split(separator: ":").map(String.init)
-        guard parts.count >= 3, parts[0] == "music" else { return nil }
-        return (parts[1], parts[2], parts.count > 3 ? parts[3] : (parts[1] == "playlist" ? parts[2] : nil))
+        guard parts.count >= 4, parts[0] == "music" else { return nil }
+        return (parts[1], parts[2], parts[3], parts.count > 4 ? parts[4] : (parts[2] == "playlist" ? parts[3] : nil))
     }
 }
 

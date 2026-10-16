@@ -916,6 +916,23 @@ Measured on the test index (local queries vs web-like ones):
 - **Ten kinds.** Music is the tenth filter (⌘0). With more than three kinds the icons fold into the filter button by
   default and unfold when pointed at; after typing, up to three matching kinds show directly.
 
+## Spotify library sync, the one opt-in network connection (2026-10-17)
+
+- Decided with the user: Spotify downloads are an encrypted cache with no readable catalogue, so the library has to
+  come from Spotify's Web API. Like Alfred's Spotify Mini Player (and unlike Raycast's live search), the app fetches
+  the library once (sign-in), then daily and on "Sync Now", into the same local `music` table (source `spotify`);
+  searching and playing stay offline. Off by default; CLAUDE.md, README and PRIVACY.md name it as the only exception
+  to "no network at runtime".
+- Checked Spotify's rules (developer.spotify.com, 2026-10-17): redirect URIs must be HTTPS or a loopback IP literal
+  (`http://127.0.0.1:<port>`, port may vary; no `localhost`, no custom schemes) since April 2025, so sign-in opens
+  the browser and waits on 127.0.0.1 for the redirect (PKCE, no client secret). Development Mode apps (Feb 2026):
+  the owner needs Premium, 5 users per app, so every user registers their own Client ID. Playlist items only for
+  playlists the user owns or collaborates on (`/playlists/{id}/items`; `tracks` was renamed `items`); liked songs
+  come from `/me/tracks`; batch track fetches are gone (not needed).
+- Playing: Spotify's AppleScript `play track "spotify:track:…" in context "spotify:playlist:…"`; ⌥↩ / a playlist's ↩
+  open the `spotify:` URI in the app without playing. Lyrics: not in Spotify's API.
+- Not verified end to end yet: sign-in and sync need the user's Client ID (open question 38).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1039,3 +1056,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     "komunikator" does not find Discord; a better source would have to stay local (no App Store lookups).
 37. ~~Does the search panel appear over a full-screen app?~~ Yes: checked by the user over Discord in full screen
     (`.floating` + `fullScreenAuxiliary` is enough).
+38. Spotify sign-in and sync (SpotifyLibrary.swift) are written against the documented API but untested until the
+    user registers a Client ID; the response shape of `/playlists/{id}/items` (`item` vs `track` per row) is handled
+    both ways.

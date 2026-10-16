@@ -7,7 +7,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B%20·%20Apple%20Silicon-black" alt="macOS 14+ on Apple Silicon">
-  <img src="https://img.shields.io/badge/runs-100%25%20offline-2ea44f" alt="Runs 100% offline">
+  <img src="https://img.shields.io/badge/runs-offline%20by%20default-2ea44f" alt="Runs offline by default">
   <a href="https://github.com/misterekkk/lantern/actions/workflows/pages.yml"><img src="https://github.com/misterekkk/lantern/actions/workflows/pages.yml/badge.svg" alt="Demo site deployment"></a>
 </p>
 
@@ -38,6 +38,11 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
   (`skeletons`, `travisa scotta`, `playlista`); ↩ plays a song in Music in the context of its playlist, a playlist
   opens without playing (⌥↩ plays it). Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
   (Apple keeps those on its servers).
+- **Spotify** (off by default; Settings → Privacy): your playlists and liked songs, searched offline like Apple Music;
+  ↩ plays in the Spotify app. Spotify keeps no readable list on the Mac, so this needs your own free key (an app at
+  developer.spotify.com with the redirect URI `http://127.0.0.1/callback`; Spotify requires Premium for it since
+  2026) and a sign-in; Lantern then fetches only names, once a day and on "Sync Now". Songs of playlists made by
+  others are not available from Spotify's API.
 - **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,
   `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
   dictionaries of macOS for a single word; your shortcuts (Shortcuts app); and a last row that opens the web search
@@ -58,7 +63,8 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **Recordings and videos:** audio embeddings plus Whisper transcripts, with the moment each phrase is spoken.
 - **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery, in Low Power Mode and on heat, and a
   settings window laid out like System Settings.
-- **Private by design:** offline after a one-time model download, read-only access to your files, no telemetry.
+- **Private by design:** offline after a one-time model download (the opt-in Spotify sync is the only exception), read-only
+  access to your files, no telemetry.
 
 ## Requirements
 
@@ -361,7 +367,8 @@ uv run lantern daemon stop | uninstall
 
 ## Privacy
 
-- Everything runs **locally and offline** after the one-time model download. No telemetry, no external APIs.
+- Everything runs **locally and offline** after the one-time model download. No telemetry, no external APIs, with one
+  opt-in exception you switch on yourself: the Spotify library sync (see below and [PRIVACY.md](docs/PRIVACY.md)).
 - Lantern **only reads** the files it indexes. It never modifies, moves or deletes them.
 - The index is one SQLite file in `~/Library/Application Support/Lantern/` (not synced with iCloud). It contains text
   passages, code signatures and vectors derived from your files: treat it like a copy of them. Exclude it from
