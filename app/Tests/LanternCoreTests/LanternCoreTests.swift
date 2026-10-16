@@ -27,7 +27,7 @@ import Testing
         let r = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
         #expect(r.results.first?.isMedia == true && r.eventId == 5)
         #expect(Format.title(r.results[0]) == "vlog.mp4  ·  1:48")
-        #expect(Format.sources(r.results[0]) == "meaning and words")  // English source; Polish comes from pl.lproj
+        #expect(Format.sources(r.results[0]) == "meaning · words")  // English source; Polish comes from pl.lproj
     }
 }
 
@@ -49,6 +49,35 @@ import Testing
     @Test func clock() {
         #expect(Format.clock(105_000) == "1:45")
         #expect(Format.clock(3_725_000) == "1:02:05")
+    }
+
+    @Test func photoResultsShowTheImageSource() throws {
+        let json = """
+        {"results": [{"path": "/Users/x/Zdjecia/pies.heic", "chunk_id": 9, "preview": "", "score": 0.03,
+          "image_rank": 1, "kind": "image"}], "event_id": 1, "vector_ms": 9, "keyword_ms": 0.3}
+        """
+        let r = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8)).results[0]
+        #expect(r.isVisual && Format.sources(r) == "image" && Format.title(r) == "pies.heic")
+    }
+
+    @Test func photosComeAsASectionOrderedByTheDaemon() throws {
+        let json = """
+        {"results": [{"path": "/a/notes.md", "chunk_id": 1, "preview": "", "score": 0.02, "kind": "text"}],
+         "photos": [{"path": "/a/pies.jpg", "chunk_id": 2, "preview": "", "score": 3.1, "image_rank": 1,
+           "kind": "image"}], "photos_first": true, "event_id": 1, "vector_ms": 9, "keyword_ms": 0.3}
+        """
+        var resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        #expect(resp.sections.map(\.kind) == [.photos, .files])
+        resp.photosFirst = false
+        #expect(resp.sections.map(\.kind) == [.files, .photos])
+        resp.photos = []
+        #expect(resp.sections.map(\.kind) == [.files])
+    }
+
+    @Test func responsesWithoutPhotosStillDecode() throws {
+        let json = #"{"results": [], "event_id": null, "vector_ms": 1, "keyword_ms": 1}"#
+        let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        #expect(resp.photos.isEmpty && !resp.photosFirst && resp.sections.isEmpty)
     }
 
     @Test func shortPath() {

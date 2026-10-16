@@ -54,6 +54,9 @@
 "meaning and words" = "znaczenie i słowa";
 "meaning" = "znaczenie";
 "words" = "słowa";
+"image" = "obraz";
+"Photos" = "Zdjęcia";
+"Files" = "Pliki";
 "%@  —  lines %lld–%lld" = "%@  —  linie %lld–%lld";
 
 /* Settings */
@@ -69,6 +72,8 @@
 "Ask before indexing" = "Pytaj przed indeksowaniem";
 "Index automatically" = "Indeksuj automatycznie";
 "Transcribe recordings and videos (Whisper)" = "Transkrypcja nagrań i filmów (Whisper)";
+"Search photos by content" = "Wyszukiwanie zdjęć po treści";
+"Search video frames" = "Wyszukiwanie w klatkach filmów";
 "Pause on battery power" = "Wstrzymuj na zasilaniu z baterii";
 "Pause when the Mac is hot" = "Wstrzymuj przy wysokiej temperaturze";
 "Connecting to the daemon…" = "Łączenie z demonem…";

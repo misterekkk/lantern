@@ -58,6 +58,11 @@ private struct GeneralTab: View {
                     }
                     Toggle("Transcribe recordings and videos (Whisper)", isOn: Binding(
                         get: { s.transcribe }, set: { state.setConfig("transcribe", $0 ? "true" : "false") }))
+                    Toggle("Search photos by content", isOn: Binding(
+                        get: { s.indexPhotos }, set: { state.setConfig("index_photos", $0 ? "true" : "false") }))
+                    Toggle("Search video frames", isOn: Binding(
+                        get: { s.indexVideoFrames },
+                        set: { state.setConfig("index_video_frames", $0 ? "true" : "false") }))
                     Toggle("Pause on battery power", isOn: Binding(
                         get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") }))
                     Toggle("Pause when the Mac is hot", isOn: Binding(

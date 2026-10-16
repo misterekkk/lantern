@@ -29,13 +29,12 @@ public enum Format {
         return folder
     }
 
-    /// Where the match comes from: meaning (embeddings), words (BM25) or both.
+    /// Where the match comes from: meaning (text embeddings), image (photo models), words (BM25).
     public static func sources(_ r: SearchResult) -> String {
-        switch (r.vectorRank, r.keywordRank) {
-        case (.some, .some): String(localized: "meaning and words")
-        case (.some, .none): String(localized: "meaning")
-        case (.none, .some): String(localized: "words")
-        default: ""
-        }
+        var parts: [String] = []
+        if r.vectorRank != nil { parts.append(String(localized: "meaning")) }
+        if r.imageRank != nil { parts.append(String(localized: "image")) }
+        if r.keywordRank != nil { parts.append(String(localized: "words")) }
+        return parts.joined(separator: " · ")
     }
 }

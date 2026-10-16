@@ -71,6 +71,8 @@ final class SearchPanelController {
         }
         model.focusToken += 1  // focuses the text field
         if query != nil { model.search() }
+        // Load the photo query model now, while the user types (~0.3 s, released by the daemon after inactivity).
+        Task { try? await AppState.shared.client.callRaw("warmup", timeout: 10) }
     }
 
     func hide() {
@@ -104,7 +106,9 @@ final class SearchPanelController {
 @MainActor
 final class SearchModel: ObservableObject {
     @Published var query = "" { didSet { if query != oldValue { scheduleSearch() } } }
-    @Published private(set) var results: [SearchResult] = []
+    @Published private(set) var sections: [ResultSection] = []
+    /// All results in display order; `selection` indexes this list, so ↑↓ moves across sections.
+    var results: [SearchResult] { sections.flatMap(\.results) }
     @Published var selection = 0
     @Published private(set) var message: String?
     @Published private(set) var searching = false
@@ -125,7 +129,7 @@ final class SearchModel: ObservableObject {
     func search() {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else {
-            results = []
+            sections = []
             message = nil
             return
         }
@@ -136,12 +140,12 @@ final class SearchModel: ObservableObject {
                 let resp = try await AppState.shared.client.call(
                     "search", ["query": q, "limit": 8], as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
-                results = resp.results
+                sections = resp.sections
                 eventId = resp.eventId
                 selection = 0
-                message = resp.results.isEmpty ? String(localized: "No results for “\(q)”.") : nil
+                message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
             } catch {
-                results = []
+                sections = []
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
         }
@@ -165,6 +169,33 @@ final class SearchModel: ObservableObject {
             Task { try? await AppState.shared.client.callRaw("opened", ["event_id": eventId, "chunk_id": hit.chunkId]) }
         }
         SearchPanelController.shared.hide()
+    }
+}
+
+/// Sections with each result's index in the flat display order (the selection index).
+private func numbered(_ sections: [ResultSection]) -> [(section: ResultSection, rows: [(index: Int, result: SearchResult)])] {
+    var next = 0
+    return sections.map { section in
+        let rows = section.results.map { result in
+            defer { next += 1 }
+            return (index: next, result: result)
+        }
+        return (section: section, rows: rows)
+    }
+}
+
+private struct SectionHeader: View {
+    let kind: ResultSection.Kind
+    let first: Bool
+
+    var body: some View {
+        Text(kind == .photos ? "Photos" : "Files")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.top, first ? 4 : 10)
+            .padding(.bottom, 2)
     }
 }
 
@@ -194,12 +225,17 @@ struct SearchView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 2) {
-                            ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in
-                                ResultRow(result: result, selected: index == model.selection, space: selectionSpace)
-                                    .id(index)
-                                    .transition(.opacity)
-                                    .onTapGesture(count: 2) { model.selection = index; model.open() }
-                                    .onTapGesture { model.selection = index }
+                            ForEach(Array(numbered(model.sections).enumerated()), id: \.element.section.id) { i, group in
+                                if model.sections.count > 1 {
+                                    SectionHeader(kind: group.section.kind, first: i == 0)
+                                }
+                                ForEach(group.rows, id: \.result.id) { index, result in
+                                    ResultRow(result: result, selected: index == model.selection, space: selectionSpace)
+                                        .id(index)
+                                        .transition(.opacity)
+                                        .onTapGesture(count: 2) { model.selection = index; model.open() }
+                                        .onTapGesture { model.selection = index }
+                                }
                             }
                             if let message = model.message {
                                 Text(message)
@@ -304,9 +340,13 @@ private struct ResultRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: result.path))
-                .resizable()
-                .frame(width: 32, height: 32)
+            if result.isVisual {
+                ResultThumbnail(path: result.path, atMs: result.kind == "frame" ? result.startMs : nil, size: 52)
+            } else {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: result.path))
+                    .resizable()
+                    .frame(width: 32, height: 32)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(Format.title(result))
