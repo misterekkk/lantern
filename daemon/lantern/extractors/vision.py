@@ -150,3 +150,12 @@ def image_text(path: Path) -> str:
     if not is_priority(path) and not has_text(recognize(image, accurate=False)):
         return ""
     return clean(recognize(image, accurate=True))
+
+
+def frame_text(image: Image.Image) -> str:
+    """Readable text on a video frame (slides, a screen recording, captions), or "": the same fast gate as photos,
+    so ordinary scenes stay cheap."""
+    image = flatten(image)
+    if not has_text(recognize(image, accurate=False)):
+        return ""
+    return clean(recognize(image, accurate=True))

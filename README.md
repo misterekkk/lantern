@@ -279,7 +279,9 @@ uv run lantern clear-history               # delete the local search history
 - Two models rate every photo: the EmbeddingGemma 2 vision tower (better at sentences and Polish) and SigLIP 2 base
   (better at single words). Their scores are normalised and summed; a photo is listed only when it clearly stands
   out from the rest.
-- Videos: frames at scene changes (ffmpeg), at least one every 30 s, near-duplicates dropped before embedding.
+- Videos: frames at scene changes (ffmpeg), at least one every 30 s, near-duplicates dropped before embedding. A
+  video is found by what is seen in it even when nobody speaks ("sea", "beach"), at the moment it is seen; text on
+  its frames (slides, screen recordings, captions) is read like text in photos and found at its moment too.
 - Skipped: images under 96 px (icons), over 100 MB, or broken. HEIC is decoded with the system's `sips`.
 - Speed (M4): ~3 photos/s including model loading, i.e. ~1 hour for 10,000 photos in the background.
 

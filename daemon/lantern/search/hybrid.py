@@ -46,7 +46,7 @@ CATEGORIES = {
     "docs": {"text"},
     "pdf": {"pdf"},
     "photos": {"image", "ocr"},
-    "media": {"audio", "transcript", "frame"},
+    "media": {"audio", "transcript", "frame", "screen"},
 }
 MIN_LIST_WEIGHT = 0.25
 TEXT_GAP_LOW, TEXT_GAP_HIGH = 0.02, 0.08  # cosine gap (top - median of candidates): flat .. clear

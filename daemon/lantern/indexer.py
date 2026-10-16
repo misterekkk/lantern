@@ -42,8 +42,9 @@ IMAGE_BATCH = 8
 
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
-# audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
-PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 4, "video": 5, "image": 3}
+# audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2;
+# video 6 = text on key frames (OCR).
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 4, "video": 6, "image": 3}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -61,6 +62,7 @@ class IndexStats:
     images: int = 0
     frames: int = 0
     image_texts: int = 0  # photos and screenshots with readable text (OCR)
+    screen_texts: int = 0  # passages of text read from video frames (slides, screen recordings)
     stopped: bool = False  # interrupted by should_stop; unprocessed jobs went back to the queue
     errors: list[tuple[str, str]] = field(default_factory=list)
 
@@ -86,6 +88,27 @@ def _file_row(conn: sqlite3.Connection, file_id: int) -> sqlite3.Row | None:
 
 def _rel(row: sqlite3.Row) -> str:
     return Path(row["path"]).relative_to(row["root"]).as_posix()
+
+
+def _screen_records(frames: list) -> list[db.ChunkRecord]:
+    """Text read from key frames, one passage per distinct text: a slide kept on screen across several frames is
+    stored once, from its first frame to the end of its last one."""
+    from lantern.extractors.vision import frame_text
+
+    shown: list[list] = []  # [start_ms, end_ms, text]
+    for f in frames:
+        text = frame_text(f.image)
+        if not text:
+            continue
+        start, end = int(f.start_s * 1000), int(f.end_s * 1000)
+        if shown and shown[-1][2] == text:
+            shown[-1][1] = end
+        else:
+            shown.append([start, end, text])
+    return [
+        db.ChunkRecord(ord=i, kind="screen", text=text, start_ms=start, end_ms=end)
+        for i, (start, end, text) in enumerate(shown)
+    ]
 
 
 def _prepare_pdf(job: Job, row: sqlite3.Row, ocr: bool) -> _Prepared:
@@ -278,8 +301,14 @@ def run_queue(
             for i, f in enumerate(frames)
         ]
         fvecs, extra = embed_visual([f.image for f in frames])
+        screen = _screen_records(frames) if frames and image_text else []
         write(_Prepared(job, row["id"], row["kind"], row["path"], rel, frame_records, []), fvecs, kinds={"frame"},
-              extra=extra)  # fmt: skip
+              extra=extra, complete=not screen)  # fmt: skip
+        if screen:  # text on the frames: searchable like the transcript, at its moment
+            texts = [format_document(f"{rel} (text on screen)", r.text) for r in screen]
+            write(_Prepared(job, row["id"], row["kind"], row["path"], rel, screen, texts), embedder.embed_text(texts),
+                  kinds={"screen"})  # fmt: skip
+            stats.screen_texts += len(screen)
         stats.media += 1
         stats.indexed += 1
         stats.audio_windows += len(records)

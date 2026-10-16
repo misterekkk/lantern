@@ -81,7 +81,8 @@ with their video. Every search is logged to `search_events` (features only, neve
   torch fp16 image tower in the worker, MLX 8-bit text tower in the daemon, loaded on demand and released after
   `QUERY_MODEL_IDLE_S`). Their vectors go to `vec_images_<model_id>` tables, never into the text tables.
 - `extractors/image.py` (Pillow, HEIC via `sips`), `extractors/frames.py` (ffmpeg scene select + 30 s floor, dHash +
-  colour signature dedup). Both models are optional at runtime: without SigLIP downloaded, EG2 alone is used.
+  colour signature dedup). Key frames also go through OCR (`vision.frame_text`): `screen` chunks (text vectors,
+  frame moment, repeated text merged), searched with the files. Both models are optional at runtime: without SigLIP downloaded, EG2 alone is used.
 
 ## Service (`lantern/service/`, Phase 5)
 

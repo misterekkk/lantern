@@ -116,7 +116,7 @@ class ModelInfo:
 @dataclass(frozen=True)
 class ChunkRecord:
     ord: int
-    kind: str  # text | code | pdf | audio | transcript | image | frame | ocr (text read from an image)
+    kind: str  # text | code | pdf | audio | transcript | image | frame | ocr (text in an image) | screen (on a frame)
     text: str | None  # None for audio windows and photos (vector only)
     start_line: int | None = None
     end_line: int | None = None

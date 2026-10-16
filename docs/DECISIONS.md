@@ -871,6 +871,11 @@ Measured on the test index (local queries vs web-like ones):
   unfold by themselves only when all fit with 40 pt to spare (no flicker at the edge).
 - **Haptics:** the magnets use `.levelChange`, the firmest of the three system patterns (`.alignment` felt too light).
   The strength also follows System Settings → Trackpad → Click.
+- **Text on video frames.** Key frames were only embedded by the photo models; slides, screen recordings and
+  captions were not searchable by their words. Each key frame now goes through the same Vision OCR as photos (the
+  fast gate keeps ordinary scenes cheap); text kept on screen across frames is stored once, as a `screen` chunk with
+  the frame's moment and a text vector, so it joins the files list like the transcript (filter: recordings and
+  videos). Pipeline video v6.
 - **Whisper without a prompt, on the raw sound.** Tested on a real 214 s recording (Polish, names at a quiet,
   unclear start; whisper-large-v3-turbo), five variants. The file-name prompt blended names ("Adama Jonesa" →
   "Smones", "Average" → "Outreach"); loudness normalisation (`dynaudnorm`) added invented words ("Ashes", "Casses,

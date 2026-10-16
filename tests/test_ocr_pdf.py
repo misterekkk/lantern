@@ -139,3 +139,29 @@ def test_ocr_and_pdf_open_no_network_connection(tmp_path, monkeypatch):
     image_text(text_image(tmp_path / "IMG_1.png", ["Error code: 0x80070002", "Try again later"]))
     extract_pdf(text_pdf(tmp_path / "a.pdf", "Invoice FV/2025/10/1187"))
     assert attempts == []
+
+
+def test_text_on_video_frames_is_searchable_at_its_moment(conn, tmp_path):
+    import subprocess
+
+    from lantern.extractors.media import find_ffmpeg
+
+    ffmpeg = find_ffmpeg()
+    if ffmpeg is None:
+        pytest.skip("ffmpeg not installed")
+    slide = text_image(tmp_path / "slide.png", ["Kwartalny raport sprzedazy", "Przychod wzrosl o 18 procent"])
+    scene = photo(tmp_path / "scene.png")
+    root = tmp_path / "Filmy"
+    root.mkdir()
+    subprocess.run([
+        ffmpeg, "-loglevel", "error", "-y", "-loop", "1", "-t", "4", "-i", str(scene), "-loop", "1", "-t", "4",
+        "-i", str(slide), "-filter_complex", "[0]scale=1200:700,setsar=1[a];[1]scale=1200:700,setsar=1[b];"
+        "[a][b]concat=n=2:v=1:a=0", "-r", "5", "-pix_fmt", "yuv420p", str(root / "prezentacja.mp4"),
+    ], check=True)  # fmt: skip
+    eg = FakeEmbedder()
+    scan_root(conn, root)
+    stats = run_queue(conn, eg, image_embedder=FakeImageEmbedder())
+    assert stats.screen_texts == 1  # the slide, once; the plain scene has no text
+    hit = next(r for r in search(conn, eg, "raport sprzedazy", log=False).results if r.kind == "screen")
+    assert hit.path.endswith("prezentacja.mp4") and 3000 <= hit.start_ms <= 5000
+    assert search(conn, eg, "raport sprzedazy", log=False, category="media").results  # the recordings filter
