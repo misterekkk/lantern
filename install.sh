@@ -1,25 +1,28 @@
 #!/bin/bash
-# One-command setup after `git clone`: system tools, Python dependencies, models, the menu bar app.
+# One-command setup after `git clone`: system tools, Python dependencies, models, the `lantern` command and its
+# manual page (links in ~/.local, no sudo), the menu bar app.
 # Safe to run again (every step checks what is already there). Nothing runs in the background afterwards and the
 # LaunchAgent is never installed here (the app starts the daemon itself; see the README for the optional agent).
 #
 #   ./install.sh             ask about the optional models and the app
 #   ./install.sh --all       everything, no questions (Whisper, SigLIP 2, the app in /Applications)
 #   ./install.sh --minimal   command line + the required model only, no questions
+#   ./install.sh --uninstall remove what this script set up (links, PATH line, the app); keeps index and models
 #   options: --no-app  --test (also run the fast test suite)  --help
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO"
 
-MODE=ask APP=ask RUN_TESTS=0
+MODE=ask APP=ask RUN_TESTS=0 UNINSTALL=0
 for arg in "$@"; do
   case "$arg" in
     --all) MODE=all; [[ $APP == ask ]] && APP=yes ;;
     --minimal) MODE=minimal; APP=no ;;
     --no-app) APP=no ;;
     --test) RUN_TESTS=1 ;;
-    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --uninstall) UNINSTALL=1 ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $arg (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -35,6 +38,40 @@ ask() {  # ask "question" -> 0 for yes (default no)
   read -r -p "  $1 [y/N] " reply
   [[ $reply == [yYtT]* ]]
 }
+
+# The command and its manual page are symlinks into this checkout, so `git pull` updates both. macOS `man` finds
+# ~/.local/share/man because ~/.local/bin is on PATH (it derives the manual path from PATH).
+BIN_DIR="$HOME/.local/bin" MAN_DIR="$HOME/.local/share/man/man1"
+case "$(basename "${SHELL:-zsh}")" in bash) PROFILE="$HOME/.bash_profile" ;; *) PROFILE="$HOME/.zprofile" ;; esac
+MARK_BEGIN="# >>> lantern >>>" MARK_END="# <<< lantern <<<"
+on_path() { [[ ":$PATH:" == *":$BIN_DIR:"* ]]; }
+link() {  # link <source> <destination>: never replaces a file that is not Lantern's own link
+  if [[ -e $2 || -L $2 ]] && [[ "$(readlink "$2")" != "$1" ]]; then
+    note "kept $2 (not Lantern's; move it away and run this script again)"
+    return 1
+  fi
+  ln -sfn "$1" "$2"
+}
+unlink_ours() { [[ -L $1 && "$(readlink "$1")" == "$REPO/"* ]] && rm "$1" && ok "removed $1"; return 0; }
+
+if (( UNINSTALL )); then
+  step "Removing what install.sh set up"
+  unlink_ours "$BIN_DIR/lantern"
+  unlink_ours "$MAN_DIR/lantern.1"
+  if [[ -f $PROFILE ]] && grep -qF "$MARK_BEGIN" "$PROFILE"; then
+    sed -i '' "/$MARK_BEGIN/,/$MARK_END/d" "$PROFILE" && ok "removed the PATH line from $PROFILE"
+  fi
+  if [[ -d /Applications/Lantern.app ]] && [[ -t 0 ]] && ask "Remove /Applications/Lantern.app?"; then
+    osascript -e 'tell application id "com.lantern.app" to quit' >/dev/null 2>&1 || true
+    rm -rf /Applications/Lantern.app && ok "removed /Applications/Lantern.app"
+  fi
+  echo "  Left in place (remove by hand if you want):"
+  [[ -f "$HOME/Library/LaunchAgents/com.lantern.daemon.plist" ]] && note "  LaunchAgent:  uv run lantern daemon uninstall"
+  note "  index and settings:  rm -rf ~/Library/Application\ Support/Lantern"
+  note "  models:  rm -rf ~/.cache/huggingface/hub/models--mlx-community--embeddinggemma-2-8bit (and the others)"
+  note "  this folder, with .venv:  rm -rf \"$REPO\""
+  exit 0
+fi
 
 step "Checking this Mac"
 [[ $(uname -s) == Darwin ]] || fail "Lantern runs on macOS only."
@@ -120,9 +157,31 @@ q, a, b = e.embed_text([format_query("invoice for electricity"), format_document
 assert float(q @ a) > float(q @ b), "the model loaded but ranks nonsense"
 EOF
 ok "EmbeddingGemma 2 loads from disk and ranks correctly (no network)"
-uv run --quiet lantern --help >/dev/null && ok "lantern command"
 if (( RUN_TESTS )); then
   uv run pytest -q && ok "fast tests"
+fi
+
+step "The lantern command and its manual page"
+mkdir -p "$BIN_DIR" "$MAN_DIR"
+if link "$REPO/.venv/bin/lantern" "$BIN_DIR/lantern"; then
+  "$BIN_DIR/lantern" --version >/dev/null && ok "$BIN_DIR/lantern"
+fi
+if link "$REPO/docs/lantern.1" "$MAN_DIR/lantern.1"; then
+  ok "$MAN_DIR/lantern.1  (man lantern)"
+fi
+if on_path; then
+  ok "$BIN_DIR is on your PATH"
+elif [[ -f $PROFILE ]] && grep -qF "$MARK_BEGIN" "$PROFILE"; then
+  note "$PROFILE already adds $BIN_DIR to PATH: open a new terminal window"
+else
+  line="export PATH=\"\$HOME/.local/bin:\$PATH\""
+  if [[ $MODE == all ]] || { [[ $MODE == ask ]] && ask "Add $BIN_DIR to your PATH in $PROFILE (so \`lantern\` and \`man lantern\` work)?"; }; then
+    printf '\n%s\n%s\n%s\n' "$MARK_BEGIN" "$line" "$MARK_END" >> "$PROFILE"
+    ok "added to $PROFILE (new terminal windows; remove with ./install.sh --uninstall)"
+  else
+    note "to use \`lantern\` and \`man lantern\` directly, add this line to $PROFILE:"
+    note "  $line"
+  fi
 fi
 
 step "Menu bar app"
@@ -143,5 +202,7 @@ step "Done"
 if [[ -d /Applications/Lantern.app ]]; then
   echo "  Open Lantern:   open /Applications/Lantern.app   (then ⌥Space to search)"
 fi
-echo "  Command line:   uv run lantern index ~/Documents && uv run lantern search \"your query\""
-note "Optional, not done by this script: start the daemon at login without the app: uv run lantern daemon install"
+echo "  Command line:   lantern index ~/Documents && lantern search \"your query\""
+echo "  Manual:         man lantern   (full reference: docs/CLI.md)"
+on_path || note "in this terminal window, until you open a new one: $BIN_DIR/lantern …"
+note "Optional, not done by this script: start the daemon at login without the app: lantern daemon install"

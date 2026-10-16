@@ -46,7 +46,7 @@ tests/            pytest; tests needing the real model are marked `@pytest.mark.
 
 ```bash
 eval "$(/opt/homebrew/bin/brew shellenv)"   # brew/uv/ffmpeg are not on PATH by default on this machine
-./install.sh                 # one-command setup for users (idempotent; --all / --minimal / --no-app / --test)
+./install.sh                 # one-command setup for users (idempotent; --all / --minimal / --no-app / --test / --uninstall)
 uv sync                      # install deps (add --group spike for spikes/phase0)
 uv run pytest                # fast tests (excludes -m model)
 uv run pytest -m model       # tests with the real embedding model

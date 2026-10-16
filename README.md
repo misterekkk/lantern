@@ -78,6 +78,11 @@ offline, and builds the app into `/Applications` when Xcode 26 is present. It ca
 steps are skipped. `./install.sh --all` installs everything without questions, `./install.sh --minimal` only the
 command line and the required model; `--no-app`, `--test` (also run the tests). It never installs the LaunchAgent.
 
+It also makes `lantern` and `man lantern` work in every terminal without sudo: two symlinks into this folder
+(`~/.local/bin/lantern`, `~/.local/share/man/man1/lantern.1`, so `git pull` updates both), and, if you agree, one
+`PATH` line in `~/.zprofile` between `# >>> lantern >>>` markers. `./install.sh --uninstall` removes the links, that
+line and (if you say so) the app; your index and the models stay until you delete them (it prints how).
+
 ### Step by step
 
 The same steps by hand:
@@ -175,7 +180,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 ## Command line
 
 Full reference with every option, output format, environment variable, exit code and the socket API:
-[docs/CLI.md](docs/CLI.md).
+[docs/CLI.md](docs/CLI.md), or `man lantern` after `./install.sh`. The examples use `uv run lantern` (works from the
+repository folder); after `./install.sh`, plain `lantern` works everywhere.
 
 ```bash
 uv run lantern index ~/Projects            # first run: scan + index; later runs: only changes
