@@ -316,3 +316,5 @@
 "Clear Clipboard History" = "Wyczyść historię schowka";
 "Nothing copied matches." = "Nic ze skopiowanych rzeczy nie pasuje.";
 "Search finds text you copied recently. It is kept in Lantern's memory only, never on disk or in the index, skips passwords that apps mark as private, and is forgotten after this time or when Lantern quits." = "Wyszukiwanie znajduje tekst skopiowany niedawno. Jest przechowywany tylko w pamięci Lanterna, nigdy na dysku ani w indeksie, pomija hasła oznaczone przez aplikacje jako poufne i znika po tym czasie albo po zamknięciu Lanterna.";
+"Add Common Folders" = "Dodaj typowe foldery";
+"Added %lld folders." = "Dodano folderów: %lld.";

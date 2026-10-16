@@ -467,6 +467,10 @@ private struct FoldersPane: View {
                     }
                 }
                 HStack {
+                    if !state.missingCommonFolders.isEmpty {
+                        Button("Add Common Folders") { state.addCommonFolders() }
+                            .help(state.missingCommonFolders.map { Format.shortPath($0) }.joined(separator: ", "))
+                    }
                     Spacer()
                     Button("Add Folder…") { state.chooseFolder() }
                 }

@@ -156,6 +156,35 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Folders most people want searched: the standard ones and common code folders that exist on this Mac.
+    static var commonFolders: [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let names = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music",
+                     "Developer", "Projects", "Projekty", "Code", "src", "dev", "repos", "GitHub"]
+        return names.map { "\(home)/\($0)" }.filter { path in
+            var isDir: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
+        }
+    }
+
+    /// Folders from `commonFolders` that are not indexed yet (nor inside an indexed folder).
+    var missingCommonFolders: [String] {
+        let roots = status?.roots.map(\.path) ?? []
+        return Self.commonFolders.filter { folder in !roots.contains { folder == $0 || folder.hasPrefix($0 + "/") } }
+    }
+
+    /// One click instead of picking them one by one; removing the unwanted ones afterwards is easier than adding.
+    /// With Settings open, indexing waits until they close (the folder tree can still exclude parts).
+    func addCommonFolders() {
+        let folders = missingCommonFolders
+        guard !folders.isEmpty else { return }
+        Task {
+            for folder in folders { _ = try? await client.callRaw("index", ["path": folder], timeout: 600) }
+            lastMessage = String(localized: "Added \(folders.count) folders.")
+            await refresh()
+        }
+    }
+
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
