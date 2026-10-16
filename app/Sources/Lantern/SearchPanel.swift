@@ -197,6 +197,10 @@ final class SearchModel: ObservableObject {
     @Published var category: ResultCategory? { didSet { if category != oldValue { search() } } }
     /// Inline completion from the daemon (earlier queries, definitions, file names); → accepts it.
     @Published private(set) var completion: String?
+    /// The query the results are for, when a spelling guess replaced a word ("Showing results for …").
+    @Published private(set) var correctedQuery: String?
+    /// The words the results matched: the corrected query when there is one (bold words in rows and previews).
+    var searchedQuery: String { correctedQuery ?? query }
 
     /// A kind's name on the pills, icons and section headers: Lantern's own words, in Lantern's language. Only the
     /// results themselves carry names from macOS ("Ustawienia systemowe › Bateria").
@@ -221,9 +225,13 @@ final class SearchModel: ObservableObject {
     }
     private var eventId: Int?
     private var pending: Task<Void, Never>?
+    private var spellCheck: Task<Void, Never>?
+    /// "Search for … instead" was chosen for this query: no correction for it.
+    private var keepAsTyped: String?
 
     private func scheduleSearch() {
         pending?.cancel()
+        spellCheck?.cancel()
         pending = Task {
             try? await Task.sleep(nanoseconds: 140_000_000)  // debounce typing
             guard !Task.isCancelled else { return }
@@ -231,7 +239,27 @@ final class SearchModel: ObservableObject {
         }
     }
 
-    func search() {
+    /// After a pause in typing, ask the spell checker about the words of the query; when it has guesses, search
+    /// again with them. The daemon applies one only if the index knows the guess, otherwise the results stay.
+    private func scheduleSpelling(_ q: String) {
+        spellCheck?.cancel()
+        guard q != keepAsTyped, category != .code, category != .clipboard else { return }
+        spellCheck = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled, q == query.trimmingCharacters(in: .whitespaces) else { return }
+            let guesses = Spelling.guesses(for: q)
+            if !guesses.isEmpty { search(spelling: guesses) }
+        }
+    }
+
+    /// "Search for … instead": the query exactly as typed.
+    func searchAsTyped() {
+        keepAsTyped = query.trimmingCharacters(in: .whitespaces)
+        spellCheck?.cancel()
+        search()
+    }
+
+    func search(spelling: [String: [String]]? = nil) {
         let q = query.trimmingCharacters(in: .whitespaces)
         if category == .clipboard {  // kept by the app, not the daemon: no request
             sections = ClipboardHistory.shared.section(for: q, limit: 20).map { [$0] } ?? []
@@ -244,6 +272,7 @@ final class SearchModel: ObservableObject {
             message = nil
             categories = []
             completion = nil
+            correctedQuery = nil
             if category != nil && scopeStyle == .pills { category = nil }  // icons: a scope may be chosen first
             return
         }
@@ -253,21 +282,33 @@ final class SearchModel: ObservableObject {
             do {
                 var params: [String: Any] = ["query": q, "limit": 8]
                 if let category { params["category"] = category.rawValue }
+                if let spelling { params["spelling"] = spelling }
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
-                let clipboard = category == nil ? ClipboardHistory.shared.section(for: q, limit: 3) : nil
+                if spelling != nil && resp.correctedQuery == nil { return }  // no guess the index knows: keep these
+                let searched = resp.correctedQuery ?? q
+                let clipboard = category == nil ? ClipboardHistory.shared.section(for: searched, limit: 3) : nil
                 // Copied text that contains the whole query is a near-certain answer; a short query less so.
-                var extra = clipboard.map { [(section: $0, score: q.count >= 4 ? 0.9 : 0.55)] } ?? []
-                if category == nil { extra += MenuCommands.shared.sections(for: q) }
-                extra += WebSearch.section(for: q, filtered: category != nil).map { ($0, ResultLayout.webScore) }
-                sections = ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra)
-                categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
-                completion = resp.completion
-                eventId = resp.eventId
-                selection = 0
-                preview = nil
-                message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
+                var extra = clipboard.map { [(section: $0, score: searched.count >= 4 ? 0.9 : 0.55)] } ?? []
+                if category == nil { extra += MenuCommands.shared.sections(for: searched) }
+                extra += WebSearch.section(for: searched, filtered: category != nil).map { ($0, ResultLayout.webScore) }
+                // The corrected results replace the shown ones at once: animated, the swap could stop half-way
+                // (both lists faded on top of each other) until the next key press.
+                var swap = Transaction()
+                swap.disablesAnimations = spelling != nil
+                withTransaction(swap) {
+                    sections = ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra)
+                    categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
+                    completion = resp.completion
+                    correctedQuery = resp.correctedQuery
+                    eventId = resp.eventId
+                    selection = 0
+                    preview = nil
+                    message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
+                }
+                if spelling == nil { scheduleSpelling(q) }
             } catch {
+                guard spelling == nil else { return }  // the second, corrected search is optional (older daemons)
                 sections = []
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
@@ -277,6 +318,9 @@ final class SearchModel: ObservableObject {
     /// A fresh panel: no query, no filter, no preview.
     func reset() {
         pending?.cancel()
+        spellCheck?.cancel()
+        keepAsTyped = nil
+        correctedQuery = nil
         query = ""
         category = nil
         preview = nil
@@ -525,6 +569,36 @@ private func numbered(_ sections: [ResultSection]) -> [(section: ResultSection, 
     }
 }
 
+/// "Showing results for faktura za prąd · Search for faktrua za prad instead", like a web search engine's line.
+private struct CorrectionLine: View {
+    let corrected: String
+    let typed: String
+    let searchTyped: () -> Void
+
+    var body: some View {
+        // The text lives in an overlay, so it never sizes the panel: as content it asked for its full width, the
+        // panel grew, re-centred and laid out again, endlessly (the app hung).
+        Color.clear
+            .frame(height: 24)
+            .overlay(alignment: .leading) {
+                HStack(spacing: 4) {
+                    Text("Showing results for \(Text(corrected).bold())")
+                        .foregroundStyle(.secondary)
+                        .layoutPriority(1)
+                    Button(action: searchTyped) {
+                        Text("Search for “\(typed)” instead")
+                    }
+                    .buttonStyle(.link)
+                }
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .font(.system(size: 12))
+                .padding(.horizontal, 12)
+            }
+            .clipped()
+    }
+}
+
 private struct SectionHeader: View {
     let kind: ResultSection.Kind
     let first: Bool
@@ -617,7 +691,7 @@ struct SearchView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.top, 10)
-                        PreviewView(content: preview, query: model.query)
+                        PreviewView(content: preview, query: model.searchedQuery)
                     }
                     .transition(.opacity)
                 } else {
@@ -625,13 +699,16 @@ struct SearchView: View {
                     ScrollView {
                         LazyVStack(spacing: 2) {
                             Color.clear.frame(height: 0).id(ListEdge.top)
+                            if let corrected = model.correctedQuery {
+                                CorrectionLine(corrected: corrected, typed: model.query) { model.searchAsTyped() }
+                            }
                             ForEach(Array(numbered(model.sections).enumerated()), id: \.element.section.id) { i, group in
                                 if model.sections.count > 1 {
                                     SectionHeader(kind: group.section.kind, first: i == 0)
                                 }
                                 ForEach(group.rows, id: \.result.id) { index, result in
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
-                                              query: model.query, showsHint: hints == ShortcutHints.row.rawValue)
+                                              query: model.searchedQuery, showsHint: hints == ShortcutHints.row.rawValue)
                                         .transition(.opacity)
                                         .onTapGesture(count: 2) {
                                             model.selection = index

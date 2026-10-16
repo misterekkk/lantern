@@ -222,6 +222,8 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     /// Each section's confidence on one 0..1 scale (`hybrid._section_scores`); sections are ordered by it, and the
     /// app adds its own (clipboard, web) on the same scale.
     public var sectionScores: [String: Double]
+    /// The query the daemon searched instead, when a spelling guess replaced an unknown word (`search/spelling.py`).
+    public var correctedQuery: String?
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
@@ -229,7 +231,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
         case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst, sectionScores
-        case vectorMs, keywordMs
+        case vectorMs, keywordMs, correctedQuery
     }
 
     public init(from decoder: Decoder) throws {
@@ -252,6 +254,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         definition = try c.decodeIfPresent(WordDefinitionResult.self, forKey: .definition)
         definitionFirst = try c.decodeIfPresent(Bool.self, forKey: .definitionFirst) ?? false
         sectionScores = try c.decodeIfPresent([String: Double].self, forKey: .sectionScores) ?? [:]
+        correctedQuery = try c.decodeIfPresent(String.self, forKey: .correctedQuery)
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)

@@ -36,6 +36,10 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs
   `NSAppleEventsUsageDescription`.
 - Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`.
+- Spelling: `Spelling.swift` (NSSpellChecker guesses in the user's macOS languages, not the app's) after a pause;
+  `SpellingWords` (LanternCore) picks the words; the daemon decides (`search/spelling.py`, `corrected_query`). Text
+  in the panel that should not size it goes in an overlay (`CorrectionLine`): a wide child made SwiftUI resize the
+  window and `SearchPanel.setFrame` re-centre it in a loop that hung the app.
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),

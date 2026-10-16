@@ -78,6 +78,20 @@ import Testing
         let json = #"{"results": [], "event_id": null, "vector_ms": 1, "keyword_ms": 1}"#
         let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
         #expect(resp.photos.isEmpty && !resp.photosFirst && resp.sections.isEmpty)
+        #expect(resp.correctedQuery == nil)
+    }
+
+    @Test func aCorrectedQueryDecodes() throws {
+        let json = #"{"results": [], "vector_ms": 1, "keyword_ms": 1, "corrected_query": "faktura za prąd"}"#
+        let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        #expect(resp.correctedQuery == "faktura za prąd")
+    }
+
+    @Test func onlyPlainWordsAreSpellChecked() {
+        #expect(SpellingWords.candidates(in: "faktrua za prad") == ["faktrua", "prad"])
+        #expect(SpellingWords.candidates(in: "IrisDatabase backoff_wrapper v2 config.toml ORA-01555 USB") == [])
+        #expect(SpellingWords.candidates(in: "def add_two(x, y)").isEmpty)
+        #expect(SpellingWords.candidates(in: "Warszwie").first == "Warszwie")  // a capital first letter is fine
     }
 
     @Test func definitionsComeFirstAndOpenAtTheirLine() throws {
