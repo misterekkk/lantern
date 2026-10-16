@@ -113,6 +113,15 @@ def code_project(tmp_path):
     return root
 
 
+def test_fragments_start_at_word_boundaries():
+    from lantern.search.symbols import fragment_at_word_start
+
+    assert fragment_at_word_start("parseUserToken", "usertoken") and fragment_at_word_start("parse_user_token", "token")
+    assert fragment_at_word_start("HTTPServerError", "servererror")
+    assert fragment_at_word_start("Client::connect", "connect")
+    assert not fragment_at_word_start("test_solver_star3_center_only_red", "enter")  # "enter" inside "center"
+
+
 def test_definition_search_pinpoints_file_and_line(conn, code_project, embedder):
     scan_root(conn, code_project)
     run_queue(conn, embedder)
@@ -123,6 +132,8 @@ def test_definition_search_pinpoints_file_and_line(conn, code_project, embedder)
     assert symbol_search(conn, "addTwo")[0].line == 200  # style-insensitive
     assert [d.name for d in symbol_search(conn, "add_two")][:2] == ["add_two", "add_two_numbers"]  # exact, prefix
     assert symbol_search(conn, "UserToken")[0].name == "parseUserToken"  # fragment of a camelCase name
+    assert symbol_search(conn, "user_token")[0].name == "parseUserToken"
+    assert symbol_search(conn, "serToken") == []  # a fragment must start at a word, not inside one
     assert symbol_search(conn, "pies") == []  # natural language: no definitions
 
     resp = search(conn, embedder, "def add_two(x, y):", log=True)

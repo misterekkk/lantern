@@ -124,6 +124,21 @@ def _chunk_at(conn: sqlite3.Connection, file_id: int, line: int) -> int | None:
     return row[0] if row else None
 
 
+_WORDS = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
+
+
+def fragment_at_word_start(name: str, key: str) -> bool:
+    """True when `key` (a style-insensitive name key) starts at a word of `name`: "UserToken" in parseUserToken or
+    parse_user_token, but "enter" is not in center_only_red (it starts inside "center")."""
+    words = _WORDS.findall(name.rsplit("::", 1)[-1].rsplit(".", 1)[-1])
+    joined, starts, at = "", set(), 0
+    for word in words:
+        starts.add(at)
+        joined += word.lower()
+        at += len(word)
+    return any(joined.startswith(key, i) for i in starts)
+
+
 def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_SECTION_SIZE) -> list[Definition]:
     q = parse_symbol_query(query)
     if q is None:
@@ -143,6 +158,8 @@ def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_
             params,
         ).fetchall()
         for r in rows:
+            if match == "partial" and not fragment_at_word_start(r["name"], q.key):
+                continue
             score = base
             if q.kind and r["kind"] in _HINT_KINDS.get(q.kind, ()):
                 score += 0.5
