@@ -114,7 +114,7 @@ private struct SuggestionList: View {
                         Text(item.ext).font(.system(.body, design: .monospaced))
                         Spacer(minLength: 16)
                         if item.indexed > 0 {
-                            Text("\(item.indexed) indexed").font(.caption).foregroundStyle(.secondary)
+                            Text("\(Format.count(item.indexed)) indexed").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .contentShape(Rectangle())

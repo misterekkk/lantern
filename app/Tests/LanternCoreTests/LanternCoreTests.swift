@@ -158,6 +158,14 @@ import Testing
         #expect(MediaOpen.startSeconds(108_000) == 105 && MediaOpen.startSeconds(1_000) == 0)
     }
 
+    @Test func countsStayShort() {
+        let en = Locale(identifier: "en_US"), pl = Locale(identifier: "pl_PL")
+        #expect(Format.count(749, locale: en) == "749" && Format.count(9_999, locale: en) == "9,999")
+        #expect(Format.count(12_345, locale: en) == "12.3K" && Format.count(100_000_000, locale: en) == "100M")
+        // Polish uses a no-break space, so "12,3 tys." never wraps.
+        #expect(Format.count(12_345, locale: pl) == "12,3\u{00A0}tys." && Format.count(100_000_000, locale: pl) == "100\u{00A0}mln")
+    }
+
     @Test func shortPath() {
         #expect(Format.shortPath("/Users/x/Dokumenty/a.md", home: "/Users/x") == "~/Dokumenty/a.md")
         #expect(Format.shortPath("/Volumes/Dysk/a.md", home: "/Users/x") == "/Volumes/Dysk/a.md")

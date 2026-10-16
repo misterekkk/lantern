@@ -223,3 +223,8 @@
 "Idle · %lld MB" = "Bezczynny · %lld MB";
 "Back" = "Wstecz";
 "Forward" = "Dalej";
+
+/* Compact counts (Format.count) */
+"%@ indexed" = "w indeksie: %@";
+"%@ files in the index" = "Plików w indeksie: %@";
+"%@ files · %@ fragments" = "Pliki: %1$@ · fragmenty: %2$@";

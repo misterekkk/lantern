@@ -119,8 +119,8 @@ struct MenuView: View {
 
     private func stats(_ s: DaemonStatus) -> some View {
         HStack(spacing: 18) {
-            Stat(value: "\(s.indexedFiles)", label: "files")
-            Stat(value: "\(s.chunks)", label: "chunks")
+            Stat(value: Format.count(s.indexedFiles), label: "files")
+            Stat(value: Format.count(s.chunks), label: "chunks")
             Stat(value: "\(s.memoryMb) MB", label: "memory")
         }
     }

@@ -243,7 +243,7 @@ private struct StatusRow: View {
             return String(localized: "Indexing \(done) of \(total)")
         }
         if s.paused != nil { return String(localized: "Paused") }
-        return String(localized: "\(s.indexedFiles) files in the index")
+        return String(localized: "\(Format.count(s.indexedFiles)) files in the index")
     }
 }
 
@@ -555,7 +555,7 @@ private struct AboutPane: View {
             Section {
                 LabeledContent("Models") { Text("EmbeddingGemma 2 · SigLIP 2 · Whisper").foregroundStyle(.secondary) }
                 if let s = state.status {
-                    LabeledContent("Index") { Text("\(s.indexedFiles) files · \(s.chunks) fragments").foregroundStyle(.secondary) }
+                    LabeledContent("Index") { Text("\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) fragments").foregroundStyle(.secondary) }
                     LabeledContent("Daemon") { Text("pid \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }
                 }
             }

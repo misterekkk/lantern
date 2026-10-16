@@ -247,7 +247,7 @@ private struct TreeRow: View {
             if entry.state == .skipped {
                 Text(TreeReason.label(entry.reason))
             } else if entry.isDir, entry.indexed > 0 {
-                Text("\(entry.indexed) indexed")
+                Text("\(Format.count(entry.indexed)) indexed")
             } else if !entry.isDir, entry.indexed > 0 {
                 Image(systemName: "checkmark.circle").help("In the index")
             }

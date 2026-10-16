@@ -9,6 +9,13 @@ public enum Format {
             : String(format: "%d:%02d", s / 60, s % 60)
     }
 
+    /// File counts that always fit: exact up to 9,999, then compact like macOS ("12K", "1.2M"; in Polish
+    /// "12 tys.", "1,2 mln"), so even 100,000,000 files stay a few characters wide.
+    public static func count(_ n: Int, locale: Locale = .current) -> String {
+        if n < 10_000 { return n.formatted(.number.locale(locale)) }
+        return n.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)).locale(locale))
+    }
+
     /// Absolute path -> "~/…" when inside the home folder.
     public static func shortPath(_ path: String, home: String = NSHomeDirectory()) -> String {
         path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
