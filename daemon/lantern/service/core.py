@@ -107,7 +107,14 @@ class Daemon:
     # ---------- helpers ----------
 
     def _conn(self):
-        return db.connect(config.db_path())
+        try:
+            return db.connect(config.db_path())
+        except db.NewerSchemaError:
+            # Updated code upgraded the index under this process: stop, so the app starts the daemon again from the
+            # new code (DaemonSupervisor restarts it), instead of failing every search until someone restarts it.
+            self._warn("the index was upgraded by a newer Lantern; restarting")
+            self.stopping.set()
+            raise
 
     def _warn(self, message: str) -> None:
         with self.lock:

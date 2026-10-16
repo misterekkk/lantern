@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from conftest import write
 
+from lantern import config
 from lantern.api import protocol
 from lantern.embedding.fake import FakeEmbedder
 from lantern.indexer import run_queue
@@ -320,3 +321,15 @@ def test_daemon_exits_when_its_parent_app_dies(sock, lantern_home, project):
     started = subprocess.run([sys.executable, "-c", launcher], env=env, timeout=60)
     assert started.returncode == 0, "daemon did not start"
     assert wait_until(lambda: not sock.exists(), timeout=30), "daemon kept running after its parent exited"
+
+
+def test_daemon_stops_when_newer_code_upgraded_the_index(start_daemon, lantern_home):
+    import sqlite3
+
+    d = start_daemon(mode="ask")
+    raw = sqlite3.connect(config.db_path())
+    raw.execute(f"PRAGMA user_version = {db.SCHEMA_VERSION + 1}")
+    raw.close()
+    with pytest.raises(Exception, match="newer than this Lantern"):
+        protocol.call("search", {"query": "x"})
+    assert wait_until(lambda: d.stopping.is_set())  # the app's supervisor starts it again from the new code

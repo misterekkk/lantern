@@ -126,6 +126,10 @@ class ChunkRecord:
     page: int | None = None  # PDF page
 
 
+class NewerSchemaError(RuntimeError):
+    """The index was upgraded by a newer Lantern (e.g. an index worker started from updated code)."""
+
+
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, isolation_level=None)  # explicit transactions via transaction()
@@ -142,7 +146,7 @@ def connect(path: Path) -> sqlite3.Connection:
         conn.executescript(_SCHEMA.read_text())
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     elif version > SCHEMA_VERSION:
-        raise RuntimeError(f"index schema version {version} is newer than this Lantern ({SCHEMA_VERSION})")
+        raise NewerSchemaError(f"index schema version {version} is newer than this Lantern ({SCHEMA_VERSION})")
     else:
         with transaction(conn):
             while version < SCHEMA_VERSION:
