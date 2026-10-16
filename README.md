@@ -1,4 +1,20 @@
-# Lantern
+<p align="center">
+  <img src="site/assets/lantern.svg" width="96" height="96" alt="Lantern icon">
+</p>
+
+<h1 align="center">Lantern</h1>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B%20·%20Apple%20Silicon-black" alt="macOS 14+ on Apple Silicon">
+  <img src="https://img.shields.io/badge/runs-100%25%20offline-2ea44f" alt="Runs 100% offline">
+  <a href="https://github.com/misterekkk/lantern/actions/workflows/pages.yml"><img src="https://github.com/misterekkk/lantern/actions/workflows/pages.yml/badge.svg" alt="Demo site deployment"></a>
+</p>
+
+<p align="center">
+  <a href="https://misterekkk.github.io/lantern/"><b>Try the interactive demo</b></a> (online once the repository is public)
+  · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/PRIVACY.md">Privacy</a>
+</p>
 
 Search your Mac **by meaning**, not just by file name: text, code, documents, photos, recordings and videos.
 Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind's open **EmbeddingGemma 2** model
@@ -276,6 +292,12 @@ uv run lantern daemon stop | uninstall
 - Polish inflection in keyword search is approximated by stem prefixes, not a real stemmer.
 - Full list of open questions: [docs/DECISIONS.md](docs/DECISIONS.md#open-questions).
 
+## License
+
+Lantern is licensed under the [Apache License 2.0](LICENSE). The model weights are not part of this repository; you
+download them yourself, and each has its own license (see [NOTICE](NOTICE)): EmbeddingGemma 2 and SigLIP 2 are
+Apache 2.0, Whisper is MIT.
+
 ## Development
 
 ```bash
@@ -286,7 +308,8 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-pa
 ```
 
 ```
-README.md, CLAUDE.md, pyproject.toml
+README.md, LICENSE, NOTICE, CLAUDE.md, pyproject.toml
+site/        the interactive demo (GitHub Pages)
 docs/        ARCHITECTURE.md, DECISIONS.md (decisions, measurements, open questions), PRIVACY.md
 daemon/      the daemon (Python package `lantern`): api, scanner, queue, extractors, chunking, embedding, store,
              search, service, cli.py

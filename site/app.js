@@ -26,6 +26,7 @@ const ICON = {
   audio: `<svg viewBox="0 0 56 64"><rect x="4" y="8" width="48" height="48" rx="11" fill="url(#ga)"/><defs><linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><path d="M33 19v19.5a5 5 0 1 1-3-4.6V23l-9 2.3V41a5 5 0 1 1-3-4.6V22.5z" fill="#fff"/></svg>`,
   folder: `<svg viewBox="0 0 56 64"><path d="M3 16a4 4 0 0 1 4-4h14l5 5h23a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#5aa9f8"/><path d="M3 24a4 4 0 0 1 4-4h42a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#79bdfb"/></svg>`,
   play: `<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="#fff"/></svg>`,
+  pause: `<svg viewBox="0 0 16 16" fill="#fff"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1"/></svg>`,
   menuSearch: `<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5" stroke-linecap="round"/></svg>`,
   menuPause: `<svg viewBox="0 0 16 16" fill="#fff"><rect x="4" y="3" width="2.6" height="10" rx="1"/><rect x="9.4" y="3" width="2.6" height="10" rx="1"/></svg>`,
   menuFolder: `<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.4"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/><path d="M11 8.5v3M9.5 10h3"/></svg>`,
@@ -42,7 +43,7 @@ const DOCK = [
   ["calendar", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff"/><rect width="58" height="17" fill="#ef4444"/><text x="29" y="13" font-family="-apple-system,Helvetica,Arial" font-size="9" font-weight="700" fill="#fff" text-anchor="middle" id="calMonth">OCT</text><text x="29" y="46" font-family="-apple-system,Helvetica,Arial" font-size="26" font-weight="300" fill="#1f2937" text-anchor="middle" id="calDay">16</text></svg>`],
   ["notes", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff6d1"/><rect width="58" height="15" fill="#f6c443"/><g stroke="#d5c79a" stroke-width="2"><path d="M10 26h38M10 34h38M10 42h28"/></g></svg>`],
   ["pictures", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect width="58" height="58" fill="url(#dp)"/><circle cx="40" cy="18" r="6" fill="#fde68a"/><path d="M0 44l16-16 12 12 8-7 22 18v7H0z" fill="#16a34a"/><path d="M0 50l18-12 16 20H0z" fill="#15803d"/></svg>`],
-  ["music", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="58" height="58" fill="url(#dm)"/><path d="M39 13v23.5a6.2 6.2 0 1 1-3.6-5.6V21.2l-12.8 3.2V40a6.2 6.2 0 1 1-3.6-5.6V18.7z" fill="#fff"/></svg>`],
+  ["music", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="58" height="58" fill="url(#dm)"/><path transform="translate(4.2 -1)" d="M39 13v23.5a6.2 6.2 0 1 1-3.6-5.6V21.2l-12.8 3.2V40a6.2 6.2 0 1 1-3.6-5.6V18.7z" fill="#fff"/></svg>`],
   ["code", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dcode" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="58" height="58" fill="url(#dcode)"/><path d="M21 19l-10 10 10 10M37 19l10 10-10 10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 16l-6 26" stroke="#bae6fd" stroke-width="3" stroke-linecap="round"/></svg>`],
   ["terminal", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#1f2328"/><rect x="5" y="5" width="48" height="48" rx="9" fill="#0d1014" stroke="#3a4048"/><path d="M15 22l8 6-8 6" stroke="#e6edf3" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 36h15" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>`],
   ["settings", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dset" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d1d5db"/><stop offset="1" stop-color="#6b7280"/></linearGradient></defs><rect width="58" height="58" fill="url(#dset)"/><g fill="#374151"><circle cx="29" cy="29" r="12"/><g id="teeth">${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="26" y="9" width="6" height="9" rx="1.5" transform="rotate(${r} 29 29)"/>`).join("")}</g></g><circle cx="29" cy="29" r="5.5" fill="#d1d5db"/></svg>`],
@@ -255,7 +256,7 @@ const STEPS = {
   intro() {
     closeMenu();
     attention($("#lanternItem"));
-    hint("Lantern lives in your menu bar. <b>Click its icon</b> to open it.", { x: 1052, y: 44, arrow: "up-right" });
+    hint("Lantern lives in your menu bar. <b>Click its icon</b> to open it.", { x: 990, y: 44, arrow: "up-right" });
   },
 
   menu() {
@@ -355,8 +356,7 @@ const STEPS = {
     renderPreview(sc);
     state.done.add(sc.id);
     const left = SCENARIOS.filter((s) => !state.done.has(s.id));
-    const actions = left.map((s) => ({ label: `Find ${s.label}`, onClick: () => pickScenario(s) }));
-    actions.push({ label: left.length ? "Finish the tour" : "See what’s next", cls: "pill", onClick: () => go("finale") });
+    const actions = nextSearchActions();
     hint(left.length
       ? "In Lantern, <b>↩</b> opens it at this exact spot — the line in your editor, the moment in QuickTime.<br><br>Try another search:"
       : "That’s all four. <b>↩</b> would open each one at the exact spot.", { x: 40, y: 196, actions });
@@ -368,7 +368,7 @@ const STEPS = {
     closeMenu();
     hint(`<span class="app-icon"></span><h2>That’s Lantern.</h2>
       <p>Search your files, code, photos and recordings by meaning — <b>100% on your Mac</b>, no cloud, no
-      telemetry.</p>`, {
+      telemetry. Open source under the Apache 2.0 license.</p>`, {
       x: 510, y: 250, cls: "finale",
       actions: [
         { label: "Get Lantern on GitHub", href: REPO, cls: "btn primary" },
@@ -377,6 +377,13 @@ const STEPS = {
     });
   },
 };
+
+function nextSearchActions() {
+  const left = SCENARIOS.filter((s) => !state.done.has(s.id));
+  const actions = left.map((s) => ({ label: `Find ${s.label}`, onClick: () => pickScenario(s) }));
+  actions.push({ label: left.length ? "Finish the tour" : "See what’s next", cls: "pill", onClick: () => go("finale") });
+  return actions;
+}
 
 function go(step) {
   state.step = step;
@@ -481,13 +488,13 @@ function renderPreview(sc) {
   let body = "";
   if (p.kind === "image") {
     body = `<div class="preview-media">${p.art}</div>`;
-  } else if (p.kind === "video") {
-    body = `<div class="preview-media">${p.art}${playerBar(p)}</div><p class="transcript">${p.transcript}</p>`;
-  } else if (p.kind === "audio") {
-    const bars = Array.from({ length: 90 }, (_, k) => 18 + Math.abs(Math.sin(k * 0.55) * 46 + Math.sin(k * 1.7) * 26));
-    body = `<div class="preview-media" style="height:200px;background:linear-gradient(135deg,#1e1b4b,#831843)">
-      <div class="waveform" id="wave">${bars.map((h) => `<i style="height:${h}px"></i>`).join("")}</div>${playerBar(p)}</div>
-      <p class="transcript">${p.transcript}</p>`;
+  } else if (p.kind === "video" || p.kind === "audio") {
+    // Same as the app's preview: the system player starts 3 s before the words, the transcript below, and a button
+    // for QuickTime Player. Audio has no picture, so the player is just its control bar (as in the app).
+    const screen = p.kind === "video" ? `<div class="preview-media">${p.art}${playerBar(p)}</div>`
+      : `<div class="preview-media audio">${playerBar(p)}</div>`;
+    body = `${screen}<p class="transcript">${p.transcript}</p>
+      <div class="preview-actions"><button class="btn" type="button" id="openQT">Open in QuickTime Player</button></div>`;
   } else if (p.kind === "code") {
     body = `<div class="code-preview">${p.lines.map((l, k) => {
       const n = p.from + k;
@@ -495,30 +502,37 @@ function renderPreview(sc) {
     }).join("")}</div>`;
   }
   content.innerHTML = `<div class="preview-pane"><h3>${p.title}</h3>${body}</div>`;
-  if (p.kind === "video" || p.kind === "audio") playFrom(p);
+  if (p.kind === "video" || p.kind === "audio") {
+    playFrom(p);
+    $("#openQT").addEventListener("click", () => hint(
+      `In Lantern this opens QuickTime Player at <b>${clock(p.start)}</b>, playing. Here, keep exploring:`,
+      { x: 40, y: 196, actions: nextSearchActions() }));
+  }
 }
 
 function playerBar(p) {
-  const matchStart = ((p.start + 3) / p.length) * 100;
-  return `<div class="player-bar glass">${ICON.play}<span id="tNow">${clock(p.start)}</span>
-    <span class="track"><b style="left:${matchStart}%;width:${(25 / p.length) * 100}%"></b><i id="tBar" style="width:${(p.start / p.length) * 100}%"></i></span>
+  return `<div class="player-bar glass"><button class="play" id="playBtn" type="button" aria-label="Pause">${ICON.pause}</button>
+    <span id="tNow">${clock(p.start)}</span>
+    <span class="track"><i id="tBar" style="width:${(p.start / p.length) * 100}%"></i></span>
     <span>${clock(p.length)}</span></div>`;
 }
 
+/** Plays from p.start (autoplay, like the app); the button pauses and resumes. */
 function playFrom(p) {
-  const t0 = performance.now();
-  const tick = () => {
-    if (state.step !== "preview" || state.scenario.preview !== p) return;
-    const t = p.start + (performance.now() - t0) / 1000;
-    if (!$("#tBar")) return;
-    $("#tBar").style.width = `${Math.min(100, (t / p.length) * 100)}%`;
+  let t = p.start, last = performance.now(), playing = true;
+  const btn = $("#playBtn");
+  btn.addEventListener("click", () => {
+    playing = !playing;
+    btn.innerHTML = playing ? ICON.pause : ICON.play;
+    btn.setAttribute("aria-label", playing ? "Pause" : "Play");
+  });
+  const tick = (now) => {
+    if (state.step !== "preview" || state.scenario.preview !== p || !$("#tBar")) return;
+    if (playing) t = Math.min(p.length, t + (now - last) / 1000);
+    last = now;
+    $("#tBar").style.width = `${(t / p.length) * 100}%`;
     $("#tNow").textContent = clock(t);
-    const wave = $("#wave");
-    if (wave) {
-      const played = Math.floor((t / p.length) * wave.children.length);
-      [...wave.children].forEach((bar, k) => bar.classList.toggle("played", k < played));
-    }
-    if (t < p.length) requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }

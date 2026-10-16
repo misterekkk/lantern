@@ -145,8 +145,8 @@ kbd {
 
 .desktop-files {
   position: absolute;
-  top: 170px; right: 26px;
-  display: grid; gap: 18px; justify-items: center;
+  top: 42px; right: 6px;  /* new files line up at the right edge, under the menu bar, like in Finder */
+  display: grid; gap: 14px; justify-items: center;
 }
 .desktop-file { display: grid; justify-items: center; gap: 4px; width: 112px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
 .desktop-file span { text-align: center; overflow-wrap: anywhere; line-height: 1.25; }
@@ -347,19 +347,19 @@ kbd {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px; border-radius: 12px; font-size: 12px; font-variant-numeric: tabular-nums;
 }
+.player-bar .play { border: 0; background: none; padding: 2px; display: grid; place-items: center; cursor: pointer; }
 .player-bar svg { width: 13px; height: 13px; flex: none; }
+.preview-media.audio { height: 46px; background: none; overflow: visible; }
+.preview-media.audio .player-bar { left: 0; right: 0; bottom: 0; }
+.preview-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .player-bar .track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); position: relative; }
 .player-bar .track i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: #fff; }
-.player-bar .track b { position: absolute; top: -3px; height: 10px; border-radius: 3px; background: rgba(250, 204, 21, 0.55); }
 .transcript { font-size: 12px; color: var(--text-2); margin: 10px 4px 0; line-height: 1.45; }
 .code-preview { font-family: var(--mono); font-size: 12px; line-height: 1.75; border-radius: 10px; background: rgba(0, 0, 0, 0.25); padding: 8px 0; }
 .code-preview div { display: flex; gap: 14px; padding: 0 12px; white-space: pre; }
 .code-preview div.hit { background: rgba(59, 130, 246, 0.2); }
 .code-preview .ln { color: var(--text-3); width: 34px; text-align: right; flex: none; }
 .tok-k { color: #ff7ab2; } .tok-f { color: #67b7ff; } .tok-s { color: #fc6a5d; } .tok-c { color: #7f8c98; } .tok-n { color: #d9c97c; }
-.waveform { height: 120px; display: flex; align-items: center; gap: 3px; padding: 0 16px; }
-.waveform i { flex: 1; border-radius: 2px; background: rgba(255, 255, 255, 0.35); }
-.waveform i.played { background: #a78bfa; }
 
 /* ---------- notification ---------- */
 
