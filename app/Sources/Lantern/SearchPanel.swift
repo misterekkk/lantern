@@ -1145,9 +1145,11 @@ private struct ScopeIcon: View {
     }
 }
 
-/// All the scope icons folded into one, while a long query needs the room; a click unfolds them (⌘1–⌘9 always work).
+/// All the scope icons folded into one, while a long query needs the room. Resting the pointer on it unfolds them
+/// (a click too); ⌘1–⌘9 always work.
 private struct FoldedScopes: View {
     let open: () -> Void
+    @State private var intent: Task<Void, Never>?
 
     var body: some View {
         Button(action: open) {
@@ -1160,6 +1162,14 @@ private struct FoldedScopes: View {
         .buttonStyle(.plain)
         .modifier(ScopeGlass(selected: false))
         .help(Text("Filters") + Text(verbatim: "  ⌘1–⌘9"))
+        .onHover { inside in
+            intent?.cancel()
+            guard inside else { return }
+            intent = Task { @MainActor in  // a short pause: a pointer just passing over does not unfold them
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                if !Task.isCancelled { open() }
+            }
+        }
     }
 }
 

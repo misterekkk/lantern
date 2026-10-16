@@ -864,7 +864,8 @@ Measured on the test index (local queries vs web-like ones):
   horse photos. Letters-only words under 4 letters now match only whole words of a setting ("24", "godz" still work).
   Without it, "koń" shows the web row, then the horse photos (their summed z is in the 5–7 band, below the web row).
 - **Folding the scope icons.** A long query ran under the icons. When the typed text reaches them they fold into one
-  button (`line.3.horizontal.decrease`, the filter symbol of Finder and Mail); a click unfolds them, each sliding
+  button (`line.3.horizontal.decrease`, the filter symbol of Finder and Mail); resting the pointer on it (120 ms) or a
+  click unfolds them, each sliding
   out from the button, nearest first (0.28 s, 30 ms apart); typing on folds them again, and so does doing nothing (4 s, or 1.2 s after the pointer leaves them); ⌘1–⌘9 always
   work. They
   unfold by themselves only when all fit with 40 pt to spare (no flicker at the edge).
