@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import sqlite_vec
 
-from lantern.textnorm import fold
+from lantern.textnorm import fold, is_blob
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 10
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -22,6 +22,23 @@ def _refold_fts(conn: sqlite3.Connection) -> None:
     conn.execute(
         "UPDATE chunks_fts SET text = lantern_fold(text), path = lantern_fold(path), symbol = lantern_fold(symbol) "
         "WHERE lantern_fold(text) != text OR lantern_fold(path) != path OR lantern_fold(symbol) != symbol"
+    )
+
+
+def _drop_blob_chunks(conn: sqlite3.Connection) -> None:
+    """Remove text/code chunks that are encoded data (hex/base64 images in SQL dumps, CSS, HTML) with their FTS rows
+    and vectors; new ones are no longer made (indexer._prepare_text)."""
+    rows = conn.execute("SELECT id, text FROM chunks WHERE kind IN ('text', 'code') AND length(text) >= 64")
+    _delete_chunk_rows(conn, [r[0] for r in rows if is_blob(r[1])])
+
+
+def _requeue_trimmed_files(conn: sqlite3.Connection) -> None:
+    """Version 9 also dropped some link-heavy HTML passages (long link paths looked like base64). Files that lost
+    chunks (gaps in their chunk numbers, or none left) are indexed again with the narrower rule."""
+    conn.execute(
+        "UPDATE files SET pipeline_version = 0 WHERE kind IN ('text', 'code') AND status = 'indexed' AND (id IN ("
+        "SELECT file_id FROM chunks WHERE kind IN ('text', 'code') GROUP BY file_id HAVING max(ord) + 1 != count(*)"
+        ") OR NOT EXISTS (SELECT 1 FROM chunks c WHERE c.file_id = files.id))"
     )
 
 
@@ -78,6 +95,8 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     name  TEXT NOT NULL
 )"""
     ],
+    8: [_drop_blob_chunks],
+    9: [_requeue_trimmed_files],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.

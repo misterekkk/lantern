@@ -147,3 +147,61 @@ def test_migration_refolds_existing_fts_rows(lantern_home):
     conn = db.connect(path)
     assert tuple(conn.execute("SELECT text, path FROM chunks_fts").fetchone()) == ("Soren w Lodzi", "a/Strasse.md")
     assert conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH 'soren'").fetchone()[0] == 1
+
+
+BLOB = "0x" + "151C2F00020000000D000E0014002100FFFFFFFF4269746D61702049" * 40
+
+
+def test_encoded_data_is_not_indexed(conn, tmp_path, embedder):
+    from lantern.search.basic import keyword_search
+    from lantern.textnorm import is_blob
+
+    assert is_blob(BLOB) and is_blob("url(data:image/png;base64," + "iVBORw0KGgoAAAANSUhEUgAA" * 10 + ")")
+    assert not is_blob("https://github.com/misterekkk/lantern/blob/main/daemon/lantern/search/hybrid.py#L120")
+    assert not is_blob("Kategoria 24: owoce morza, 187,15 zł")
+    root = tmp_path / "dump"
+    dump = "-- Seafood category\n" + "\n" * 60 + f"INSERT INTO c VALUES (8, 'Seafood', {BLOB});\n"
+    write(root, "northwind.sql", dump)
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    texts = [r[0] for r in conn.execute("SELECT text FROM chunks")]
+    assert texts and not any("FFFFFFFF4269746D6170" in t for t in texts)
+    assert keyword_search(conn, "4269746d6170") == []
+
+
+def test_migration_drops_encoded_data_chunks(conn, tmp_path, embedder, lantern_home):
+    root = tmp_path / "dump"
+    write(root, "notes.txt", "Seafood and fish.\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    file_id = conn.execute("SELECT id FROM files").fetchone()[0]
+    with db.transaction(conn):  # a blob chunk written by an older Lantern
+        conn.execute("INSERT INTO chunks(id, file_id, ord, kind, text) VALUES (999, ?, 9, 'text', ?)", (file_id, BLOB))
+        conn.execute("INSERT INTO chunks_fts(rowid, text, path, symbol) VALUES (999, ?, '', '')", (BLOB,))
+    conn.execute("PRAGMA user_version = 8")
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    conn.close()
+    conn = db.connect(Path(path))
+    assert conn.execute("SELECT COUNT(*) FROM chunks WHERE id = 999").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM chunks_fts WHERE rowid = 999").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == 1  # the real text stays
+
+
+def test_files_that_lost_chunks_are_indexed_again(conn, tmp_path, embedder):
+    from lantern.textnorm import is_blob
+
+    link = '<a href="../../org/apache/commons/math3/analysis/differentiation/DerivativeStructure.html">'
+    assert not is_blob(link * 5)  # long link paths are text, not base64
+    root = tmp_path / "docs"
+    write(root, "a.txt", "Pierwszy akapit.\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    file_id, version = conn.execute("SELECT id, pipeline_version FROM files").fetchone()
+    assert version > 0
+    with db.transaction(conn):  # a gap in the chunk numbers: version 9 dropped chunk 1 of 0..2
+        conn.execute("INSERT INTO chunks(file_id, ord, kind, text) VALUES (?, 2, 'text', 'trzeci')", (file_id,))
+    conn.execute("PRAGMA user_version = 9")
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    conn.close()
+    conn = db.connect(Path(path))
+    assert conn.execute("SELECT pipeline_version FROM files").fetchone()[0] == 0

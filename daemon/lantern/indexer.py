@@ -32,6 +32,7 @@ from lantern.extractors.text import SkipFile, extract_text
 from lantern.queue import jobs
 from lantern.queue.jobs import Job
 from lantern.store import db
+from lantern.textnorm import is_blob
 from lantern.transcription.whisper import Transcriber, vocabulary_hint
 
 FILES_PER_ROUND = 32
@@ -106,7 +107,7 @@ def _prepare_pdf(job: Job, row: sqlite3.Row, ocr: bool) -> _Prepared:
 def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
     path, rel = Path(row["path"]), _rel(row)
     text = extract_text(path)
-    pieces = chunk_file(path, row["kind"], text)
+    pieces = [p for p in chunk_file(path, row["kind"], text) if not is_blob(p.text)]  # embedded binary data
     language = language_for(path) if row["kind"] == "code" else None
     symbols = extract_symbols(text, language) if language else []
     records = [

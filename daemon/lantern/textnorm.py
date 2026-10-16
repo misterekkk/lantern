@@ -142,3 +142,31 @@ def excerpt(query: str, text: str, width: int = 160, lead: int = 30) -> str:
     if flat.startswith("• ", start):
         start += 2
     return ("…" if start else "") + flat[start : start + width - (1 if start else 0)]
+
+
+# Runs of 64+ hex digits or base64 characters: embedded images and binary data (`0x151C2F…` in a SQL dump, base64
+# in CSS/HTML). Base64 runs also need digits, both cases and few slashes: a long link path in generated docs
+# (`org/apache/commons/math3/analysis/…`) is made of the same characters but is text.
+_HEX_RUN = re.compile(r"(?:0x)?[0-9A-Fa-f]{64,}")
+_BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{64,}")
+
+
+def _encoded(run: str) -> bool:
+    return (
+        run.count("/") * 20 <= len(run)
+        and sum(ch.isdigit() for ch in run) >= 4
+        and any(ch.isupper() for ch in run)
+        and any(ch.islower() for ch in run)
+    )
+
+
+def is_blob(text: str | None) -> bool:
+    """A passage that is mostly encoded data: it would match numbers and letter pairs by accident ("24") and its
+    vector means nothing, so it is not indexed."""
+    if not text:
+        return False
+    visible = sum(1 for ch in text if not ch.isspace())
+    spans = [m.span() for m in _HEX_RUN.finditer(text)]
+    spans += [m.span() for m in _BASE64_RUN.finditer(text) if _encoded(m.group())]
+    covered = len({i for start, end in spans for i in range(start, end)})
+    return visible > 0 and covered >= 0.5 * visible
