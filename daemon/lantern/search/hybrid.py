@@ -6,13 +6,13 @@ per-list ranks and scores (training data for a future reranker).
 """
 
 import json
-import re
 import sqlite3
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 from lantern.embedding.base import Embedder
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
+from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
 
 RRF_K = 60
@@ -26,15 +26,6 @@ MIN_KEYWORD_COVERAGE = 0.5
 # bulk of its candidates (several equally good hits, e.g. three dog photos, still count as confident).
 # See DECISIONS.md, Phase 7.
 PHOTO_SECTION_SIZE = 4
-# Identifiers, calls, paths: "def add_two(x, y):", "parseUserToken", "config.toml". Never a photo query, and their
-# vector scores are flat, so the confidence comparison alone could put photos first.
-_CODE_LIKE = re.compile(r"[_(){}\[\];:=<>/\\]|\w\.\w|[a-z][A-Z]")
-
-
-def looks_like_code(query: str) -> bool:
-    return bool(_CODE_LIKE.search(query))
-
-
 MIN_LIST_WEIGHT = 0.25
 TEXT_GAP_LOW, TEXT_GAP_HIGH = 0.02, 0.08  # cosine gap (top - median of candidates): flat .. clear
 PHOTO_Z_LOW, PHOTO_Z_HIGH = 1.0, 4.0  # per-model z of the top photo against the photo candidate pool
@@ -88,6 +79,14 @@ class SearchResponse:
     image_ms: float = 0.0
     photos: list[Result] = field(default_factory=list)  # photos and video frames section
     photos_first: bool = False
+    definitions: list[Definition] = field(default_factory=list)  # code definitions ("def add_two(x, y)")
+    symbol_ms: float = 0.0
+
+    def sections(self) -> list[tuple[str, list]]:
+        """Non-empty sections in display order: definitions (exact answers) first, then photos/files by confidence."""
+        media = [("photos", self.photos), ("files", self.results)]
+        order = [("definitions", self.definitions)] + (media if self.photos_first else media[::-1])
+        return [(name, items) for name, items in order if items]
 
 
 def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> list[Result]:
@@ -153,11 +152,23 @@ def photo_results(image: list[Hit], keyword: list[Hit], limit: int = PHOTO_SECTI
     ]
 
 
-def log_search(conn: sqlite3.Connection, query: str, results: list[Result], photos: list[Result] = ()) -> int:
-    payload = [{"rank": i + 1, "section": "files", **asdict(r)} for i, r in enumerate(results)]
-    payload += [{"rank": i + 1, "section": "photos", **asdict(r)} for i, r in enumerate(photos)]
-    for item in payload:
-        item.pop("preview")  # features only, no file content in the log
+def _log_item(section: str, item: Result | Definition) -> dict:
+    if isinstance(item, Definition):
+        return {
+            "section": section, "path": item.path, "chunk_id": item.chunk_id, "start_line": item.line,
+            "end_line": item.end_line, "symbol": item.name, "kind": item.kind, "match": item.match,
+            "score": item.score, "start_ms": None,
+        }  # fmt: skip
+    entry = {"section": section, **asdict(item)}
+    entry.pop("preview")  # features only, no file content in the log
+    return entry
+
+
+def log_search(conn: sqlite3.Connection, query: str, sections: list[tuple[str, list]]) -> int:
+    """Results in display order, so `lantern open <n>` opens the n-th result as shown."""
+    payload = []
+    for section, items in sections:
+        payload += [{"rank": i + 1, **_log_item(section, item)} for i, item in enumerate(items)]
     cur = conn.execute(
         "INSERT INTO search_events(ts, query, results_json) VALUES (?, ?, ?)",
         (db.now(), query, json.dumps(payload, ensure_ascii=False)),
@@ -183,6 +194,8 @@ def search(
     t2 = time.perf_counter()
     image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder)
     t3 = time.perf_counter()
+    definitions = symbol_search(conn, query)
+    t4 = time.perf_counter()
     # Photos only appear in the photos section (video frames stay with their video file in the files section).
     results = fuse([h for h in vector if h.kind != "image"], [h for h in keyword if h.kind != "image"], limit)
     photos = photo_results(image, keyword)
@@ -192,16 +205,13 @@ def search(
         and not looks_like_code(query)
         and photo_list_confidence(image, models) > text_list_confidence(vector)
     )
-    event_id = log_search(conn, query, results, photos) if log else None
-    return SearchResponse(
-        results,
-        event_id,
-        (t1 - t0) * 1000,
-        (t2 - t1) * 1000,
-        (t3 - t2) * 1000,
-        photos=photos,
-        photos_first=photos_first,
-    )
+    resp = SearchResponse(
+        results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,
+        photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,
+    )  # fmt: skip
+    if log:
+        resp = replace(resp, event_id=log_search(conn, query, resp.sections()))
+    return resp
 
 
 def last_event(conn: sqlite3.Connection) -> sqlite3.Row | None:

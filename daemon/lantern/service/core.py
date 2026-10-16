@@ -369,6 +369,7 @@ class Daemon:
             "results": [asdict(r) for r in resp.results], "event_id": resp.event_id,
             "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms, "image_ms": resp.image_ms,
             "photos": [asdict(r) for r in resp.photos], "photos_first": resp.photos_first,
+            "definitions": [asdict(d) for d in resp.definitions], "symbol_ms": resp.symbol_ms,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:

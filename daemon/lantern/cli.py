@@ -190,13 +190,12 @@ def cmd_index(args: argparse.Namespace) -> int:
 def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log})
-        results = [SimpleNamespace(**r) for r in resp["results"]]
-        photos = [SimpleNamespace(**r) for r in resp.get("photos", [])]
-        took, logged, photos_first = (
-            resp["vector_ms"] + resp["keyword_ms"] + resp.get("image_ms", 0),
-            resp["event_id"],
-            resp.get("photos_first", False),
-        )
+        sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in ("definitions", "photos")}
+        sections["files"] = [SimpleNamespace(**r) for r in resp["results"]]
+        media = ["photos", "files"] if resp.get("photos_first") else ["files", "photos"]
+        ordered = [(name, sections[name]) for name in ["definitions", *media] if sections[name]]
+        took = sum(resp.get(k, 0) for k in ("vector_ms", "keyword_ms", "image_ms", "symbol_ms"))
+        logged = resp["event_id"]
     else:
         from lantern.search.hybrid import search
         from lantern.service.worker import make_embedder, make_query_embedder
@@ -207,26 +206,21 @@ def cmd_search(args: argparse.Namespace) -> int:
             embedder.load()  # keep model loading out of the query timing
         r = search(_connect(), embedder, args.query, args.limit, log=not args.no_log, lang=system_language(),
                    query_embedder=make_query_embedder())  # fmt: skip
-        results, photos, photos_first = r.results, r.photos, r.photos_first
-        took, logged = r.vector_ms + r.keyword_ms + r.image_ms, r.event_id
-    print(f"{len(results) + len(photos)} results ({took:.0f} ms)")
+        ordered, logged = r.sections(), r.event_id
+        took = r.vector_ms + r.keyword_ms + r.image_ms + r.symbol_ms
+    print(f"{sum(len(items) for _, items in ordered)} results ({took:.0f} ms)")
     n = 0
-
-    def section(title: str, items) -> None:
-        nonlocal n
-        if not items:
-            return
-        print(title)
+    for name, items in ordered:
+        print({"definitions": "Definitions:", "photos": "Photos:", "files": "Files:"}[name])
         for r in items:
             n += 1
+            if name == "definitions":
+                print(f"  {n:2d}. {r.path}:{r.line}   {r.signature}   ({r.kind}, {r.match})")
+                continue
             print(f"  {n:2d}. {_location(r)}   ({_sources(r)})")
             if r.preview:
                 print(f"      {r.preview}")
-
-    order = [("Photos:", photos), ("Files:", results)] if photos_first else [("Files:", results), ("Photos:", photos)]
-    for title, items in order:
-        section(title, items)
-    if (results or photos) and logged:
+    if ordered and logged:
         print("open a result with: lantern open <number>")
     return 0
 
