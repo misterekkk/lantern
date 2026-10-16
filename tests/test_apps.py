@@ -64,16 +64,17 @@ def applications(tmp_path, monkeypatch):
 
 
 def test_scan_reads_names_in_the_preferred_languages(applications):
-    found = {a.name: a for a in apps_mod.scan_apps(["pl", "en"])}
+    found = {Path(a.path).stem: a for a in apps_mod.scan_apps(["pl", "en"])}
     assert set(found) == {"Calculator", "System Settings", "Discord", "Visual Studio Code", "Google Chrome", "Word"}
-    assert found["Calculator"].names == ["Kalkulator"]  # not "Rechner": German is not a preferred language
+    calc = found["Calculator"]  # shown as in a Polish Finder, found by both names; not "Rechner" (no German)
+    assert calc.name == "Kalkulator" and calc.names == ["Calculator"]
     assert (
         found["System Settings"].keywords == ["Preferencje systemowe"]
         and found["Discord"].category == "social-networking"
     )
     assert found["Visual Studio Code"].names == ["Code"]  # the bundle name besides the one Finder shows
     if subprocess.run(["which", "plutil"], capture_output=True).returncode == 0:
-        assert "Chrome PL" in found["Google Chrome"].names  # old-style UTF-16 .strings, read with plutil
+        assert found["Google Chrome"].name == "Chrome PL"  # old-style UTF-16 .strings, read with plutil
 
 
 @pytest.mark.parametrize(("typed", "level"), [
@@ -112,10 +113,10 @@ def test_apps_are_the_top_hit_by_name_and_have_their_own_pill(conn, applications
     embedder = FakeEmbedder()
     stored(conn, embedder)
     resp = search(conn, embedder, "kalkul", log=False)
-    assert resp.apps[0].name == "Calculator" and resp.apps_first and resp.sections()[0][0] == "apps"
+    assert resp.apps[0].name == "Kalkulator" and resp.apps_first and resp.sections()[0][0] == "apps"
     assert resp.categories[0] == "apps"
     only = search(conn, embedder, "kalkul", log=False, category="apps")
-    assert only.category == "apps" and only.results == [] and only.apps[0].name == "Calculator"
+    assert only.category == "apps" and only.results == [] and only.apps[0].path.endswith("Calculator.app")
     assert app_search(conn, "def add_two(x, y):", embedder) == []
 
 

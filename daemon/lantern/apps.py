@@ -45,7 +45,7 @@ CATEGORY_NAMES = {
 @dataclass
 class AppInfo:
     path: str
-    name: str  # as Finder shows it
+    name: str  # as Finder shows it: in the first preferred language when the app has that translation
     names: list[str] = field(default_factory=list)  # every other name: bundle names, translations
     keywords: list[str] = field(default_factory=list)
     category: str | None = None  # "social-networking" (without the public.app-category. prefix)
@@ -119,14 +119,14 @@ def _matches(key: str, languages: list[str]) -> bool:
     return any(base == lang.split("-")[0].lower() for lang in languages)
 
 
-def _localized(resources: Path, languages: list[str]) -> list[dict]:
-    """InfoPlist entries for the preferred languages: from InfoPlist.loctable (one file, all languages) or from the
-    <lang>.lproj folders."""
+def _localized(resources: Path, languages: list[str]) -> list[tuple[str, dict]]:
+    """(language, InfoPlist entries) for the preferred languages: from InfoPlist.loctable (one file, all languages)
+    or from the <lang>.lproj folders."""
     found = []
     table = resources / "InfoPlist.loctable"
     if table.is_file():
         data = _plist(table)
-        found += [v for k, v in data.items() if isinstance(v, dict) and _matches(k, languages)]
+        found += [(k, v) for k, v in data.items() if isinstance(v, dict) and _matches(k, languages)]
     if not found:
         try:
             lprojs = [p for p in resources.iterdir() if p.suffix == ".lproj" and _matches(p.stem, languages)]
@@ -135,7 +135,7 @@ def _localized(resources: Path, languages: list[str]) -> list[dict]:
         for lproj in lprojs:
             strings = lproj / "InfoPlist.strings"
             if strings.is_file():
-                found.append(_plist(strings))
+                found.append((lproj.stem, _plist(strings)))
     return found
 
 
@@ -153,7 +153,11 @@ def read_app(app: Path, languages: list[str]) -> AppInfo | None:
         return None  # background helpers are not apps one opens (menu bar apps are: Spotlight lists them too)
     names = [info.get("CFBundleDisplayName"), info.get("CFBundleName")]
     keywords = _keywords(info.get("MDItemKeywords"))
-    for entry in _localized(app / "Contents" / "Resources", languages):
+    display = None  # the name in the first preferred language, as Finder and Spotlight show it ("Kalkulator")
+    for lang, entry in _localized(app / "Contents" / "Resources", languages):
+        local = entry.get("CFBundleDisplayName") or entry.get("CFBundleName")
+        if display is None and isinstance(local, str) and local.strip() and _matches(lang, languages[:1]):
+            display = local.strip()
         names += [entry.get("CFBundleDisplayName"), entry.get("CFBundleName")]
         keywords += _keywords(entry.get("MDItemKeywords"))
     category = info.get("LSApplicationCategoryType")
@@ -161,9 +165,10 @@ def read_app(app: Path, languages: list[str]) -> AppInfo | None:
         category = category.removeprefix("public.app-category.")
     else:
         category = None
-    clean = [n.strip() for n in names if isinstance(n, str) and n.strip() and n.strip() != app.stem]
+    name = display or app.stem
+    clean = [n.strip() for n in [app.stem, *names] if isinstance(n, str) and n.strip() and n.strip() != name]
     return AppInfo(
-        path=str(app), name=app.stem, names=list(dict.fromkeys(clean)), keywords=list(dict.fromkeys(keywords)),
+        path=str(app), name=name, names=list(dict.fromkeys(clean)), keywords=list(dict.fromkeys(keywords)),
         category=category, bundle_id=info.get("CFBundleIdentifier"), mtime=os.stat(app).st_mtime,
     )  # fmt: skip
 

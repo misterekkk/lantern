@@ -316,9 +316,11 @@ private struct RowHint: View {
     let result: SearchResult
     var body: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("preview").foregroundStyle(.secondary)
-                KeyCap(keys: "⌘Y")
+            if !result.isApp {  // an app has nothing to preview
+                HStack(spacing: 4) {
+                    Text("preview").foregroundStyle(.secondary)
+                    KeyCap(keys: "⌘Y")
+                }
             }
             HStack(spacing: 4) {
                 Text(result.isMedia ? "play" : "open").foregroundStyle(.secondary)
