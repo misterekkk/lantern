@@ -9,7 +9,10 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
 - `Sources/Lantern/` — `LanternApp` (MenuBarExtra), `AppState` (status polling every 2 s, actions, notifications),
   `DaemonSupervisor` (starts the Python daemon as a child process so macOS file permissions belong to the app;
   uses an already running daemon instead), `SearchPanel` (borderless NSPanel, ⌥Space via Carbon `HotKey`),
-  `MenuView`, `SettingsView` (own window: SwiftUI's Settings scene is unreliable in LSUIElement apps).
+  `MenuView`, `SettingsView` (own window: SwiftUI's Settings scene is unreliable in LSUIElement apps),
+  `Thumbnails` (Quick Look / AVFoundation thumbnails for photo and video-frame results, cached in memory only).
+- Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
+  panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),
   `LanternPython` (filled by build.sh).
 

@@ -17,7 +17,10 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
    po dużych usunięciach i po `lantern remove`). Test sprawdza brak usuniętego tekstu w surowych bajtach pliku bazy.
 7. **iCloud i uprawnienia:** pliki iCloud nieobecne na dysku nie są czytane (odczyt pobrałby je z chmury);
    `~/Library` (poczta, dane aplikacji) jest pomijany; folder bez uprawnień macOS jest pomijany bez usuwania jego wpisów.
-8. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
+8. **Zdjęcia:** w indeksie są tylko wektory zdjęć i klatek (bez miniatur ani kopii obrazów). Miniatury w panelu
+   generuje na bieżąco macOS (Quick Look) z oryginalnych plików. Klatki filmów trafiają na czas indeksowania do
+   katalogu tymczasowego i są usuwane zaraz po wczytaniu do pamięci (przed liczeniem wektorów).
+9. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
    plików. `lantern search --no-log` pomija zapis, `lantern clear-history` usuwa całą historię i zagęszcza bazę.
 
 ## Gdzie są dane
@@ -41,6 +44,8 @@ Indeks zawiera **dane pochodne**: fragmenty tekstu oraz wektory, z których da s
 | sentence-transformers (backend zapasowy) | jak wyżej | jak wyżej |
 | MLX / mlx-vlm | brak własnego ruchu; wagi przez huggingface_hub | `local_files_only`; **zmierzone: 0 prób połączeń** (test `-m model`) |
 | mlx-whisper | wagi przez huggingface_hub | ładowany z lokalnej kopii (`local_files_only`); **zmierzone: 0 prób połączeń** przy transkrypcji (test `-m model`) |
+| SigLIP 2 (transformers + torch w procesie roboczym, MLX w demonie) | wagi przez huggingface_hub | `local_files_only` + zmienne offline; **zmierzone: 0 prób połączeń** przy ładowaniu i liczeniu wektorów zdjęć i zapytań (test `-m model`) |
+| Pillow, `sips` (zdjęcia) | brak ruchu sieciowego; czytają plik zdjęcia | HEIC przez `sips` do pliku tymczasowego w katalogu systemowym, usuwanego od razu |
 | ffmpeg | brak ruchu sieciowego; tylko czyta plik wejściowy, wynik idzie do potoku | wywoływany z `-nostdin`, bez plików wyjściowych |
 | Ollama (**nieużywana**) | serwer okresowo pobiera „model recommendations” z ollama.com (widoczne w logu) | nie jest częścią Lanterna |
 | Homebrew (instalacja) | analityka Homebrew przy `brew install` | opcjonalnie `brew analytics off` (nie dotyczy działania Lanterna) |

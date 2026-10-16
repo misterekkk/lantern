@@ -1,13 +1,13 @@
 # Lantern
 
-Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tylko po słowach: tekst, kod, dokumenty
-i nagrania audio. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
+Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tylko po słowach: tekst, kod, dokumenty,
+nagrania audio, filmy i zdjęcia. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 6 (aplikacja w pasku menu).** Działa indeksowanie tekstu, kodu, nagrań audio i ścieżki
-> dźwiękowej filmów, wyszukiwanie łączące znaczenie i słowa w jeden ranking, demon w tle oraz aplikacja macOS:
-> ikona w pasku menu (stan, zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod
-> **⌥Space**. Jeszcze nie ma wyszukiwania po obrazie (Faza 7).
+> **Stan projektu: Faza 7 (zdjęcia i klatki filmów).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
+> (dźwięk i klatki) oraz zdjęć, wyszukiwanie łączące znaczenie i słowa, demon w tle oraz aplikacja macOS: ikona
+> w pasku menu (stan, zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod **⌥Space**,
+> z osobną sekcją zdjęć.
 
 ## Aplikacja (pasek menu i panel ⌥Space)
 
@@ -19,11 +19,13 @@ open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
 - **Ikona w pasku menu** pokazuje stan (gotowy, indeksuje, czeka na zgodę, pauza), postęp, liczbę plików i pamięć
   demona; przyciski: Zaindeksuj / Później, Wstrzymaj / Wznów, Dodaj folder…, Ustawienia…, Zakończ.
 - **⌥Space** otwiera panel wyszukiwania (jak Spotlight): ↑↓ wybór, ↩ otwórz, ⌘↩ pokaż w Finderze, Esc zamknij.
-  Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`).
+  Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`). Wyniki są w dwóch sekcjach, jak
+  w Spotlight: **Zdjęcia** (z miniaturami) i **Pliki**; wyżej jest ta, która lepiej pasuje do zapytania („pies”:
+  najpierw zdjęcia, „postgres”: najpierw pliki).
 - **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
 - **Język** aplikacji jest zgodny z językiem macOS (polski lub angielski).
-- **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, pauza na baterii/temperaturze,
-  foldery, wykluczenia, wyczyszczenie historii, zagęszczenie indeksu.
+- **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, wyszukiwanie zdjęć i klatek filmów,
+  pauza na baterii/temperaturze, foldery, wykluczenia, wyczyszczenie historii, zagęszczenie indeksu.
 - **Aplikacja sama uruchamia demona** (proces potomny), więc zgody macOS na Biurko, Dokumenty i Pobrane dotyczą
   aplikacji Lantern i pojawiają się jako zwykłe okna „Lantern chce uzyskać dostęp do…”. Gdy aplikacja się zamknie
   (także po awarii), demon kończy się razem z nią. Jeśli działa już demon z LaunchAgenta, aplikacja z niego korzysta.
@@ -58,7 +60,23 @@ uv run lantern clear-history               # usuń lokalną historię wyszukiwa�
 - Zmiana zasad dzielenia plików albo modelu powoduje automatyczny ponowny indeks przy następnym `index`.
 - Indeksowane typy: kod (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP i inne, dzielony na
   funkcje i klasy), tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.; pliki tekstowe ponad 2 MB i binarne są
-  pomijane), audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…) i wideo (mp4, mov, mkv, webm, avi…, tylko dźwięk).
+  pomijane), audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), wideo (mp4, mov, mkv, webm, avi…: dźwięk i klatki)
+  oraz zdjęcia (jpg, png, heic, gif, webp, tiff, bmp).
+
+### Zdjęcia i klatki filmów
+
+- Zdjęcie znajdziesz po tym, **co na nim jest** („pies”, „rower”, „dziecko w wodzie”, „zachód słońca”), po polsku
+  i po angielsku, oraz po nazwie pliku. Wyniki: sekcja „Photos:”/„Zdjęcia” w CLI i w panelu.
+- Każde zdjęcie liczą **dwa modele**: wieża wizyjna EmbeddingGemma 2 (lepsza na opisach zdaniem i po polsku) oraz
+  SigLIP 2 base (lepszy na pojedynczych słowach). Wyniki obu są normalizowane i sumowane; zdjęcie trafia do wyników
+  tylko, gdy wyraźnie odstaje od reszty (inaczej każde zapytanie zwracałoby „najbliższe z przypadkowych” zdjęć).
+- Filmy: klatki przy zmianach scen (ffmpeg), co najmniej jedna na 30 s, bez powtórzeń (podobne klatki są pomijane
+  przed liczeniem). Wynik pokazuje moment w filmie, np. `wakacje.mov · 2:05`.
+- Pomijane: obrazy mniejsze niż 96 px (ikony), większe niż 100 MB, uszkodzone. HEIC dekoduje systemowe `sips`.
+- Szybkość (M4): ~3 zdjęcia/s razem z ładowaniem modeli, czyli 10 tys. zdjęć ≈ 1 h w tle.
+- Wyłączenie: Ustawienia → „Wyszukiwanie zdjęć po treści” / „Wyszukiwanie w klatkach filmów” albo
+  `lantern config index_photos false` / `lantern config index_video_frames false`. Wyłączenie zdjęć usuwa je
+  z indeksu przy najbliższym skanie (demon skanuje od razu). Wyłączenie klatek dotyczy filmów indeksowanych później.
 
 ### Nagrania i filmy
 
@@ -124,6 +142,10 @@ uv run hf download mlx-community/embeddinggemma-2-8bit --revision 7505ef2f8ddef4
 #    b) Whisper do transkrypcji nagrań i filmów (~1,6 GB; pomiń, jeśli nie indeksujesz audio/wideo
 #       albo używasz `lantern index --no-transcribe`)
 uv run hf download mlx-community/whisper-large-v3-turbo --revision a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb
+#    c) SigLIP 2 do wyszukiwania zdjęć (~0,8 GB + ~0,2 GB; pomiń, jeśli nie indeksujesz zdjęć ani klatek; bez nich
+#       zdjęcia liczy sama EmbeddingGemma 2)
+uv run hf download google/siglip2-base-patch16-224 --revision 75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2
+uv run hf download mlx-community/siglip2-base-patch16-224-8bit --revision 5249fc157310584fe99dae6964707278eb6df50f
 
 # 4. Sprawdzenie
 uv run lantern --help
@@ -198,8 +220,8 @@ uv run lantern daemon stop | uninstall
   zostaje w indeksie: wyszukiwanie go znajdzie, a otwarcie pobierze.
 - **Uprawnienia macOS:** do Biurka, Dokumentów, Pobranych i iCloud Drive proces potrzebuje zgody (Ustawienia
   systemowe → Prywatność i ochrona → Pliki i foldery albo Pełny dostęp do dysku). Folder bez dostępu jest pomijany,
-  a jego wcześniej zaindeksowane pliki **nie są usuwane**; `lantern status` pokazuje ostrzeżenie. Wygodne nadawanie
-  uprawnień przyjdzie z aplikacją (Faza 6).
+  a jego wcześniej zaindeksowane pliki **nie są usuwane**; `lantern status` pokazuje ostrzeżenie. Aplikacja Lantern
+  prosi o te zgody zwykłymi oknami macOS.
 - Domyślne wykluczenia (lista w `daemon/lantern/config.py` i `scanner/walk.py`):
   - katalogi: `.git`, `node_modules`, `.venv`/`venv`, `__pycache__`, `build`, `dist`, `target`, `out`, `.cache`,
     `DerivedData`, `Pods` i inne katalogi buildów oraz cache,
@@ -244,8 +266,12 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 
 - Backend MLX korzysta z **niewydanej gałęzi `mlx-vlm`** (przypięty commit) i społecznościowej konwersji wag
   `mlx-community`. Wektory są zgodne z oryginałem (cos 0,9998), ale to zależność do obserwowania.
-- Pamięć (zmierzone na M4): demon w spoczynku ~490 MB; proces indeksujący do ~2 GB dla tekstu i do ~3,3 GB dla
-  nagrań i filmów (embedding audio, potem Whisper), po czym kończy się i zwalnia pamięć.
+- Pamięć (zmierzone na M4): demon w spoczynku ~490 MB, plus ~340 MB na model zapytań do zdjęć, ładowany przy otwarciu
+  panelu i zwalniany po 5 min bezczynności; proces indeksujący do ~2 GB dla tekstu, ~3,3 GB dla nagrań i filmów
+  (embedding audio, potem Whisper) i ~4 GB dla zdjęć (dwa modele), po czym kończy się i zwalnia pamięć.
+- Jakość wyszukiwania zdjęć zmierzona na 1000 zdjęć z Flickr30k i 80 zdjęciach w folderze testowym; na prawdziwej
+  bibliotece (zrzuty ekranu, dokumenty, setki podobnych zdjęć) może wypaść inaczej. Tekst na zdjęciach (OCR) nie jest
+  odczytywany.
 - Transkrypcja obejmuje maksymalnie pierwsze 4 godziny nagrania (Whisper dekoduje całość do pamięci, ~230 MB na godzinę).
   Embedding audio obejmuje całe nagranie.
 - Jakość wyszukiwania audio sprawdzona dotąd na mowie syntetycznej (`say`); prawdziwe nagrania (szum, wielu mówców)
@@ -257,7 +283,6 @@ tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
 - Polska odmiana w wyszukiwaniu słów to przybliżenie (prefiks rdzenia), a nie prawdziwy stemmer. Krótkie słowa
   (do 4 liter, np. „bazą”) muszą pasować dokładnie.
 - Domyślny procesor ucina audio po 30 s bez ostrzeżenia. Lantern zawsze ustawia limit jawnie (okna z nakładką).
-- Polska odmiana i litera „ł” wymagają normalizacji w wyszukiwaniu słów (FTS5). Rozwiązanie w Fazie 3.
 - Pełna lista otwartych pytań: [docs/DECISIONS.md](docs/DECISIONS.md#otwarte-pytania).
 
 ## Struktura

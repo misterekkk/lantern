@@ -47,8 +47,19 @@ its chunking rules or prompt formats change**: files store `pipeline_version` an
 
 ## Search (`lantern/search/`)
 
-`basic.py` builds two file-level candidate lists (vector KNN, FTS5 BM25 with column weights); `hybrid.py` fuses them
-with RRF (k = 60) and logs every search to `search_events` (features only, never file content).
+`basic.py` builds file-level candidate lists: vector KNN, FTS5 BM25 with column weights, and photos
+(`image_search`: KNN pool from both photo models, exact similarities, per-model z-scores summed, only z ≥ 1 per model).
+`hybrid.py` fuses vector + keyword with RRF (k = 60) into the files section; photos (image kind, plus photos matched by
+name) form a separate section, and `photos_first` compares list confidences. Video frames stay in the files list
+with their video. Every search is logged to `search_events` (features only, never file content).
+
+## Photos and video frames (Phase 7)
+
+- Two models per photo: EmbeddingGemma 2 vision tower (`IMAGE_TOKENS = 140`) and SigLIP 2 base (`embedding/siglip.py`:
+  torch fp16 image tower in the worker, MLX 8-bit text tower in the daemon, loaded on demand and released after
+  `QUERY_MODEL_IDLE_S`). Their vectors go to `vec_images_<model_id>` tables, never into the text tables.
+- `extractors/image.py` (Pillow, HEIC via `sips`), `extractors/frames.py` (ffmpeg scene select + 30 s floor, dHash +
+  colour signature dedup). Both models are optional at runtime: without SigLIP downloaded, EG2 alone is used.
 
 ## Service (`lantern/service/`, Phase 5)
 

@@ -431,6 +431,63 @@ w spoczynku demon zostaje przy ~390–450 MB. Wektory zdjęć obu modeli liczy p
 
 ---
 
+## Faza 7: wyniki (2026-10-16)
+
+Wdrożone: zdjęcia (jpg, png, heic, gif, webp, tiff, bmp) i klatki filmów, para modeli EG2 (140 tok.) + SigLIP 2
+base 224, osobne tabele wektorów zdjęć dla każdego modelu (`vec_images_<id>`), sekcja zdjęć w API, CLI i panelu.
+
+Decyzje:
+- **Klatki:** ffmpeg `select='isnan(prev_selected_t)+gt(scene,0.3)+gte(t-prev_selected_t,30)'` (zmiana sceny albo
+  co najmniej co 30 s), szerokość 448 px, maks. 400 klatek na film. Duplikaty odrzucane przed embeddingiem: dHash
+  (Hamming ≤ 6) **i** średni kolor siatki 4×4 (≤ 24). Sam dHash uznawał jednolite plansze w różnych kolorach
+  za identyczne (zgubione sceny w teście). Klatka reprezentuje odcinek do następnej zachowanej.
+- **Zdjęcia:** Pillow (`exif_transpose`, zmniejszenie do 1024 px), HEIC i awarie Pillow przez `sips` (bez `-Z`, które
+  powiększało małe zdjęcia). Pomijane: krótszy bok < 96 px, > 100 MB, błędy dekodowania. Film bez dźwięku jest
+  indeksowany przez same klatki.
+- **Lista zdjęć:** pula kandydatów z KNN obu modeli, dokładne podobieństwa dla całej puli, z-score osobno dla każdego
+  modelu, suma. Do wyników trafia tylko zdjęcie z z ≥ 1 na model (`PHOTO_MATCH_Z`). Bez tego progu każde zapytanie
+  dostawało „najbliższe z reszty” zdjęcia: jednolita zielona klatka filmu wygrywała prawie każde zapytanie.
+- **Dwie sekcje zamiast jednego rankingu.** Najpierw próbowałem łączyć zdjęcia z plikami przez RRF z wagą pewności
+  każdej listy. W folderze ze zdjęciami działało, ale na indeksie mieszanym (projekty użytkownika + 80 zdjęć) „pies”
+  i „rower” zwracały pliki źródłowe Lanterna zawierające te słowa, bo zgodność listy wektorów z listą słów przebijała
+  jedno trafienie zdjęcia. Zdjęcia i dokumenty to różne rodzaje wyników, więc teraz są osobne sekcje (jak Spotlight),
+  a wyżej jest sekcja z pewniejszą listą.
+  - pewność listy plików: różnica podobieństwa najlepszy wynik − mediana kandydatów, rampa 0,02–0,08 → 0,25–1,
+  - pewność listy zdjęć: z najlepszego zdjęcia na model, rampa 1–4 → 0,25–1,
+  - porównanie względne, bo progu bezwzględnego dla zdjęć nie ma: zakresy pewności zapytań tekstowych i wizualnych
+    nachodzą na siebie (np. „gitara”: zdjęcia 0,66, „postgres”: 0,75).
+  - Zdjęcia dopasowane po nazwie pliku też trafiają do sekcji zdjęć (po dopasowanych treścią). Klatki filmów zostają
+    w sekcji plików razem z dźwiękiem filmu.
+
+Wyniki (indeks mieszany: ~700 plików kodu i tekstu z projektów użytkownika, film, nagranie i 106 obrazów, w tym
+80 zdjęć Flickr30k; 12 zapytań):
+
+| Zapytanie | Pierwsza sekcja | 1. plik / 1. zdjęcie |
+|---|---|---|
+| postgres | pliki | README.md (PostgreSQL) |
+| backoff_wrapper | pliki | test_model.py |
+| ConnectionRefusedError | pliki | protocol.py |
+| optymalizacja drzewa | pliki | fast_tree4.cpp |
+| README instalacja | pliki | README.md |
+| pies / dog | zdjęcia | pies (oba) |
+| rower | zdjęcia | rower |
+| dziecko w wodzie | zdjęcia | dziecko w wodzie |
+| gitara | zdjęcia | gitara |
+| zachód słońca | zdjęcia | zachód słońca |
+| samochód na parkingu | zdjęcia | samochód |
+
+12 z 12 zapytań z właściwą sekcją na górze; w samym folderze zdjęć 9 z 9 zapytań z właściwym zdjęciem na 1. miejscu.
+
+Koszty (M4): indeksowanie 80 zdjęć w 25 s razem z ładowaniem obu modeli (~3,2 zdj./s), szczyt RSS procesu ~3,9 GB.
+Demon: +339 MB tylko gdy model zapytań SigLIP jest załadowany (otwarcie panelu, `warmup`), zwalniany po 5 min.
+Testy: zgodność wektora zdjęcia EG2 z sentence-transformers (cos ≥ 0,999), zgodność SigLIP MLX z torch (cos ≥ 0,999,
+bez importu torch), właściwe zdjęcie na 1. miejscu, 0 połączeń sieciowych przy ładowaniu i liczeniu obu modeli.
+
+Ograniczenia (hipotezy do sprawdzenia na prawdziwej bibliotece): mały zbiór testowy; brak OCR (tekst na zrzutach
+ekranu nie jest wyszukiwany po słowach); próg z ≥ 1 zakłada pulę kilkudziesięciu kandydatów. Przy kilku zdjęciach
+w indeksie odcina prawie wszystko (zostają dopasowania po nazwie). Wyłączenie klatek nie usuwa klatek już
+zaindeksowanych filmów.
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -498,7 +555,8 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     w Ustawieniach systemowych → Klawiatura → Skróty i przypisać ⌘Space Lanternowi (tak robią Raycast i Alfred).
     W panelu ewentualne prefiksy poleceń (np. „lantern search: kot w butach”, „audio:”, „kod:”). Akcja App Intents
     w Spotlight jako dodatek. Do weryfikacji w Fazie 6. Wymóg dla demona już teraz: zapytanie w ~100–200 ms (spełnione: 25–29 ms).
-11. Wyszukiwanie po obrazie: zdjęcia oraz klatki filmów (ffmpeg → klatki → wieża wizyjna, +~0,35 GB na czas zadań).
+11. ~~Wyszukiwanie po obrazie~~ — wdrożone w Fazie 7 (sekcja „Faza 7: wyniki”). Historia ustaleń poniżej.
+    Zdjęcia oraz klatki filmów (ffmpeg → klatki → wieża wizyjna, +~0,35 GB na czas zadań).
     Model to obsługuje, ale jakość obrazów i wideo w benchmarkach jest wyraźnie niższa niż tekstu, a na tym Macu
     nic nie mierzyłem. **Użytkownik chce tej opcji (2026-10-15):** Faza 7, poprzedzona krótkim testem. Dźwięk z filmów
     (ffmpeg, znaczniki czasu wypowiedzi) wchodzi do Fazy 4.
@@ -528,3 +586,6 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     tolerancja błędów ASR w FTS (indeks trigramowy FTS5 dla transkrypcji).
 23. Zestaw testowy na danych użytkownika: 50–100 zapytań z ręcznie oznaczonymi odpowiedziami (krótkie, długie, polskie,
     slang), recall@k i MRR; test termiczny 20+ min; pełna konfiguracja każdego przebiegu zapisywana obok wyników.
+24. OCR zdjęć i zrzutów ekranu (Vision framework, lokalnie) do wyszukiwania tekstu na obrazach po słowach.
+25. Próg zdjęć (z ≥ 1) przy bardzo małych bibliotekach (kilka zdjęć) i dostrojenie reguły kolejności sekcji na
+    prawdziwych danych użytkownika; sekcja zdjęć jako siatka miniatur zamiast wierszy.
