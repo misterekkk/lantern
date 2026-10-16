@@ -215,3 +215,31 @@ import Testing
         #expect(marked("cat", "concatenate") == [])  // only word starts
     }
 }
+
+@Suite struct AppResultTests {
+    private func response(appsFirst: Bool, match: String) throws -> SearchResponse {
+        let json = """
+        {"results": [{"path": "/x/notes.md", "chunk_id": 3, "start_line": 1, "end_line": 4, "symbol": null,
+          "preview": "", "score": 0.1, "vector_rank": 1, "keyword_rank": null, "kind": "text",
+          "start_ms": null, "end_ms": null}],
+         "apps": [{"path": "/Applications/Discord.app", "name": "Discord", "category": "social-networking",
+          "bundle_id": "com.hnc.Discord", "match": "\(match)", "score": 1.0}],
+         "apps_first": \(appsFirst), "categories": ["apps", "docs"], "event_id": 1, "vector_ms": 1, "keyword_ms": 1}
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(SearchResponse.self, from: Data(json.utf8))
+    }
+
+    @Test func appMatchedByNameIsTheTopHit() throws {
+        let resp = try response(appsFirst: true, match: "typo")
+        #expect(resp.sections.map(\.kind) == [.apps, .files])
+        let app = resp.sections[0].results[0]
+        #expect(app.isApp && Format.title(app) == "Discord" && app.chunkId == 0)
+        #expect(resp.categories == [.apps, .docs])
+    }
+
+    @Test func appsFoundByMeaningComeLast() throws {
+        #expect(try response(appsFirst: false, match: "meaning").sections.map(\.kind) == [.files, .apps])
+    }
+}

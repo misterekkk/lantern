@@ -96,3 +96,18 @@ CREATE TABLE IF NOT EXISTS search_events (
     results_json     TEXT NOT NULL,          -- returned chunks with features (ranks, scores, source)
     opened_chunk_id  INTEGER
 );
+
+-- Applications (lantern/apps.py): names, category and one text vector each; rebuilt from the bundles.
+CREATE TABLE IF NOT EXISTS apps (
+    path       TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,      -- as Finder shows it
+    names      TEXT NOT NULL,      -- JSON list: bundle names and translations in the preferred languages
+    keywords   TEXT NOT NULL,      -- JSON list (MDItemKeywords)
+    category   TEXT,               -- App Store category, e.g. social-networking
+    bundle_id  TEXT,
+    mtime      REAL NOT NULL,
+    languages  TEXT NOT NULL,      -- preferred languages the names were read for
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
+);

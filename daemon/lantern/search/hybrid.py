@@ -11,6 +11,7 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 
 from lantern.embedding.base import Embedder
+from lantern.search.apps import AppHit, app_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.suggest import completion
 from lantern.search.symbols import Definition, looks_like_code, symbol_search
@@ -31,6 +32,7 @@ PHOTO_SECTION_SIZE = 4
 TYPING_WINDOW_S = 5  # history: a longer query typed within this many seconds replaces the shorter one
 # Filter pills in the panel: result categories by chunk kind, in a fixed order (stable keyboard shortcuts).
 CATEGORIES = {
+    "apps": {"app"},  # applications (search/apps.py), first like Spotlight's ⌘1
     "code": {"code"},
     "docs": {"text"},
     "pdf": {"pdf"},
@@ -97,11 +99,14 @@ class SearchResponse:
     categories: list[str] = field(default_factory=list)  # categories with matches (filter pills), CATEGORIES order
     category: str | None = None  # the active filter
     completion: str | None = None  # inline completion of the query (panel: accepted with →)
+    apps: list[AppHit] = field(default_factory=list)  # applications section
+    apps_first: bool = False  # an app matched by name: it is the top hit; meaning-only apps go last
 
     def sections(self) -> list[tuple[str, list]]:
         """Non-empty sections in display order: definitions (exact answers) first, then photos/files by confidence."""
         media = [("photos", self.photos), ("files", self.results)]
         order = [("definitions", self.definitions)] + (media if self.photos_first else media[::-1])
+        order = [("apps", self.apps), *order] if self.apps_first else [*order, ("apps", self.apps)]
         return [(name, items) for name, items in order if items]
 
 
@@ -191,7 +196,10 @@ def _categories(vector: list[Hit], keyword: list[Hit], image: list[Hit], definit
     return [name for name, members in CATEGORIES.items() if kinds & members]
 
 
-def _log_item(section: str, item: Result | Definition) -> dict:
+def _log_item(section: str, item: Result | Definition | AppHit) -> dict:
+    if isinstance(item, AppHit):  # chunk_id 0: an application, not a passage of a file
+        return {"section": section, "path": item.path, "chunk_id": 0, "start_line": None, "kind": "app",
+                "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
     if isinstance(item, Definition):
         return {
             "section": section, "path": item.path, "chunk_id": item.chunk_id, "start_line": item.line,
@@ -242,13 +250,20 @@ def search(
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query)
     t4 = time.perf_counter()
+    apps = app_search(conn, query, None if looks_like_code(query) else embedder)
     present = _categories(vector, keyword, image, definitions)
-    if category in CATEGORIES:  # a filter pill: only that kind, with room for more of it
+    if apps:
+        present = ["apps", *present]
+    if category == "apps":  # only applications, with room for more of them
+        apps = app_search(conn, query, embedder, limit=limit)
+        vector, keyword, image, definitions = [], [], [], []
+    elif category in CATEGORIES:  # a filter pill: only that kind, with room for more of it
         kinds = CATEGORIES[category]
         vector = [h for h in vector if h.kind in kinds]
         keyword = [h for h in keyword if h.kind in kinds]
         image = [h for h in image if h.kind in kinds]
         definitions = definitions if category == "code" else []
+        apps = []
         limit = limit + limit // 2
     else:
         category = None
@@ -270,6 +285,7 @@ def search(
         results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,
         photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,
         categories=present, category=category, completion=completion(conn, query),
+        apps=apps, apps_first=bool(apps) and apps[0].match != "meaning",
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))

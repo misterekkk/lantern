@@ -196,10 +196,13 @@ def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log,
                                         "category": args.only})  # fmt: skip
-        sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in ("definitions", "photos")}
+        named = ("definitions", "photos", "apps")
+        sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in named}
         sections["files"] = [SimpleNamespace(**r) for r in resp["results"]]
         media = ["photos", "files"] if resp.get("photos_first") else ["files", "photos"]
-        ordered = [(name, sections[name]) for name in ["definitions", *media] if sections[name]]
+        names = ["definitions", *media]
+        names = ["apps", *names] if resp.get("apps_first") else [*names, "apps"]
+        ordered = [(name, sections[name]) for name in names if sections[name]]
         took = sum(resp.get(k, 0) for k in ("vector_ms", "keyword_ms", "image_ms", "symbol_ms"))
         logged = resp["event_id"]
     else:
@@ -217,9 +220,12 @@ def cmd_search(args: argparse.Namespace) -> int:
     print(f"{sum(len(items) for _, items in ordered)} results ({took:.0f} ms)")
     n = 0
     for name, items in ordered:
-        print({"definitions": "Definitions:", "photos": "Photos:", "files": "Files:"}[name])
+        print({"definitions": "Definitions:", "photos": "Photos:", "files": "Files:", "apps": "Applications:"}[name])
         for r in items:
             n += 1
+            if name == "apps":
+                print(f"  {n:2d}. {r.name}   {r.path}   ({r.match})")
+                continue
             if name == "definitions":
                 print(f"  {n:2d}. {r.path}:{r.line}   {r.signature}   ({r.kind}, {r.match})")
                 continue
@@ -519,7 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-log", action="store_true", help="do not record this search in the local history")
     p.add_argument(
         "--only",
-        choices=["code", "docs", "pdf", "photos", "media"],
+        choices=["apps", "code", "docs", "pdf", "photos", "media"],
         help="only one kind of result (the panel's filter pills)",
     )
     p.set_defaults(func=cmd_search)

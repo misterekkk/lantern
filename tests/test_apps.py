@@ -1,0 +1,131 @@
+"""Applications as results: names as text (exact, prefix, initials, typos, translations, keywords), meaning as a
+fallback, and their place in the search response. Uses fake app bundles, never the real /Applications."""
+
+import plistlib
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from lantern import apps as apps_mod
+from lantern.embedding.base import format_document
+from lantern.embedding.fake import FakeEmbedder
+from lantern.search.apps import app_search, name_match
+from lantern.search.hybrid import search
+from lantern.store import db
+
+
+def make_app(folder: Path, name: str, info: dict, loctable: dict | None = None, strings: dict | None = None) -> Path:
+    app = folder / f"{name}.app"
+    resources = app / "Contents" / "Resources"
+    resources.mkdir(parents=True)
+    (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
+    if loctable:
+        (resources / "InfoPlist.loctable").write_bytes(plistlib.dumps(loctable, fmt=plistlib.FMT_BINARY))
+    for lang, entries in (strings or {}).items():
+        (resources / f"{lang}.lproj").mkdir()
+        text = "".join(f'"{k}" = "{v}";\n' for k, v in entries.items())
+        (resources / f"{lang}.lproj" / "InfoPlist.strings").write_text(text, encoding="utf-16")
+    return app
+
+
+@pytest.fixture
+def applications(tmp_path, monkeypatch):
+    folder = tmp_path / "Applications"
+    folder.mkdir()
+    make_app(
+        folder,
+        "Calculator",
+        {"CFBundleName": "Calculator", "CFBundleIdentifier": "com.apple.calculator"},
+        loctable={"pl": {"CFBundleDisplayName": "Kalkulator"}, "de": {"CFBundleDisplayName": "Rechner"}},
+    )
+    make_app(
+        folder,
+        "System Settings",
+        {"CFBundleName": "System Settings", "LSApplicationCategoryType": "public.app-category.utilities"},
+        loctable={"pl": {"CFBundleName": "Ustawienia systemowe", "MDItemKeywords": "Preferencje systemowe"}},
+    )
+    make_app(
+        folder,
+        "Discord",
+        {"CFBundleName": "Discord", "LSApplicationCategoryType": "public.app-category.social-networking"},
+    )
+    make_app(
+        folder,
+        "Visual Studio Code",
+        {"CFBundleName": "Code", "LSApplicationCategoryType": "public.app-category.developer-tools"},
+    )
+    make_app(folder, "Google Chrome", {"CFBundleName": "Chrome"}, strings={"pl": {"CFBundleDisplayName": "Chrome PL"}})
+    make_app(folder, "Helper", {"CFBundleName": "Helper", "LSBackgroundOnly": True})
+    (folder / "Office").mkdir()
+    make_app(folder / "Office", "Word", {"CFBundleName": "Microsoft Word"})
+    monkeypatch.setenv("LANTERN_APP_DIRS", str(folder))
+    return folder
+
+
+def test_scan_reads_names_in_the_preferred_languages(applications):
+    found = {a.name: a for a in apps_mod.scan_apps(["pl", "en"])}
+    assert set(found) == {"Calculator", "System Settings", "Discord", "Visual Studio Code", "Google Chrome", "Word"}
+    assert found["Calculator"].names == ["Kalkulator"]  # not "Rechner": German is not a preferred language
+    assert (
+        found["System Settings"].keywords == ["Preferencje systemowe"]
+        and found["Discord"].category == "social-networking"
+    )
+    assert found["Visual Studio Code"].names == ["Code"]  # the bundle name besides the one Finder shows
+    if subprocess.run(["which", "plutil"], capture_output=True).returncode == 0:
+        assert "Chrome PL" in found["Google Chrome"].names  # old-style UTF-16 .strings, read with plutil
+
+
+@pytest.mark.parametrize(("typed", "level"), [
+    ("kalkulator", "exact"), ("calc", "prefix"), ("studio", "word"), ("vsc", "initials"),
+    ("dicsord", "typo"), ("preferencje", "keyword"),
+])  # fmt: skip
+def test_name_levels(typed, level):
+    names = {
+        "exact": ["Calculator", "Kalkulator"],
+        "prefix": ["Calculator"],
+        "word": ["Visual Studio Code"],
+        "initials": ["Visual Studio Code"],
+        "typo": ["Discord"],
+        "keyword": ["System Settings"],
+    }[level]
+    keywords = ["Preferencje systemowe"] if level == "keyword" else []
+    assert name_match(typed, names, keywords)[0] == level
+
+
+def stored(conn, embedder):
+    model_id = db.ensure_model(conn, embedder.model_info())
+    found = apps_mod.scan_apps(["pl", "en"])
+    embed = lambda docs: embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
+    return apps_mod.store_apps(conn, found, ["pl", "en"], embed, model_id)
+
+
+def test_vectors_are_only_recomputed_for_changed_apps(conn, applications):
+    embedder = FakeEmbedder()
+    assert stored(conn, embedder) == 6
+    assert stored(conn, embedder) == 0  # nothing changed
+    make_app(applications, "Notes", {"CFBundleName": "Notes"})
+    assert stored(conn, embedder) == 1 and conn.execute("SELECT COUNT(*) FROM apps").fetchone()[0] == 7
+
+
+def test_apps_are_the_top_hit_by_name_and_have_their_own_pill(conn, applications):
+    embedder = FakeEmbedder()
+    stored(conn, embedder)
+    resp = search(conn, embedder, "kalkul", log=False)
+    assert resp.apps[0].name == "Calculator" and resp.apps_first and resp.sections()[0][0] == "apps"
+    assert resp.categories[0] == "apps"
+    only = search(conn, embedder, "kalkul", log=False, category="apps")
+    assert only.category == "apps" and only.results == [] and only.apps[0].name == "Calculator"
+    assert app_search(conn, "def add_two(x, y):", embedder) == []
+
+
+def test_opening_an_app_from_history(conn, applications):
+    from lantern.search.hybrid import last_event
+
+    embedder = FakeEmbedder()
+    stored(conn, embedder)
+    search(conn, embedder, "discord", log=True)
+    import json
+
+    first = json.loads(last_event(conn)["results_json"])[0]
+    assert first["kind"] == "app" and first["path"].endswith("Discord.app") and first["chunk_id"] == 0

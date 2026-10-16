@@ -39,6 +39,7 @@ POWER_CHECK_S = 30.0
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
 # counts as closed (app quit or crashed), so a hold never outlives the app.
 SETTINGS_HOLD_S = 30.0
+APPS_CHECK_S = 120.0  # how often the app folders are checked for added, removed or updated apps
 WORKER_RETRY_S = 30.0  # after a worker crash with work left
 
 
@@ -83,6 +84,8 @@ class Daemon:
         # While Settings are open, work the user just set up waits until they close (they may still exclude parts in
         # the folder tree): a folder added there, and in "auto" mode anything a rescan finds.
         self.settings_seen = 0.0  # monotonic time of the app's last "Settings are open" report
+        self._apps_signature: tuple | None = None  # app folders as of the last refresh (None: refresh due)
+        self._apps_checked = 0.0
         self.held_for_settings = False
         self.manual_pause = False
         self.auto_pause: str | None = None
@@ -414,6 +417,7 @@ class Daemon:
             "photos": [asdict(r) for r in resp.photos], "photos_first": resp.photos_first,
             "definitions": [asdict(d) for d in resp.definitions], "symbol_ms": resp.symbol_ms,
             "categories": resp.categories, "category": resp.category, "completion": resp.completion,
+            "apps": [asdict(a) for a in resp.apps], "apps_first": resp.apps_first,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
@@ -529,6 +533,63 @@ class Daemon:
             {"ext": e, "kind": known.get(e), "indexed": counts.get(e, 0)} for e in sorted(set(known) | set(counts))
         ]
         return {"suggestions": [i for i in items if i["ext"]], "ignored": list(self.settings.exclude_extensions)}
+
+    def api_languages(self, action: str | None = None, language: str | None = None) -> dict:
+        """Preferred languages: the macOS ones (read fresh), the ones added in Settings, and the effective list."""
+        from lantern.syslang import normalize_language, preferred_languages, system_languages
+
+        if action in ("add", "remove"):
+            code = normalize_language(language or "")
+            if code is None:
+                raise ValueError(f"{language!r} is not a language code")
+            with self.lock:
+                extra = [c for c in self.settings.extra_languages if c != code]
+                self.settings.extra_languages = [*extra, code] if action == "add" else extra
+                settings_mod.save(self.settings)
+            self._languages_changed()
+        system_languages.cache_clear()  # the user may have changed them in System Settings
+        return {
+            "system": list(system_languages()),
+            "extra": list(self.settings.extra_languages),
+            "effective": preferred_languages(self.settings.extra_languages),
+        }
+
+    def _languages_changed(self) -> None:
+        """App names are read in the preferred languages: read them again."""
+        self._apps_signature = None
+        self._apps_checked = 0.0
+
+    def _refresh_apps(self, force: bool = False) -> None:
+        """Re-read the applications when their folders changed (or languages, or on start); vectors are computed on
+        the model thread, only for new or changed apps."""
+        from lantern import apps as apps_mod
+        from lantern.embedding.base import format_document
+        from lantern.syslang import preferred_languages
+
+        now = time.monotonic()
+        if not force and now - self._apps_checked < APPS_CHECK_S:
+            return
+        self._apps_checked = now
+        signature = apps_mod.folders_signature()
+        if not force and signature == self._apps_signature:
+            return
+        languages = preferred_languages(self.settings.extra_languages)
+        found = apps_mod.scan_apps(languages)
+
+        def store() -> int:
+            conn = self._conn()
+            try:
+                model_id = db.ensure_model(conn, self.embedder.model_info())
+                embed = lambda docs: self.embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
+                return apps_mod.store_apps(conn, found, languages, embed, model_id)
+            finally:
+                conn.close()
+
+        try:
+            self.model_thread.submit(store).result()
+            self._apps_signature = signature
+        except Exception as exc:  # noqa: BLE001 - apps are an extra; never stop the daemon over them
+            self._warn(f"could not read applications: {exc}")
 
     def api_tree(self, path: str) -> dict:
         conn = self._conn()
@@ -680,6 +741,7 @@ class Daemon:
             for root in roots:
                 self.watcher.watch(root)
         self._check_power()
+        self._refresh_apps(force=True)
         self.scan_all()  # source of truth after any downtime
         conn = self._conn()
         self._after_scan(conn, found_new=True)  # also files left waiting by an earlier run
@@ -698,6 +760,7 @@ class Daemon:
                     for root in self.watcher.take_quiet(self.settings.debounce_s):
                         self.scan(root)
                 self._check_power()
+                self._refresh_apps()
                 self._manage_worker()
                 self._release_idle_query_model()
                 with self.lock:

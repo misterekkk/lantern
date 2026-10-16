@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -41,6 +41,21 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     ],
     3: ["ALTER TABLE chunks ADD COLUMN page INTEGER"],
     4: [_refold_fts],
+    5: [
+        """CREATE TABLE IF NOT EXISTS apps (
+    path       TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,      -- as Finder shows it
+    names      TEXT NOT NULL,      -- JSON list: bundle names and translations in the preferred languages
+    keywords   TEXT NOT NULL,      -- JSON list (MDItemKeywords)
+    category   TEXT,               -- App Store category, e.g. social-networking
+    bundle_id  TEXT,
+    mtime      REAL NOT NULL,
+    languages  TEXT NOT NULL,      -- preferred languages the names were read for
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
+)"""
+    ],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.

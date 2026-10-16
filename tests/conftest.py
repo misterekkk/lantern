@@ -12,6 +12,7 @@ def lantern_home(tmp_path, monkeypatch):
     """Never touch the real index in ~/Library during tests."""
     home = tmp_path / "lantern-home"
     monkeypatch.setenv("LANTERN_HOME", str(home))
+    monkeypatch.setenv("LANTERN_APP_DIRS", "")  # no applications unless a test makes some (never the real ones)
     return home
 
 

@@ -221,6 +221,13 @@ final class SearchModel: ObservableObject {
     func act(_ action: OpenAction) {
         guard let hit = selected else { return }
         let url = URL(fileURLWithPath: hit.path)
+        if hit.isApp && (action == .atLocation || action == .fromStart) {  // ↩ launches the app, like Spotlight
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+            recordOpened(hit)
+            SearchPanelController.shared.hide()
+            return
+        }
+        if hit.isApp && action == .preview { return }  // nothing to preview in an app
         switch action {
         case .preview:
             togglePreview(hit)
@@ -355,6 +362,7 @@ private struct ScopeBar: View {
     private func title(_ category: ResultCategory?) -> LocalizedStringKey {
         switch category {
         case nil: "All"
+        case .apps: "Applications"
         case .code: "Code"
         case .docs: "Documents"
         case .pdf: "PDFs"
@@ -411,7 +419,7 @@ private struct SectionHeader: View {
     let first: Bool
 
     var body: some View {
-        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : "Files")
+        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications" : "Files")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -736,6 +744,7 @@ extension ResultCategory {
     /// SF Symbols, in the style of Spotlight's mode buttons.
     var symbol: String {
         switch self {
+        case .apps: "square.grid.2x2"
         case .code: "chevron.left.forwardslash.chevron.right"
         case .docs: "doc.text"
         case .pdf: "doc.richtext"
@@ -746,6 +755,7 @@ extension ResultCategory {
 
     var titleKey: LocalizedStringKey {
         switch self {
+        case .apps: "Applications"
         case .code: "Code"
         case .docs: "Documents"
         case .pdf: "PDFs"

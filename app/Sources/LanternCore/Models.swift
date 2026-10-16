@@ -64,6 +64,7 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var endMs: Int?
     public var page: Int?  // PDF page
     public var textRank: Int?  // photos found by the text read from them (OCR)
+    public var appCategory: String?  // applications: App Store category ("social-networking")
 
     public init(
         path: String, chunkId: Int, startLine: Int? = nil, endLine: Int? = nil, symbol: String? = nil,
@@ -82,8 +83,25 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isVisual: Bool { kind == "image" || kind == "frame" }
     public var isDefinition: Bool { kind == "definition" }
     public var isPDF: Bool { kind == "pdf" }
+    public var isApp: Bool { kind == "app" }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
+}
+
+/// An application (`search/apps.py`): matched by name, or by what it does ("meaning").
+public struct AppResult: Decodable, Equatable, Sendable {
+    public var path: String
+    public var name: String
+    public var category: String?  // App Store category, e.g. "social-networking"
+    public var bundleId: String?
+    public var match: String  // exact | prefix | word | initials | typo | keyword | meaning
+
+    /// As a row: chunk 0 means "an application" in the search history.
+    public var asResult: SearchResult {
+        var row = SearchResult(path: path, chunkId: 0, symbol: name, kind: "app")
+        row.appCategory = category
+        return row
+    }
 }
 
 /// A code definition from the symbols table: `def add_two(x, y)` in skrypt.py, line 200.
@@ -114,11 +132,15 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     public var categories: [ResultCategory]
     public var category: ResultCategory?
     public var completion: String?
+    public var apps: [AppResult]
+    public var appsFirst: Bool
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
 
-    enum CodingKeys: String, CodingKey { case results, photos, photosFirst, definitions, categories, category, completion, eventId, vectorMs, keywordMs
+    enum CodingKeys: String, CodingKey {
+        case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
+        case vectorMs, keywordMs
     }
 
     public init(from decoder: Decoder) throws {
@@ -131,6 +153,8 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         categories = names.compactMap(ResultCategory.init(rawValue:))  // unknown future categories are ignored
         category = try c.decodeIfPresent(String.self, forKey: .category).flatMap(ResultCategory.init(rawValue:))
         completion = try c.decodeIfPresent(String.self, forKey: .completion)
+        apps = try c.decodeIfPresent([AppResult].self, forKey: .apps) ?? []
+        appsFirst = try c.decodeIfPresent(Bool.self, forKey: .appsFirst) ?? false
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -142,13 +166,16 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let definitions = ResultSection(kind: .definitions, results: definitions.map(\.asResult))
         let files = ResultSection(kind: .files, results: results)
         let photos = ResultSection(kind: .photos, results: photos)
-        return ([definitions] + (photosFirst ? [photos, files] : [files, photos])).filter { !$0.results.isEmpty }
+        let apps = ResultSection(kind: .apps, results: apps.map(\.asResult))
+        let rest = [definitions] + (photosFirst ? [photos, files] : [files, photos])
+        // An app matched by name is the top hit (like Spotlight); apps found only by meaning come last.
+        return (appsFirst ? [apps] + rest : rest + [apps]).filter { !$0.results.isEmpty }
     }
 }
 
 /// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
 public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
-    case code, docs, pdf, photos, media
+    case apps, code, docs, pdf, photos, media
     public var id: String { rawValue }
 }
 
@@ -164,7 +191,7 @@ public enum QueryCompletion {
 }
 
 public struct ResultSection: Equatable, Sendable, Identifiable {
-    public enum Kind: String, Sendable { case definitions, files, photos }
+    public enum Kind: String, Sendable { case apps, definitions, files, photos }
     public var kind: Kind
     public var results: [SearchResult]
     public var id: Kind { kind }

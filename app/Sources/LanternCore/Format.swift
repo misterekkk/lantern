@@ -23,6 +23,7 @@ public enum Format {
 
     /// Title shown for a result: file name, plus the moment for audio/video.
     public static func title(_ r: SearchResult) -> String {
+        if r.isApp { return r.symbol ?? ((r.path as NSString).lastPathComponent as NSString).deletingPathExtension }
         let name = (r.path as NSString).lastPathComponent
         if r.isDefinition, let symbol = r.symbol { return "\(symbol)  ·  \(name)" }
         if r.isPDF, let page = r.page { return String(localized: "\(name)  ·  page \(page)") }
@@ -33,6 +34,7 @@ public enum Format {
 
     /// Folder (and line range) shown under the title.
     public static func subtitle(_ r: SearchResult) -> String {
+        if r.isApp { return appCategory(r.appCategory) }
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)
         if r.isDefinition, let line = r.startLine { return String(localized: "\(folder)  —  line \(line)") }
         if r.isPDF, let page = r.page { return String(localized: "\(folder)  —  page \(page)") }
@@ -43,11 +45,40 @@ public enum Format {
     /// Where the match comes from: meaning (text embeddings), image (photo models), words (BM25).
     public static func sources(_ r: SearchResult) -> String {
         if r.isDefinition { return String(localized: "definition") }
+        if r.isApp { return "" }
         var parts: [String] = []
         if r.vectorRank != nil { parts.append(String(localized: "meaning")) }
         if r.imageRank != nil { parts.append(String(localized: "image")) }
         if r.textRank != nil { parts.append(String(localized: "text in image")) }
         if r.keywordRank != nil && r.textRank == nil { parts.append(String(localized: "words")) }
         return parts.joined(separator: " · ")
+    }
+
+    /// "Application" or the App Store category in the app's language ("Developer Tools", "Narzędzia dla programistów").
+    public static func appCategory(_ id: String?) -> String {
+        switch id {
+        case "business": String(localized: "Business")
+        case "developer-tools": String(localized: "Developer Tools")
+        case "education": String(localized: "Education")
+        case "entertainment": String(localized: "Entertainment")
+        case "finance": String(localized: "Finance")
+        case "games": String(localized: "Games")
+        case "graphics-design": String(localized: "Graphics & Design")
+        case "healthcare-fitness": String(localized: "Health & Fitness")
+        case "lifestyle": String(localized: "Lifestyle")
+        case "medical": String(localized: "Medical")
+        case "music": String(localized: "Music")
+        case "news": String(localized: "News")
+        case "photography": String(localized: "Photography")
+        case "productivity": String(localized: "Productivity")
+        case "reference": String(localized: "Reference")
+        case "social-networking": String(localized: "Social Networking")
+        case "sports": String(localized: "Sports")
+        case "travel": String(localized: "Travel")
+        case "utilities": String(localized: "Utilities")
+        case "video": String(localized: "Video")
+        case "weather": String(localized: "Weather")
+        default: String(localized: "Application")
+        }
     }
 }
