@@ -858,7 +858,7 @@ Measured on the test index (local queries vs web-like ones):
   Magnets catch at 15 pt and release at 20 pt (hysteresis), so the panel does not flicker at the edge. ⌘1–⌘9 cover
   all nine kinds.
 - **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
-  appear over a full-screen app. Not tested here (it would take over the user's screen); open question 37.
+  appear over a full-screen app; confirmed by the user (Discord in full screen).
 
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
@@ -981,6 +981,5 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 35. System Settings deep links to a single setting (anchors after the pane id): unverified, so results open the pane.
 36. App descriptions for meaning search: the bundles carry only names, a category and a few keywords, so
     "komunikator" does not find Discord; a better source would have to stay local (no App Store lookups).
-37. Does the search panel appear over a full-screen app (another Space in full screen) with ⌥Space? Expected yes
-    (`.floating` + `fullScreenAuxiliary`); to be checked by the user. If not: raise the level to `.statusBar` only
-    while another app is in full screen.
+37. ~~Does the search panel appear over a full-screen app?~~ Yes: checked by the user over Discord in full screen
+    (`.floating` + `fullScreenAuxiliary` is enough).
