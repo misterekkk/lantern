@@ -530,6 +530,43 @@ Wyniki:
 Ograniczenia: tylko definicje, bez użyć (wywołań); deklaracje bez ciała (prototypy w nagłówkach C) są pomijane;
 przy wielu kopiach tej samej definicji sekcja (5 pozycji) może ich nie zmieścić wszystkich.
 
+## Faza 9: wyniki (2026-10-16)
+
+Wdrożone: okno ustawień w układzie Ustawień systemowych (panele po lewej), drzewko folderów z polami wyboru
+i wyszukiwarką, ignorowane rozszerzenia (pigułki), przełącznik plików audio i filmów, panel Wydajność, podgląd ⌘Y
+w panelu wyszukiwania, nagrania od znacznika czasu (plan A i B), nowe skróty (↩ / ⌥↩ / ⌘Y / ⌘↩).
+
+Decyzje:
+- **Drzewko = zwykłe wykluczenia ścieżek.** Odznaczenie dopisuje ścieżkę (zagnieżdżone wpisy znikają jako zbędne).
+  Zaznaczenie elementu w wykluczonym folderze zamienia wykluczenie folderu na wykluczenia rodzeństwa po drodze, więc
+  wraca tylko ten element. Skaner niczego nowego nie potrzebuje. Stany: zaznaczony, częściowo, odznaczony, pominięty
+  (z powodem, ten sam kod co w skanerze: `dir_skip_reason` / `file_skip_reason`).
+- **Wyszukiwarka w drzewku** przegląda nazwy w indeksowanych folderach (tylko nazwy, bez czytania treści),
+  ignoruje wielkość liter i polskie znaki (także „ł”), nie wchodzi do folderów zawsze pomijanych, ale wchodzi do
+  wykluczonych (żeby dało się je przywrócić). Limit 100 wyników albo 3 s.
+- **Ochrona przed masowym usunięciem liczy tylko pliki, których nie ma na dysku.** Wykluczenie dużego folderu
+  (pliki nadal istnieją) nie wymaga `--force`; odłączony dysk albo zły folder nadal są blokowane.
+- **Rozszerzenia:** wpis `csv`, `.csv`, `*.csv` i `CSV` oznacza to samo; pigułka pokazuje `.csv` (forma, w której
+  rozszerzenie widać w nazwie pliku w Finderze). Przecinek, spacja, średnik albo Enter kończą pigułkę; ＋ dodaje
+  wpisane albo otwiera podpowiedzi (typy, które Lantern indeksuje, z liczbą plików w indeksie). Domyślnie `.ipynb`,
+  `.csv`, `.tsv`.
+- **Pamięć:** footprint jak w Monitorze aktywności (`proc_pid_rusage`, `ri_phys_footprint`). Demon próbkuje sam
+  co 1 s (historia 10 min), więc wykres ma dane od razu po otwarciu okna. Szczyty z `ri_lifetime_max_phys_footprint`:
+  sprawdzone, że skok 300 MB między pomiarami zostaje w szczycie. Tempo z ostatnich 20 s (z 60 s ładowanie modeli
+  zaniżało je do połowy). Oś czasu: godzina w formacie systemu (24 h po polsku), domyślnie ostatnie 60 s.
+- **Podgląd ⌘Y zamiast spacji:** fokus jest w polu zapytania, więc spacja musi wpisywać spację; ⌘Y to systemowy skrót
+  Quick Look (Finder, Raycast). Podgląd jest w samym panelu (zamiast listy), więc klawiatura działa bez przełączania okien.
+- **Plan B (QuickTime od momentu) sprawdzony na żywo:** skrypt z `current time` otworzył film i przewinął do 10 s
+  (po 1 s odtwarzania zwrócił `10,665`, z przecinkiem: dlatego przekazujemy pełne sekundy, a nie ułamek). Zgoda
+  macOS na sterowanie QuickTime pojawia się za pierwszym razem; bez niej ↩ pokazuje plan A. mkv/webm: ani QuickTime,
+  ani podgląd (ten sam silnik AVFoundation) ich nie odtworzą, więc otwierają się od początku w domyślnej aplikacji.
+- **Pomiar na żywo (80 zdjęć, izolowany demon):** proces indeksujący 0,7 → 3,2 GB (szczyt jądra 3220 MB, najwyższa
+  próbka 1 s 3198 MB), po zakończeniu demon 391 MB; panel pokazał załadowane części (EmbeddingGemma: obraz, SigLIP).
+
+Ograniczenia: zgoda na sterowanie QuickTime sprawdzona z procesu VS Code (aplikacja Lantern zapyta o własną przy
+pierwszym ↩ na nagraniu); wyszukiwarka drzewka przy bardzo dużych folderach (cały katalog domowy) może nie zdążyć
+w 3 s i pokazuje wtedy pierwsze wyniki.
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -619,8 +656,9 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
     kilku nagrań z zapytaniami. Do zrobienia, gdy użytkownik je udostępni.
 15. Fuzja ważona pokryciem słów działa na testach; dalsze strojenie (np. wagi list) albo reranker, gdy zbierze się historia `search_events`.
 16. ~~Własne wykluczenia~~ — rozwiązane (`lantern exclude`).
-17. Strumień zdarzeń z API zamiast odpytywania `status` co 2 s (aplikacja działa na odpytywaniu; koszt pomijalny, ale do rozważenia).
-19. Odtwarzanie nagrania/filmu od znacznika czasu po otwarciu wyniku (dziś: otwarcie pliku + znacznik w wyniku).
+17. Strumień zdarzeń z API zamiast odpytywania `status` co 2 s i `perf` co 1 s przy otwartym panelu Wydajność
+    (koszt pomijalny, ale do rozważenia).
+19. ~~Odtwarzanie od znacznika czasu~~ — wdrożone w Fazie 9 (QuickTime od momentu, podgląd ⌘Y).
 20. Zmiana skrótu ⌥Space w ustawieniach (dziś stały).
 18. Wyszukiwanie bitowe z doprecyzowaniem, gdy indeks przekroczy ~300 tys. fragmentów (zmierzone, gotowe do wdrożenia).
 21. ~~Para modeli do zdjęć~~ — sprawdzone: SigLIP 2 MLX 8-bit kosztuje +339 MB tylko po załadowaniu (0,33 s, na żądanie).

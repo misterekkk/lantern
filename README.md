@@ -4,10 +4,11 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 nagrania audio, filmy i zdjęcia. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 8 (precyzyjne wyszukiwanie kodu).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
+> **Stan projektu: Faza 9 (ustawienia i podgląd).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
 > (dźwięk i klatki) oraz zdjęć, wyszukiwanie łączące znaczenie i słowa, wyszukiwanie definicji w kodzie co do linii
 > („def add_two(x, y):” → `skrypt.py`, linia 200), demon w tle oraz aplikacja macOS: ikona w pasku menu (stan,
-> zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod **⌥Space**.
+> zgoda na indeksowanie, pauza, foldery), panel wyszukiwania w stylu Spotlight pod **⌥Space** z podglądem (⌘Y)
+> oraz okno ustawień z drzewkiem folderów, ignorowanymi rozszerzeniami i wykresem pamięci.
 
 ## Aplikacja (pasek menu i panel ⌥Space)
 
@@ -18,18 +19,42 @@ open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
 
 - **Ikona w pasku menu** pokazuje stan (gotowy, indeksuje, czeka na zgodę, pauza), postęp, liczbę plików i pamięć
   demona; przyciski: Zaindeksuj / Później, Wstrzymaj / Wznów, Dodaj folder…, Ustawienia…, Zakończ.
-- **⌥Space** otwiera panel wyszukiwania (jak Spotlight): ↑↓ wybór, ↩ otwórz, ⌘↩ pokaż w Finderze, Esc zamknij.
-  Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`). Wyniki są w dwóch sekcjach, jak
+- **⌥Space** otwiera panel wyszukiwania (jak Spotlight). Nagrania i filmy pokazują moment wypowiedzi
+  (np. `vlog.mp4 · 1:48`). Wyniki są w dwóch sekcjach, jak
   w Spotlight: **Zdjęcia** (z miniaturami) i **Pliki**; wyżej jest ta, która lepiej pasuje do zapytania („pies”:
   najpierw zdjęcia, „postgres”: najpierw pliki). Zapytanie o funkcję lub klasę pokazuje na górze sekcję
   **Definicje** z plikiem, linią i sygnaturą.
-- **↩ przy kodzie** otwiera plik w aplikacji, którą macOS ma ustawioną dla tego typu pliku, od razu na właściwej
-  linii, jeśli ta aplikacja to umożliwia: VS Code (sprawdzone), Cursor, Xcode, edytory JetBrains (IntelliJ, PyCharm,
-  CLion…). Inne aplikacje otwierają plik od początku; Lantern nigdy nie przełącza na inną aplikację niż domyślna.
+- **Skróty w panelu** (kliknięcie podwójne = ↩, z ⌥ = ⌥↩):
+
+  | Skrót | Kod i tekst | Nagranie i film |
+  |---|---|---|
+  | ↩ | plik w miejscu trafienia (początek fragmentu) | QuickTime Player od momentu wypowiedzi |
+  | ⌥↩ | plik od początku | całe nagranie od początku, w domyślnej aplikacji |
+  | ⌘Y | podgląd w panelu: fragment podświetlony, z kontekstem | podgląd w panelu od momentu wypowiedzi |
+  | ⌘↩ | pokaż w Finderze | pokaż w Finderze |
+  | ↑↓ / Esc | wybór / zamknij (z podglądu: wróć do listy) | |
+
+- **Miejsce trafienia w kodzie i tekście:** plik otwiera się w aplikacji, którą macOS ma ustawioną dla tego typu,
+  na właściwej linii, jeśli ta aplikacja to umożliwia: VS Code (sprawdzone), Cursor, Xcode, edytory JetBrains
+  (IntelliJ, PyCharm, CLion…). Inne (TextEdit, RStudio…) otwierają plik od początku, a podgląd ⌘Y pokazuje fragment
+  zawsze. Lantern nigdy nie przełącza na inną aplikację niż domyślna.
+- **Nagrania w QuickTime:** za pierwszym razem macOS zapyta „Lantern chce sterować aplikacją QuickTime Player”.
+  Bez tej zgody (albo gdy coś zawiedzie) ↩ pokazuje podgląd w panelu od tego samego momentu. Formatów, których macOS
+  nie odtwarza (mkv, webm), ↩ nie przewinie: otwierają się od początku w domyślnej aplikacji (np. VLC, IINA).
+- **⌘Y zamiast spacji:** fokus w panelu jest w polu zapytania, więc spacja musi wpisywać spację. ⌘Y to systemowy
+  skrót Quick Look z Findera.
 - **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
 - **Język** aplikacji jest zgodny z językiem macOS (polski lub angielski).
-- **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, wyszukiwanie zdjęć i klatek filmów,
-  pauza na baterii/temperaturze, foldery, wykluczenia, wyczyszczenie historii, zagęszczenie indeksu.
+- **Ustawienia** (koło zębate w menu) w układzie jak Ustawienia systemowe, z panelami po lewej:
+  - **Ogólne:** uruchamianie przy logowaniu, tryb indeksowania, zdjęcia, pliki audio i filmy (a pod nimi
+    transkrypcja i klatki), pauza na baterii/temperaturze,
+  - **Foldery:** indeksowane foldery, **drzewko** z polami wyboru (rozwijane aż do plików, wyszukiwarka nazw,
+    liczba plików w indeksie, powód przy elementach zawsze pomijanych, potwierdzenie z liczbą usuwanych plików),
+    **ignorowane rozszerzenia** jako pigułki (wpisz `csv`, `.csv` albo `*.csv` i przecinek albo użyj ＋;
+    podpowiedzi filtrują się w trakcie pisania), wzorce wykluczeń dla zaawansowanych,
+  - **Wydajność:** wykres pamięci demona i procesu indeksującego na żywo (60 s, 5 lub 10 min, godzina na osi
+    w formacie systemu), szczyty, bieżące zadanie i tempo, lista modeli (rewizja, rozmiar, czy załadowany i gdzie),
+  - **Prywatność:** historia, zagęszczenie indeksu, uprawnienia macOS; **Informacje**.
 - **Aplikacja sama uruchamia demona** (proces potomny), więc zgody macOS na Biurko, Dokumenty i Pobrane dotyczą
   aplikacji Lantern i pojawiają się jako zwykłe okna „Lantern chce uzyskać dostęp do…”. Gdy aplikacja się zamknie
   (także po awarii), demon kończy się razem z nią. Jeśli działa już demon z LaunchAgenta, aplikacja z niego korzysta.
@@ -248,6 +273,20 @@ uv run lantern daemon stop | uninstall
     `credentials*`, `secrets.*`, `*secret*.json|yaml`, `*token*.json|txt`, `*.tfstate`, `*.tfvars` i inne,
   - lockfile'y (`package-lock.json`, `uv.lock`, `Cargo.lock` …), wszystko z plików `.gitignore` (także zagnieżdżonych),
   - linki symboliczne (nigdy nie wychodzimy poza wskazany folder).
+- **Drzewko w Ustawieniach → Foldery** to najprostszy sposób: odznaczenie pliku lub folderu dodaje go do
+  wykluczeń, zaznaczenie elementu wewnątrz wykluczonego folderu przywraca tylko ten element.
+- **Ignorowane rozszerzenia** (domyślnie `.ipynb`, `.csv`, `.tsv`: notebooki i tabele to głównie wyniki i liczby):
+
+  ```bash
+  uv run lantern ignore list
+  uv run lantern ignore add json log        # csv, .csv i *.csv znaczą to samo
+  uv run lantern ignore remove csv
+  ```
+
+- **Rodzaje plików:** `lantern config index_audio_video false` wyłącza nagrania i filmy (także w Ustawieniach).
+- **Usuwanie przy wykluczeniu:** pliki, które nadal są na dysku, a zostały wykluczone (drzewko, rozszerzenie,
+  wyłączony rodzaj), znikają z indeksu przy najbliższym skanie bez `--force`. Ochrona przed masowym usunięciem
+  dotyczy tylko plików, które naprawdę zniknęły (np. odłączony dysk).
 - **Własne wykluczenia:**
 
   ```bash

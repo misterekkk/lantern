@@ -20,7 +20,11 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
 8. **Zdjęcia:** w indeksie są tylko wektory zdjęć i klatek (bez miniatur ani kopii obrazów). Miniatury w panelu
    generuje na bieżąco macOS (Quick Look) z oryginalnych plików. Klatki filmów trafiają na czas indeksowania do
    katalogu tymczasowego i są usuwane zaraz po wczytaniu do pamięci (przed liczeniem wektorów).
-9. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
+9. **Ustawienia i podgląd:** drzewko i jego wyszukiwarka czytają tylko nazwy plików i folderów (nigdy treści,
+   nigdy folderów tylko w iCloud). Podgląd ⌘Y czyta przez API wyłącznie pliki, które już są w indeksie. Otwarcie
+   nagrania w QuickTime to lokalny skrypt (Apple Events) za zgodą macOS; nic nie wychodzi poza komputer. Panel
+   Wydajność pokazuje tylko liczby (pamięć, postęp) i ścieżkę bieżącego pliku.
+10. **Historia wyszukiwań** (`search_events`) jest tylko lokalna i zawiera zapytania oraz pozycje wyników, bez treści
    plików. `lantern search --no-log` pomija zapis, `lantern clear-history` usuwa całą historię i zagęszcza bazę.
 
 ## Gdzie są dane

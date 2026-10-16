@@ -53,7 +53,7 @@ Cała logika jest w demonie. Klienci tylko wywołują API.
 | 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | zrobione |
 | 7 | wyszukiwanie w zdjęciach i klatkach filmów (ffmpeg → klatki → wieża wizyjna EG2 + SigLIP 2), poprzedzone testem jakości i szybkości; sekcja zdjęć w panelu | zrobione |
 | 8 | precyzyjne wyszukiwanie kodu: tabela symboli z tree-sittera (nazwa, rodzaj, sygnatura, linia), poprawne nazwy w C/C++/Go i metodach małych klas, sekcja „Definicje”, otwieranie na linii w domyślnym edytorze | zrobione |
-| 9 | ustawienia i media (plan niżej) | – |
+| 9 | ustawienia i media (plan niżej): drzewko z wyszukiwarką, ignorowane rozszerzenia, panel Wydajność, przełącznik audio/filmów, podgląd ⌘Y, nagrania od znacznika czasu, okno ustawień z panelem bocznym | zrobione |
 
 ### Plan Fazy 9 (uzgodniony z użytkownikiem 2026-10-16)
 
@@ -69,8 +69,12 @@ Cała logika jest w demonie. Klienci tylko wywołują API.
   footprint jak w Monitorze aktywności. Do tego załadowane modele, bieżące zadanie i tempo, szczyt sesji oraz lista
   modeli (nazwa, rewizja, rozmiar, stan).
 - **Przełącznik audio i filmów** (obok zdjęć, klatek i transkrypcji).
+- **Skróty w panelu (uzgodnione 2026-10-16):** ↩ / podwójne kliknięcie = w miejscu trafienia (kod i tekst na początku
+  fragmentu, nagranie od momentu), ⌥↩ / ⌥ + podwójne kliknięcie = od początku, ⌘Y = podgląd w Lanternie (fragment
+  tekstu z podświetlonym zakresem albo nagranie od momentu), ⌘↩ = Finder. Wdrożone z ⌘Y zamiast spacji (spacja
+  wpisuje się w pole zapytania; ⌘Y to systemowy skrót Quick Look).
 - **Filmy i nagrania od znacznika czasu:**
-  - Spacja: plan A, szybki podgląd w oknie z systemowym `AVPlayerView`, start ~3 s przed wypowiedzią, tekst wypowiedzi
+  - Spacja (wdrożone jako ⌘Y): plan A, szybki podgląd w oknie z systemowym `AVPlayerView`, start ~3 s przed wypowiedzią, tekst wypowiedzi
     i przycisk „Otwórz w QuickTime Player”. Systemowy Quick Look nie ma API do ustawienia momentu startu (sprawdzone w SDK).
   - ↩: plan B, QuickTime Player od momentu. Słownik skryptowy QuickTime ma zapisywalną właściwość `current time`;
     wymaga jednorazowej zgody na sterowanie (Automation). Do sprawdzenia na żywo, także dla mkv/webm. Gdy plan B

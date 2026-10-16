@@ -79,6 +79,13 @@ with their video. Every search is logged to `search_events` (features only, neve
   (`model_thread`): MLX GPU streams are per-thread, so never call the embedder from API threads directly.
 - `worker.py` — index worker process (`python -m lantern.service.worker`): background priority, drains the queue,
   exits; SIGTERM = finish current file, return the rest to the queue. Heavy models live only here.
+- `tree.py` — settings tree: one folder level with state/reason per entry (`_Classifier`, same rules as the scanner),
+  name search, check/uncheck as path exclusions (`set_included`). `perf.py` — memory sampler (footprint +
+  lifetime peak via `proc_pid_rusage`, offsets of `rusage_info_v4`), worker models from progress, model sizes.
+  APIs: `tree`, `tree_search`, `tree_preview`, `tree_set`, `extensions`, `extension_suggestions`, `perf`, `preview`
+  (indexed text/code files only).
+- Scanner filters: `walk.Filters` (ignored extensions, photos, audio/video) from `settings.walk_options()`; pass
+  them everywhere `scan_root` / `iter_files` is called. The mass-deletion guard counts only files gone from disk.
 - `watcher.py` (FSEvents via watchdog, debounce), `power.py` (`pmset` parsers), `settings.py` (`config.toml`),
   `notify.py` (osascript), `launchagent.py` (plist via plistlib, `launchctl bootstrap gui/<uid>`).
 - Adding an API method: `def api_<name>(self, **params) -> dict` in `Daemon` + CLI client code + a test in
