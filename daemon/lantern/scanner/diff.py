@@ -73,6 +73,8 @@ def scan_root(
     force: bool = False,
     excludes: list[str] | tuple[str, ...] = (),
     include_images: bool = True,
+    skip_extensions: list[str] | tuple[str, ...] = (),
+    include_media: bool = True,
 ) -> ScanResult:
     root = root.expanduser().resolve()
     if not root_available(root):
@@ -80,7 +82,8 @@ def scan_root(
 
     root_id = db.ensure_root(conn, root)
     report = WalkReport()
-    disk: dict[str, FileEntry] = {str(e.path): e for e in iter_files(root, report, excludes, include_images)}
+    entries = iter_files(root, report, excludes, include_images, skip_extensions, include_media)
+    disk: dict[str, FileEntry] = {str(e.path): e for e in entries}
     indexed = {
         r["path"]: r
         for r in conn.execute("SELECT id, path, size, mtime_ns, content_hash FROM files WHERE root_id = ?", (root_id,))
@@ -92,8 +95,11 @@ def scan_root(
 
     # Not seen on disk, and not merely unreadable or evicted to iCloud: really gone.
     missing = {p: r for p, r in indexed.items() if p not in disk and not report.protects(p)}
-    if not force and len(missing) >= MASS_DELETE_MIN_FILES and len(missing) > MASS_DELETE_FRACTION * len(indexed):
-        raise MassDeletionRefused(len(missing), len(indexed))
+    # The guard is for files that vanished (unmounted disk, wrong root). Files still on the disk were left out on
+    # purpose (an exclusion, a switched-off file type) and may go without force.
+    vanished = sum(1 for p in missing if not os.path.lexists(p))
+    if not force and vanished >= MASS_DELETE_MIN_FILES and vanished > MASS_DELETE_FRACTION * len(indexed):
+        raise MassDeletionRefused(vanished, len(indexed))
 
     result = ScanResult(unreadable=[str(p) for p in report.unreadable], cloud_only=report.cloud_only)
     missing_by_hash: dict[str, list[sqlite3.Row]] = {}
