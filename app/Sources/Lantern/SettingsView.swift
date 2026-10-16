@@ -267,6 +267,7 @@ private struct GeneralPane: View {
     @AppStorage(SearchShortcut.key) private var shortcut = SearchShortcut.optionSpace.rawValue
     @State private var spotlightOn = SpotlightShortcut.isOn
     @State private var addingLanguage = false
+    @AppStorage(WebSearch.key) private var webSearch = WebSearch.google.rawValue
 
     var body: some View {
         SettingsPage {
@@ -296,6 +297,11 @@ private struct GeneralPane: View {
                         Button("Open Keyboard Settings…") { NSWorkspace.shared.open(SpotlightShortcut.keyboardSettings) }
                     }
                     .padding(.vertical, 4)
+                }
+                Picker(selection: $webSearch) {
+                    ForEach(WebSearch.allCases) { Text(verbatim: $0.name).tag($0.rawValue) }
+                } label: {
+                    IconLabel(title: "Search the web with", symbol: "globe", color: .blue)
                 }
                 Picker(selection: $hints) {
                     Text("On the selected result").tag(ShortcutHints.row.rawValue)

@@ -301,3 +301,11 @@
 "Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included." = "W tych językach Lantern czyta nazwy aplikacji i ustawień oraz tekst na obrazach. Języki macOS pochodzą z Ustawień systemowych → Ogólne → Język i region; angielski jest zawsze dołączony.";
 "Search languages" = "Szukaj języków";
 "The %@ shortcut is used by another app." = "Skrót %@ jest używany przez inną aplikację.";
+"Answer" = "Odpowiedź";
+"Shortcuts" = "Skróty";
+"Shortcut" = "Skrót";
+"Dictionary" = "Słownik";
+"Web" = "Internet";
+"copy" = "kopiuj";
+"Search the web with" = "Szukaj w internecie przez";
+"Search the web for “%@”" = "Szukaj w internecie: „%@”";

@@ -69,6 +69,7 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var settingSymbol: String?  // its icon: SF Symbol and enclosure colour, as System Settings draws it
     public var settingColor: String?
     public var settingsAppName: String?  // macOS's own name for System Settings ("Ustawienia systemowe")
+    public var iconPath: String?  // answers, dictionary, shortcuts, web: the icon of the app that handles them
 
     public init(
         path: String, chunkId: Int, startLine: Int? = nil, endLine: Int? = nil, symbol: String? = nil,
@@ -90,6 +91,9 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isPDF: Bool { kind == "pdf" }
     public var isApp: Bool { kind == "app" }
     public var isSetting: Bool { kind == "setting" }
+    public var isAnswer: Bool { kind == "answer" }
+    /// Rows that are not files: nothing to preview, ↩ opens or copies them.
+    public var isAction: Bool { ["app", "setting", "answer", "dictionary", "shortcut", "web"].contains(kind) }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
 }
@@ -131,6 +135,49 @@ public struct SettingResult: Decodable, Equatable, Sendable {
     }
 }
 
+/// An instant answer computed by the daemon: arithmetic, a unit conversion, the time in another city.
+public struct AnswerResult: Decodable, Equatable, Sendable {
+    public var kind: String  // math | unit | time
+    public var title: String
+    public var subtitle: String
+    public var copy: String
+
+    public var asResult: SearchResult {
+        var row = SearchResult(path: "answer:" + copy, chunkId: 0, symbol: title, preview: subtitle, kind: "answer")
+        row.iconPath = kind == "time" ? "/System/Applications/Clock.app" : "/System/Applications/Calculator.app"
+        return row
+    }
+}
+
+/// A dictionary entry for a single word (Dictionary.app's dictionaries).
+public struct WordDefinitionResult: Decodable, Equatable, Sendable {
+    public var word: String
+    public var text: String
+
+    public var asResult: SearchResult {
+        let link = "dict://" + (word.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? word)
+        var row = SearchResult(path: link, chunkId: 0, symbol: word, preview: text, kind: "dictionary")
+        row.iconPath = "/System/Applications/Dictionary.app"
+        return row
+    }
+}
+
+/// One of the user's shortcuts (Shortcuts app); ↩ runs it.
+public struct ShortcutResult: Decodable, Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var match: String
+
+    public var asResult: SearchResult {
+        var parts = URLComponents(string: "shortcuts://run-shortcut")!
+        parts.queryItems = [URLQueryItem(name: "name", value: name)]
+        var row = SearchResult(path: parts.url?.absoluteString ?? "shortcuts://", chunkId: 0, symbol: name,
+                               kind: "shortcut")
+        row.iconPath = "/System/Applications/Shortcuts.app"
+        return row
+    }
+}
+
 /// A code definition from the symbols table: `def add_two(x, y)` in skrypt.py, line 200.
 public struct Definition: Decodable, Equatable, Sendable {
     public var path: String
@@ -166,13 +213,17 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     /// The System Settings app's name in the language of macOS: things from the system keep the system's language,
     /// Lantern's own words follow Lantern's.
     public var settingsAppName: String?
+    public var shortcuts: [ShortcutResult]
+    public var answer: AnswerResult?
+    public var definition: WordDefinitionResult?
+    public var definitionFirst: Bool
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
 
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
-        case settings, settingsFirst, settingsAppName
+        case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst
         case vectorMs, keywordMs
     }
 
@@ -191,6 +242,10 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         settings = try c.decodeIfPresent([SettingResult].self, forKey: .settings) ?? []
         settingsFirst = try c.decodeIfPresent(Bool.self, forKey: .settingsFirst) ?? false
         settingsAppName = try c.decodeIfPresent(String.self, forKey: .settingsAppName)
+        shortcuts = try c.decodeIfPresent([ShortcutResult].self, forKey: .shortcuts) ?? []
+        answer = try c.decodeIfPresent(AnswerResult.self, forKey: .answer)
+        definition = try c.decodeIfPresent(WordDefinitionResult.self, forKey: .definition)
+        definitionFirst = try c.decodeIfPresent(Bool.self, forKey: .definitionFirst) ?? false
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -206,15 +261,20 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let settings = ResultSection(kind: .settings, results: settings.map { $0.asResult(appName: settingsAppName) })
         let rest = [definitions] + (photosFirst ? [photos, files] : [files, photos])
         // Apps and settings matched by name are the top hits (like Spotlight); found only by meaning, they come last.
-        let first = (appsFirst ? [apps] : []) + (settingsFirst ? [settings] : [])
-        let last = (settingsFirst ? [] : [settings]) + (appsFirst ? [] : [apps])
+        let answerSection = ResultSection(kind: .answer, results: answer.map { [$0.asResult] } ?? [])
+        let shortcutSection = ResultSection(kind: .shortcuts, results: shortcuts.map(\.asResult))
+        let dictionary = ResultSection(kind: .dictionary, results: definition.map { [$0.asResult] } ?? [])
+        // Same order as the daemon logs: answer, then name matches, then the rest, then hints.
+        let first = [answerSection] + (appsFirst ? [apps] : []) + [shortcutSection]
+            + (definitionFirst ? [dictionary] : []) + (settingsFirst ? [settings] : [])
+        let last = (settingsFirst ? [] : [settings]) + (appsFirst ? [] : [apps]) + (definitionFirst ? [] : [dictionary])
         return (first + rest + last).filter { !$0.results.isEmpty }
     }
 }
 
 /// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
 public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
-    case apps, settings, code, docs, pdf, photos, media
+    case apps, settings, shortcuts, code, docs, pdf, photos, media
     public var id: String { rawValue }
 }
 
@@ -230,10 +290,17 @@ public enum QueryCompletion {
 }
 
 public struct ResultSection: Equatable, Sendable, Identifiable {
-    public enum Kind: String, Sendable { case apps, settings, definitions, files, photos }
+    public enum Kind: String, Sendable {
+        case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, web
+    }
     public var kind: Kind
     public var results: [SearchResult]
     public var id: Kind { kind }
+
+    public init(kind: Kind, results: [SearchResult]) {
+        self.kind = kind
+        self.results = results
+    }
 }
 
 /// Mirrors `lantern.service.settings.Settings`.

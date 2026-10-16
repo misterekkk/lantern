@@ -420,6 +420,10 @@ class Daemon:
             "apps": [asdict(a) for a in resp.apps], "apps_first": resp.apps_first,
             "settings": [asdict(s) for s in resp.settings], "settings_first": resp.settings_first,
             "settings_app_name": resp.settings_app_name,
+            "shortcuts": [asdict(s) for s in resp.shortcuts],
+            "answer": asdict(resp.answer) if resp.answer else None,
+            "definition": asdict(resp.definition) if resp.definition else None,
+            "definition_first": resp.definition_first,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
@@ -573,6 +577,12 @@ class Daemon:
         if not force and now - self._apps_checked < APPS_CHECK_S:
             return
         self._apps_checked = now
+        shortcuts = apps_mod.scan_shortcuts()  # cheap (~30 ms) and they change often: every check
+        conn = self._conn()
+        try:
+            apps_mod.store_shortcuts(conn, shortcuts)
+        finally:
+            conn.close()
         signature = (apps_mod.folders_signature(), system_settings.signature())
         if not force and signature == self._apps_signature:
             return

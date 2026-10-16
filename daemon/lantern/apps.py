@@ -226,3 +226,29 @@ def store_apps(conn: sqlite3.Connection, apps: list[AppInfo], languages: list[st
         conn.execute("ROLLBACK")
         raise
     return len(todo)
+
+
+def scan_shortcuts() -> list[tuple[str, str]]:
+    """(identifier, name) of the user's shortcuts, from the Shortcuts command line tool (local)."""
+    try:
+        out = subprocess.run(["shortcuts", "list", "--show-identifiers"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    found = []
+    for line in out.stdout.splitlines():
+        line = line.strip()
+        if line.endswith(")") and " (" in line:
+            name, ident = line[:-1].rsplit(" (", 1)
+            found.append((ident, name.replace("\u00a0", " ")))
+    return found
+
+
+def store_shortcuts(conn: sqlite3.Connection, shortcuts: list[tuple[str, str]]) -> None:
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM shortcuts")
+        conn.executemany("INSERT OR REPLACE INTO shortcuts(id, name) VALUES (?, ?)", shortcuts)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise

@@ -24,7 +24,7 @@ public enum Format {
     /// Title shown for a result: file name, plus the moment for audio/video.
     public static func title(_ r: SearchResult) -> String {
         if r.isApp { return r.symbol ?? ((r.path as NSString).lastPathComponent as NSString).deletingPathExtension }
-        if r.isSetting { return r.symbol ?? "" }
+        if r.isSetting || r.isAction { return r.symbol ?? "" }
         let name = (r.path as NSString).lastPathComponent
         if r.isDefinition, let symbol = r.symbol { return "\(symbol)  ·  \(name)" }
         if r.isPDF, let page = r.page { return String(localized: "\(name)  ·  page \(page)") }
@@ -40,6 +40,12 @@ public enum Format {
             let settings = r.settingsAppName ?? String(localized: "System Settings")
             return r.settingPane.map { "\(settings) › \($0)" } ?? settings
         }
+        switch r.kind {
+        case "answer", "web": return r.preview
+        case "dictionary": return String(localized: "Dictionary")
+        case "shortcut": return String(localized: "Shortcut")
+        default: break
+        }
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)
         if r.isDefinition, let line = r.startLine { return String(localized: "\(folder)  —  line \(line)") }
         if r.isPDF, let page = r.page { return String(localized: "\(folder)  —  page \(page)") }
@@ -50,7 +56,7 @@ public enum Format {
     /// Where the match comes from: meaning (text embeddings), image (photo models), words (BM25).
     public static func sources(_ r: SearchResult) -> String {
         if r.isDefinition { return String(localized: "definition") }
-        if r.isApp || r.isSetting { return "" }
+        if r.isApp || r.isSetting || r.isAction { return "" }
         var parts: [String] = []
         if r.vectorRank != nil { parts.append(String(localized: "meaning")) }
         if r.imageRank != nil { parts.append(String(localized: "image")) }

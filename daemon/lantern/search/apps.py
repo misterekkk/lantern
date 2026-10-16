@@ -89,6 +89,25 @@ def name_match(query: str, names: list[str], keywords: list[str]) -> tuple[str, 
     return best
 
 
+@dataclass(frozen=True)
+class ShortcutHit:
+    id: str
+    name: str
+    match: str
+    score: float
+
+
+def shortcut_search(conn: sqlite3.Connection, query: str, limit: int = APP_SECTION_SIZE) -> list[ShortcutHit]:
+    """The user's shortcuts (Shortcuts app) by name, like apps."""
+    hits = []
+    for sid, name in conn.execute("SELECT id, name FROM shortcuts"):
+        m = name_match(query, [name], [])
+        if m:
+            hits.append(ShortcutHit(sid, name, m[0], m[1]))
+    hits.sort(key=lambda h: (-h.score, len(h.name)))
+    return hits[:limit]
+
+
 def app_search(conn: sqlite3.Connection, query: str, embedder=None, limit: int = APP_SECTION_SIZE) -> list[AppHit]:
     rows = conn.execute(
         "SELECT path, name, names, keywords, category, bundle_id, model_id, embedding FROM apps"

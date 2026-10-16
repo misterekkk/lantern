@@ -196,18 +196,20 @@ def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log,
                                         "category": args.only})  # fmt: skip
-        named = ("definitions", "photos", "apps", "settings")
+        named = ("definitions", "photos", "apps", "settings", "shortcuts")
         sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in named}
         sections["files"] = [SimpleNamespace(**r) for r in resp["results"]]
         media = ["photos", "files"] if resp.get("photos_first") else ["files", "photos"]
         names = ["definitions", *media]
-        names = (
-            (["apps"] if resp.get("apps_first") else [])
-            + (["settings"] if resp.get("settings_first") else [])
-            + names
-            + ([] if resp.get("settings_first") else ["settings"])
-            + ([] if resp.get("apps_first") else ["apps"])
-        )
+        sections["answer"] = [SimpleNamespace(**resp["answer"])] if resp.get("answer") else []
+        sections["definition"] = [SimpleNamespace(**resp["definition"])] if resp.get("definition") else []
+        apps_first, settings_first = resp.get("apps_first"), resp.get("settings_first")
+        word_first = resp.get("definition_first")
+        first = ["answer", *(["apps"] if apps_first else []), "shortcuts", *(["definition"] if word_first else []),
+                 *(["settings"] if settings_first else [])]  # fmt: skip
+        last = [*([] if settings_first else ["settings"]), *([] if apps_first else ["apps"]),
+                *([] if word_first else ["definition"])]  # fmt: skip
+        names = first + names + last
         ordered = [(name, sections[name]) for name in names if sections[name]]
         took = sum(resp.get(k, 0) for k in ("vector_ms", "keyword_ms", "image_ms", "symbol_ms"))
         logged = resp["event_id"]
@@ -227,11 +229,21 @@ def cmd_search(args: argparse.Namespace) -> int:
     n = 0
     for name, items in ordered:
         print({"definitions": "Definitions:", "photos": "Photos:", "files": "Files:", "apps": "Applications:",
-               "settings": "System Settings:"}[name])  # fmt: skip
+               "settings": "System Settings:", "shortcuts": "Shortcuts:", "answer": "Answer:",
+               "definition": "Dictionary:"}[name])  # fmt: skip
         for r in items:
             n += 1
             if name == "apps":
                 print(f"  {n:2d}. {r.name}   {r.path}   ({r.match})")
+                continue
+            if name == "answer":
+                print(f"  {n:2d}. {r.title}   ({r.subtitle})")
+                continue
+            if name == "definition":
+                print(f"  {n:2d}. {r.text}")
+                continue
+            if name == "shortcuts":
+                print(f"  {n:2d}. {r.name}   (shortcut, {r.match})")
                 continue
             if name == "settings":
                 where = "" if r.is_pane else f"   ({r.pane})"
@@ -536,7 +548,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-log", action="store_true", help="do not record this search in the local history")
     p.add_argument(
         "--only",
-        choices=["apps", "settings", "code", "docs", "pdf", "photos", "media"],
+        choices=["apps", "settings", "shortcuts", "code", "docs", "pdf", "photos", "media"],
         help="only one kind of result (the panel's filter pills)",
     )
     p.set_defaults(func=cmd_search)

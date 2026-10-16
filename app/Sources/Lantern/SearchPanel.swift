@@ -183,7 +183,7 @@ final class SearchModel: ObservableObject {
                 if let category { params["category"] = category.rawValue }
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
-                sections = resp.sections
+                sections = resp.sections + WebSearch.section(for: q, filtered: category != nil)
                 categories = resp.categories
                 completion = resp.completion
                 eventId = resp.eventId
@@ -248,17 +248,20 @@ final class SearchModel: ObservableObject {
     func act(_ action: OpenAction) {
         guard let hit = selected else { return }
         let url = URL(fileURLWithPath: hit.path)
-        if hit.isApp && (action == .atLocation || action == .fromStart) {  // ↩ launches the app, like Spotlight
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-            recordOpened(hit)
-            SearchPanelController.shared.hide()
-            return
-        }
-        if hit.isApp && action == .preview { return }  // nothing to preview in an app
-        if hit.isSetting {  // the pane in System Settings; ⌘↩ and ⌘Y have nothing to show
-            guard action == .atLocation || action == .fromStart, let link = URL(string: hit.path) else { return }
-            NSWorkspace.shared.open(link)
-            recordOpened(hit)
+        if hit.isAction {  // apps, settings, answers, dictionary, shortcuts, web: nothing to preview or reveal
+            guard action == .atLocation || action == .fromStart else {
+                if action == .reveal && hit.isApp { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                return
+            }
+            if hit.isApp {
+                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+            } else if hit.isAnswer {  // ↩ copies the answer
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
+            } else if let link = URL(string: hit.path) {
+                NSWorkspace.shared.open(link)
+            }
+            if hit.kind != "web" { recordOpened(hit) }
             SearchPanelController.shared.hide()
             return
         }
@@ -350,14 +353,14 @@ private struct RowHint: View {
     let result: SearchResult
     var body: some View {
         HStack(spacing: 10) {
-            if !result.isApp && !result.isSetting {  // nothing to preview
+            if !result.isAction {  // nothing to preview
                 HStack(spacing: 4) {
                     Text("preview").foregroundStyle(.secondary)
                     KeyCap(keys: "⌘Y")
                 }
             }
             HStack(spacing: 4) {
-                Text(result.isMedia ? "play" : "open").foregroundStyle(.secondary)
+                Text(result.isMedia ? "play" : result.isAnswer ? "copy" : "open").foregroundStyle(.secondary)
                 KeyCap(keys: "↩")
             }
         }
@@ -443,8 +446,17 @@ private struct SectionHeader: View {
     let first: Bool
 
     private var label: Text {
-        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications"
-                    : kind == .settings ? "System Settings" : "Files")
+        switch kind {
+        case .answer: Text("Answer")
+        case .apps: Text("Applications")
+        case .shortcuts: Text("Shortcuts")
+        case .settings: Text("System Settings")
+        case .definitions: Text("Definitions")
+        case .photos: Text("Photos")
+        case .files: Text("Files")
+        case .dictionary: Text("Dictionary")
+        case .web: Text("Web")
+        }
     }
 
     var body: some View {
@@ -708,6 +720,10 @@ private struct ResultRow: View {
                 ResultThumbnail(path: result.path, atMs: result.kind == "frame" ? result.startMs : nil, size: 52)
             } else if result.isSetting {
                 SettingIcon(symbol: result.settingSymbol, color: result.settingColor)
+            } else if let iconPath = result.iconPath {  // the app that handles it: Calculator, Dictionary, browser…
+                Image(nsImage: NSWorkspace.shared.icon(forFile: iconPath))
+                    .resizable()
+                    .frame(width: 32, height: 32)
             } else {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: result.path))
                     .resizable()
@@ -732,7 +748,7 @@ private struct ResultRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if !result.preview.isEmpty {
+                if !result.preview.isEmpty && result.kind != "answer" && result.kind != "web" {
                     Text(preview)
                         .font(result.isDefinition ? .system(size: 12, design: .monospaced) : .system(size: 12))
                         .foregroundStyle(.secondary)
@@ -787,6 +803,7 @@ extension ResultCategory {
         switch self {
         case .apps: "square.grid.2x2"
         case .settings: "gearshape"
+        case .shortcuts: "square.3.layers.3d"
         case .code: "chevron.left.forwardslash.chevron.right"
         case .docs: "doc.text"
         case .pdf: "doc.richtext"
@@ -799,6 +816,7 @@ extension ResultCategory {
         switch self {
         case .apps: "Applications"
         case .settings: "System Settings"
+        case .shortcuts: "Shortcuts"
         case .code: "Code"
         case .docs: "Documents"
         case .pdf: "PDFs"
@@ -947,5 +965,51 @@ private struct SettingIcon: View {
                     .foregroundStyle(.white)
             }
             .frame(width: 32, height: 32)
+    }
+}
+
+/// "Search the web" as the last row, like Spotlight's: Lantern only opens the default browser with the chosen engine
+/// (Settings → General); it sends nothing itself.
+enum WebSearch: String, CaseIterable, Identifiable {
+    case google, duckduckgo, bing, ecosia, off
+
+    static let key = "webSearch"
+    static var current: WebSearch {
+        UserDefaults.standard.string(forKey: key).flatMap(WebSearch.init(rawValue:)) ?? .google
+    }
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .google: "Google"
+        case .duckduckgo: "DuckDuckGo"
+        case .bing: "Bing"
+        case .ecosia: "Ecosia"
+        case .off: String(localized: "Off")
+        }
+    }
+
+    func url(_ query: String) -> URL? {
+        let base = switch self {
+        case .google: "https://www.google.com/search"
+        case .duckduckgo: "https://duckduckgo.com/"
+        case .bing: "https://www.bing.com/search"
+        case .ecosia: "https://www.ecosia.org/search"
+        case .off: ""
+        }
+        guard self != .off, var parts = URLComponents(string: base) else { return nil }
+        parts.queryItems = [URLQueryItem(name: "q", value: query)]
+        return parts.url
+    }
+
+    @MainActor static func section(for query: String, filtered: Bool) -> [ResultSection] {
+        let engine = current
+        guard !filtered, let url = engine.url(query) else { return [] }
+        var row = SearchResult(path: url.absoluteString, chunkId: 0,
+                               symbol: String(localized: "Search the web for “\(query)”"), preview: engine.name,
+                               kind: "web")
+        row.iconPath = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.path
+        return [ResultSection(kind: .web, results: [row])]
     }
 }

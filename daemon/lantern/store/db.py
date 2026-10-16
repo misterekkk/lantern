@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -70,6 +70,12 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     document   TEXT NOT NULL,      -- the text the vector was made of
     model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
     embedding  BLOB NOT NULL       -- float32, compared only with query vectors of the same model_id
+)"""
+    ],
+    7: [
+        """CREATE TABLE IF NOT EXISTS shortcuts (
+    id    TEXT PRIMARY KEY,   -- Shortcuts' identifier
+    name  TEXT NOT NULL
 )"""
     ],
 }

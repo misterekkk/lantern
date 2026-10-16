@@ -793,13 +793,14 @@ What Spotlight on macOS 26 offers and where Lantern stands:
 |---|---|
 | Files, documents, PDFs | yes, by meaning and words (beyond Spotlight: code lines, photos by content, moments in recordings) |
 | Applications, System Settings | yes (this section) |
-| Calculator, unit conversion | not yet; possible offline (currency needs the network: excluded) |
-| Dictionary definitions | not yet; possible offline through macOS's dictionaries |
-| Shortcuts / actions (App Intents) | not yet; `shortcuts list` / `run` are local |
+| Calculator, unit conversion, world time | yes, offline (`answers.py`); currency needs exchange rates from the network: only as a future opt-in |
+| Dictionary definitions | yes, offline (DictionaryServices); before files when no file contains the word |
+| Shortcuts / actions (App Intents) | shortcuts yes (`shortcuts list`, run through shortcuts:// links); App Intents not yet |
 | Menu items and windows of apps | not yet; needs Accessibility permission |
 | Clipboard history | not yet; sensitive, would be opt-in |
 | Contacts, events, mail | not planned without a clear privacy design (macOS permissions) |
-| Web, weather, flights, Siri suggestions | no: they need the network |
+| Web search | a last row that opens the default browser with the chosen engine (Lantern sends nothing) |
+| Weather, flights, currency, Siri suggestions | no for now: they need the network; possible later as opt-in settings |
 
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 

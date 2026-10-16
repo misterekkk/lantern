@@ -127,3 +127,9 @@ CREATE TABLE IF NOT EXISTS system_settings (
     model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
     embedding  BLOB NOT NULL       -- float32, compared only with query vectors of the same model_id
 );
+
+-- Shortcuts (the Shortcuts app), listed with `shortcuts list`; run through shortcuts:// links.
+CREATE TABLE IF NOT EXISTS shortcuts (
+    id    TEXT PRIMARY KEY,   -- Shortcuts' identifier
+    name  TEXT NOT NULL
+);

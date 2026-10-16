@@ -10,8 +10,11 @@ import sqlite3
 import time
 from dataclasses import asdict, dataclass, field, replace
 
+from lantern.answers import Answer, instant_answer
+from lantern.dictionary import Definition as WordDefinition
+from lantern.dictionary import define
 from lantern.embedding.base import Embedder
-from lantern.search.apps import AppHit, app_search
+from lantern.search.apps import AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.settings import SettingHit, settings_search
 from lantern.search.suggest import completion
@@ -35,6 +38,7 @@ TYPING_WINDOW_S = 5  # history: a longer query typed within this many seconds re
 CATEGORIES = {
     "apps": {"app"},  # applications (search/apps.py), first like Spotlight's ⌘1
     "settings": {"setting"},  # System Settings panes and settings (search/settings.py)
+    "shortcuts": {"shortcut"},  # the user's shortcuts (Shortcuts app)
     "code": {"code"},
     "docs": {"text"},
     "pdf": {"pdf"},
@@ -106,15 +110,23 @@ class SearchResponse:
     settings: list[SettingHit] = field(default_factory=list)  # System Settings section
     settings_first: bool = False  # matched by name or words: right after apps; meaning-only: last
     settings_app_name: str | None = None  # "Ustawienia systemowe": macOS's own name for the app, in its language
+    shortcuts: list[ShortcutHit] = field(default_factory=list)  # the user's shortcuts, after apps
+    answer: Answer | None = None  # arithmetic, units, world time: always the top line
+    definition: WordDefinition | None = None  # dictionary entry for a single word: near the end
+    definition_first: bool = False  # no file contains the word: the definition is the better answer
 
     def sections(self) -> list[tuple[str, list]]:
         """Non-empty sections in display order: definitions (exact answers) first, then photos/files by confidence."""
         media = [("photos", self.photos), ("files", self.results)]
         order = [("definitions", self.definitions)] + (media if self.photos_first else media[::-1])
-        first = [("apps", self.apps)] if self.apps_first else []
+        first = [("answer", [self.answer] if self.answer else [])]
+        first += [("apps", self.apps)] if self.apps_first else []
+        first += [("shortcuts", self.shortcuts)]
+        first += [("definition", [self.definition])] if self.definition and self.definition_first else []
         first += [("settings", self.settings)] if self.settings_first else []
         last = [] if self.settings_first else [("settings", self.settings)]
         last += [] if self.apps_first else [("apps", self.apps)]
+        last += [("definition", [self.definition])] if self.definition and not self.definition_first else []
         order = [*first, *order, *last]
         return [(name, items) for name, items in order if items]
 
@@ -214,6 +226,11 @@ def _log_item(section: str, item: Result | Definition | AppHit | SettingHit) -> 
     if isinstance(item, AppHit):  # chunk_id 0: an application or a setting, not a passage of a file
         return {"section": section, "path": item.path, "chunk_id": 0, "start_line": None, "kind": "app",
                 "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
+    if isinstance(item, ShortcutHit):
+        return {"section": section, "path": f"shortcut:{item.id}", "chunk_id": 0, "start_line": None,
+                "kind": "shortcut", "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
+    if isinstance(item, Answer | WordDefinition):  # computed on the spot: only the kind is logged
+        return {"section": section, "path": "", "chunk_id": 0, "start_line": None, "kind": section, "start_ms": None}
     if isinstance(item, SettingHit):
         return {"section": section, "path": item.url, "chunk_id": 0, "start_line": None, "kind": "setting",
                 "symbol": item.title, "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
@@ -270,13 +287,16 @@ def search(
     code_like = looks_like_code(query)
     apps = app_search(conn, query, None if code_like else embedder)
     settings = [] if code_like else settings_search(conn, query, embedder)
+    shortcuts = [] if code_like else shortcut_search(conn, query)
+    answer = None if category else instant_answer(query)
+    word_definition = None if category or code_like else define(query)
     present = _categories(vector, keyword, image, definitions)
-    present = (["apps"] if apps else []) + (["settings"] if settings else []) + present
-    if category == "apps":  # only applications, with room for more of them
-        apps, settings = app_search(conn, query, embedder, limit=limit), []
-        vector, keyword, image, definitions = [], [], [], []
-    elif category == "settings":
-        settings, apps = settings_search(conn, query, embedder, limit=limit), []
+    extras = [("apps", apps), ("settings", settings), ("shortcuts", shortcuts)]
+    present = [name for name, found in extras if found] + present
+    if category in ("apps", "settings", "shortcuts"):  # only that kind, with room for more of it
+        apps = app_search(conn, query, embedder, limit=limit) if category == "apps" else []
+        settings = settings_search(conn, query, embedder, limit=limit) if category == "settings" else []
+        shortcuts = shortcut_search(conn, query, limit=limit) if category == "shortcuts" else []
         vector, keyword, image, definitions = [], [], [], []
     elif category in CATEGORIES:  # a filter pill: only that kind, with room for more of it
         kinds = CATEGORIES[category]
@@ -284,7 +304,7 @@ def search(
         keyword = [h for h in keyword if h.kind in kinds]
         image = [h for h in image if h.kind in kinds]
         definitions = definitions if category == "code" else []
-        apps, settings = [], []
+        apps, settings, shortcuts = [], [], []
         limit = limit + limit // 2
     else:
         category = None
@@ -309,6 +329,8 @@ def search(
         apps=apps, apps_first=bool(apps) and apps[0].match != "meaning",
         settings=settings, settings_first=bool(settings) and settings[0].match != "meaning",
         settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,
+        shortcuts=shortcuts, answer=answer, definition=word_definition,
+        definition_first=bool(word_definition) and not any(r.keyword_rank for r in results),
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))
