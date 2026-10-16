@@ -1,4 +1,4 @@
--- Lantern index schema (version 2; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
+-- Lantern index schema (version 3; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
 -- Vector tables are created per embedding model at runtime: vec_chunks_<embedding_models.id> (see store/db.py).
 
 -- Indexed root folders. A root that is unavailable must never trigger a purge.
@@ -58,6 +58,22 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 );
 -- Overwrite deleted tokens in the FTS index instead of leaving them until the next merge.
 INSERT INTO chunks_fts(chunks_fts, rank) VALUES ('secure-delete', 1);
+
+-- Code definitions with their exact line (tree-sitter), for "where is add_two defined" search.
+-- name_key: style-insensitive name (add_two / addTwo -> addtwo). Regular table: rows go with their file (CASCADE).
+CREATE TABLE IF NOT EXISTS symbols (
+    id          INTEGER PRIMARY KEY,
+    file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    name_key    TEXT NOT NULL,
+    kind        TEXT NOT NULL,               -- function | method | class | struct | interface | enum | ...
+    parent      TEXT,                        -- enclosing class/module
+    signature   TEXT NOT NULL,
+    line        INTEGER NOT NULL,
+    end_line    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS symbols_key ON symbols(name_key);
+CREATE INDEX IF NOT EXISTS symbols_file ON symbols(file_id);
 
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY,

@@ -15,5 +15,5 @@ def test_cli_help():
 
 def test_schema_tables(conn):
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert {"roots", "files", "chunks", "embedding_models", "jobs", "search_events", "chunks_fts"} <= tables
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert {"roots", "files", "chunks", "embedding_models", "jobs", "search_events", "chunks_fts", "symbols"} <= tables
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3

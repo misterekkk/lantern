@@ -19,9 +19,11 @@ from pathlib import Path
 import numpy as np
 
 from lantern.chunking import chunk_file
+from lantern.chunking.symbols import extract_symbols
 from lantern.chunking.transcript import group_segments
 from lantern.config import AUDIO_SAMPLE_RATE, MAX_TRANSCRIBE_S
 from lantern.embedding.base import Embedder, ImageEmbedder, document_title, format_document
+from lantern.extractors import language_for
 from lantern.extractors.frames import extract_frames
 from lantern.extractors.image import load_image
 from lantern.extractors.media import decode_all, iter_windows
@@ -39,7 +41,7 @@ IMAGE_BATCH = 8
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
-PIPELINE_VERSIONS = {"text": 2, "code": 2, "audio": 2, "video": 3, "image": 1}
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "audio": 2, "video": 3, "image": 1}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -69,6 +71,7 @@ class _Prepared:
     rel: str
     records: list[db.ChunkRecord]
     texts: list[str]
+    symbols: list = field(default_factory=list)  # code definitions (chunking.symbols.Symbol)
 
 
 def _file_row(conn: sqlite3.Connection, file_id: int) -> sqlite3.Row | None:
@@ -84,7 +87,10 @@ def _rel(row: sqlite3.Row) -> str:
 
 def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
     path, rel = Path(row["path"]), _rel(row)
-    pieces = chunk_file(path, row["kind"], extract_text(path))
+    text = extract_text(path)
+    pieces = chunk_file(path, row["kind"], text)
+    language = language_for(path) if row["kind"] == "code" else None
+    symbols = extract_symbols(text, language) if language else []
     records = [
         db.ChunkRecord(
             ord=i, kind=row["kind"], text=p.text, start_line=p.start_line, end_line=p.end_line, symbol=p.symbol
@@ -92,7 +98,7 @@ def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
         for i, p in enumerate(pieces)
     ]
     texts = [format_document(document_title(rel, r.symbol), r.text) for r in records]
-    return _Prepared(job, row["id"], row["kind"], row["path"], rel, records, texts)
+    return _Prepared(job, row["id"], row["kind"], row["path"], rel, records, texts, symbols)
 
 
 def enqueue_stale(conn: sqlite3.Connection, model_id: int) -> int:
@@ -158,6 +164,8 @@ def run_queue(
                 conn, item.file_id, item.rel, item.records, vectors, model_id, PIPELINE_VERSIONS[item.kind], kinds,
                 extra,
             )  # fmt: skip
+            if item.kind == "code":
+                db.replace_file_symbols(conn, item.file_id, item.symbols)
             if then_transcribe:
                 jobs.enqueue(conn, item.file_id, "transcribe")
             if complete:

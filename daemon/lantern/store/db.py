@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
@@ -20,6 +20,13 @@ _MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE files ADD COLUMN pipeline_version INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE files ADD COLUMN model_id INTEGER",
         "INSERT INTO chunks_fts(chunks_fts, rank) VALUES ('secure-delete', 1)",
+    ],
+    2: [
+        "CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY, "
+        "file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, name TEXT NOT NULL, name_key TEXT NOT NULL, "
+        "kind TEXT NOT NULL, parent TEXT, signature TEXT NOT NULL, line INTEGER NOT NULL, end_line INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS symbols_key ON symbols(name_key)",
+        "CREATE INDEX IF NOT EXISTS symbols_file ON symbols(file_id)",
     ],
 }
 
@@ -159,6 +166,7 @@ def _delete_chunk_rows(conn: sqlite3.Connection, chunk_ids: Sequence[int]) -> No
 def delete_file_chunks(conn: sqlite3.Connection, file_id: int, kinds: Iterable[str] | None = None) -> None:
     """Remove a file's chunks (optionally only some kinds) with their FTS rows and vectors (inside a transaction)."""
     if kinds is None:
+        conn.execute("DELETE FROM symbols WHERE file_id = ?", (file_id,))
         rows = conn.execute("SELECT id FROM chunks WHERE file_id = ?", (file_id,))
     else:
         kinds = list(kinds)
@@ -232,6 +240,18 @@ def replace_file_chunks(
         "UPDATE files SET status = 'indexed', error = NULL, indexed_at = ?, pipeline_version = ?, model_id = ? "
         "WHERE id = ?",
         (now(), pipeline_version, model_id, file_id),
+    )
+
+
+def replace_file_symbols(conn: sqlite3.Connection, file_id: int, symbols: Sequence) -> None:
+    """Replace a code file's symbols (chunking.symbols.Symbol) inside the caller's transaction."""
+    from lantern.chunking.symbols import name_key
+
+    conn.execute("DELETE FROM symbols WHERE file_id = ?", (file_id,))
+    conn.executemany(
+        "INSERT INTO symbols(file_id, name, name_key, kind, parent, signature, line, end_line) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(file_id, s.name, name_key(s.name), s.kind, s.parent, s.signature, s.line, s.end_line) for s in symbols],
     )
 
 
