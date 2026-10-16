@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from lantern.apps import CATEGORY_NAMES
 from lantern.embedding.base import format_query
 from lantern.store import db
 from lantern.textnorm import fold
@@ -112,17 +113,29 @@ def shortcut_search(conn: sqlite3.Connection, query: str, limit: int = APP_SECTI
     return hits[:limit]
 
 
+def category_words(category: str | None, keywords: list[str]) -> set[str]:
+    """Whole words that name the app's kind: its App Store category in English ("music", "audio player") and the
+    keywords, which hold the category as Spotlight names it in the system language ("muzyka")."""
+    if not category:
+        return set()
+    english = CATEGORY_NAMES.get(category, category.replace("-", " ")).split(", ")
+    return {_plain(w) for w in [*english, *keywords] if len(w) >= 3}
+
+
 def app_search(conn: sqlite3.Connection, query: str, embedder=None, limit: int = APP_SECTION_SIZE) -> list[AppHit]:
     rows = conn.execute(
         "SELECT path, name, names, keywords, category, bundle_id, model_id, embedding FROM apps"
     ).fetchall()
     if not rows or not query.strip():
         return []
-    hits = []
+    hits, q = [], _plain(query)
     for r in rows:
-        m = name_match(query, [r["name"], *json.loads(r["names"])], json.loads(r["keywords"]))
+        keywords = json.loads(r["keywords"])
+        m = name_match(query, [r["name"], *json.loads(r["names"])], keywords)
         if m:
             hits.append(AppHit(r["path"], r["name"], r["category"], r["bundle_id"], m[0], m[1]))
+        elif q in category_words(r["category"], keywords):  # "muzyka": Spotify beside the app named Muzyka
+            hits.append(AppHit(r["path"], r["name"], r["category"], r["bundle_id"], "category", 0.5))
     if hits:
         hits.sort(key=lambda h: (-h.score, len(h.name), h.name))
         return hits[:limit]

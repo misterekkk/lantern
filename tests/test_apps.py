@@ -60,6 +60,7 @@ def applications(tmp_path, monkeypatch):
     (folder / "Office").mkdir()
     make_app(folder / "Office", "Word", {"CFBundleName": "Microsoft Word"})
     monkeypatch.setenv("LANTERN_APP_DIRS", str(folder))
+    monkeypatch.setattr(apps_mod, "spotlight_category", lambda app: None)  # no Spotlight metadata in tests
     return folder
 
 
@@ -137,3 +138,16 @@ def test_completion_offers_app_names(conn, applications):
 
     stored(conn, FakeEmbedder())
     assert completion(conn, "calcu") == "calculator"  # typed text kept, the rest of the app's name
+
+
+def test_the_category_finds_apps_beside_the_one_named_like_it(conn, applications, monkeypatch):
+    music = {"LSApplicationCategoryType": "public.app-category.music"}
+    make_app(applications, "Music", {"CFBundleName": "Music", **music}, loctable={"pl": {"CFBundleName": "Muzyka"}})
+    make_app(applications, "Spotify", {"CFBundleName": "Spotify", **music})
+    local = lambda app: "Muzyka" if app.stem in ("Music", "Spotify") else None  # noqa: E731
+    monkeypatch.setattr(apps_mod, "spotlight_category", local)
+    stored(conn, FakeEmbedder())
+    for query in ("muzyka", "music"):
+        names = [h.name for h in app_search(conn, query)]
+        assert names[0] == "Muzyka" and "Spotify" in names, query
+    assert "Discord" not in [h.name for h in app_search(conn, "muzyka")]

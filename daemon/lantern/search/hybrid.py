@@ -59,7 +59,7 @@ FILE_AGREE_RANK = 10  # a file found by every word must also rank this high by m
 FILE_MEANING_STRONG = 0.78  # top text vector score that counts as a clear meaning match (with a clear gap)
 _NAME_SCORES = {"exact": 0.97, "prefix": 0.93, "word": 0.85, "initials": 0.85, "typo": 0.8, "keyword": 0.75,
                 "leading": 0.76, "contains": 0.74,
-                "words": 0.8, "meaning": 0.42, "partial": 0.6}  # fmt: skip
+                "words": 0.8, "meaning": 0.42, "partial": 0.6, "category": 0.6}  # fmt: skip
 
 
 def _ramp(x: float, low: float, high: float) -> float:

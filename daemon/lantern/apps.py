@@ -7,6 +7,7 @@ the App Store category when the developer set one. One text vector per app (Embe
 text index) lets a description ("komunikator") find an app; names are matched as text (search/apps.py).
 """
 
+import ctypes
 import json
 import os
 import plistlib
@@ -147,6 +148,39 @@ def _keywords(value) -> list[str]:
     return []
 
 
+def spotlight_category(app: Path) -> str | None:
+    """The App Store category as Spotlight names it, in the system language ("Muzyka"): MDItem through ctypes."""
+    from lantern.dictionary import _UTF8, _frameworks
+
+    if (fw := _frameworks()) is None:
+        return None
+    cs, cf = fw
+    cs.MDItemCreate.restype, cs.MDItemCreate.argtypes = ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_void_p]
+    cs.MDItemCopyAttribute.restype = ctypes.c_void_p
+    cs.MDItemCopyAttribute.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    cf.CFGetTypeID.restype, cf.CFGetTypeID.argtypes = ctypes.c_ulong, [ctypes.c_void_p]
+    cf.CFStringGetTypeID.restype = ctypes.c_ulong
+    refs = [cf.CFStringCreateWithCString(None, str(app).encode(), _UTF8),
+            cf.CFStringCreateWithCString(None, b"kMDItemAppStoreCategory", _UTF8)]  # fmt: skip
+    try:
+        if not all(refs) or not (item := cs.MDItemCreate(None, refs[0])):
+            return None
+        refs.append(item)
+        if not (value := cs.MDItemCopyAttribute(item, refs[1])):
+            return None
+        refs.append(value)
+        if cf.CFGetTypeID(value) != cf.CFStringGetTypeID():
+            return None
+        buf = ctypes.create_string_buffer(cf.CFStringGetLength(value) * 4 + 1)
+        if not cf.CFStringGetCString(value, buf, len(buf), _UTF8):
+            return None
+        return buf.value.decode().strip() or None
+    finally:
+        for ref in refs:
+            if ref:
+                cf.CFRelease(ref)
+
+
 def read_app(app: Path, languages: list[str]) -> AppInfo | None:
     info = _plist(app / "Contents" / "Info.plist")
     if not info or info.get("LSBackgroundOnly") in (True, "1"):
@@ -165,6 +199,8 @@ def read_app(app: Path, languages: list[str]) -> AppInfo | None:
         category = category.removeprefix("public.app-category.")
     else:
         category = None
+    if category and (local := spotlight_category(app)):
+        keywords.append(local)  # "muzyka" finds Spotify too, not only the app named Muzyka
     name = display or app.stem
     clean = [n.strip() for n in [app.stem, *names] if isinstance(n, str) and n.strip() and n.strip() != name]
     return AppInfo(
