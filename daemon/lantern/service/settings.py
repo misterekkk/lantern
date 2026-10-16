@@ -26,6 +26,8 @@ class Settings:
     exclude: list[str] = field(default_factory=list)
     # File extensions never indexed (normalised: ".csv"). Notebooks and data tables are mostly output and numbers.
     exclude_extensions: list[str] = field(default_factory=lambda: [".ipynb", ".csv", ".tsv"])
+    # Languages added on top of the macOS ones (app names, text in images); codes like "de" or "zh-Hans".
+    extra_languages: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         if self.index_mode not in INDEX_MODES:

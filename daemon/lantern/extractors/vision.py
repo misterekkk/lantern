@@ -18,7 +18,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-LANGUAGES = ["pl-PL", "en-US"]
+LANGUAGES = ["pl-PL", "en-US"]  # until the worker sets the user's preferred languages (use_languages)
+MAX_LANGUAGES = 4  # Vision tries them in order: keep the list short
 MAX_SIDE = 4096
 MIN_CONFIDENCE = 0.5
 GATE_MIN_WORDS = 2
@@ -35,6 +36,37 @@ class Line:
     text: str
     confidence: float
     box: tuple[float, float, float, float]  # x, y (from the bottom), width, height; normalised 0–1
+
+
+def supported_languages() -> list[str]:
+    import Vision
+
+    request = Vision.VNRecognizeTextRequest.alloc().init()
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+    langs, _ = request.supportedRecognitionLanguagesAndReturnError_(None)
+    return [str(x) for x in (langs or [])]
+
+
+def vision_languages(preferred: list[str], supported: list[str]) -> list[str]:
+    """Preferred language codes ("pl", "zh-Hans") -> Vision identifiers ("pl-PL", "zh-Hans"), in order; languages
+    Vision cannot read are left out."""
+    out = []
+    for code in preferred:
+        exact = [s for s in supported if s.lower() == code.lower()]
+        base = [s for s in supported if s.split("-")[0].lower() == code.split("-")[0].lower()]
+        match = (exact or base or [None])[0]
+        if match and match not in out:
+            out.append(match)
+    return out[:MAX_LANGUAGES]
+
+
+def use_languages(preferred: list[str]) -> list[str]:
+    """Called once by the index worker: read text in the user's preferred languages."""
+    global LANGUAGES
+    chosen = vision_languages(preferred, supported_languages())
+    if chosen:
+        LANGUAGES = chosen
+    return LANGUAGES
 
 
 def is_priority(path: Path) -> bool:

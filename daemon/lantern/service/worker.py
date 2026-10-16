@@ -87,6 +87,11 @@ def main() -> int:
             os.setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)
 
     settings = settings_mod.load()
+    if settings.index_image_text:
+        from lantern.extractors import vision
+        from lantern.syslang import preferred_languages
+
+        vision.use_languages(preferred_languages(settings.extra_languages))
     conn = db.connect(config.db_path())
     stats = run_queue(
         conn,
