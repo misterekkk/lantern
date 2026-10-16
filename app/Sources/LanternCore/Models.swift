@@ -254,6 +254,13 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var extraLanguages: [String]?
 }
 
+/// Preferred languages (`api_languages`): the macOS ones, the ones added in Settings, and the list in use.
+public struct LanguageList: Decodable, Equatable, Sendable {
+    public var system: [String]
+    public var extra: [String]
+    public var effective: [String]
+}
+
 /// One folder level of the settings tree (`api_tree`).
 public struct TreeListing: Decodable, Equatable, Sendable {
     public var path: String

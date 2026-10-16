@@ -264,6 +264,9 @@ private struct GeneralPane: View {
     @AppStorage(ShortcutHints.key) private var hints = ShortcutHints.row.rawValue
     @State private var language = AppLanguage.current
     @State private var askRestart = false
+    @AppStorage(SearchShortcut.key) private var shortcut = SearchShortcut.optionSpace.rawValue
+    @State private var spotlightOn = SpotlightShortcut.isOn
+    @State private var addingLanguage = false
 
     var body: some View {
         SettingsPage {
@@ -273,10 +276,26 @@ private struct GeneralPane: View {
                 Toggle(isOn: Binding(get: { state.launchAtLogin }, set: { state.launchAtLogin = $0 })) {
                     IconLabel(title: "Open Lantern at login", symbol: "power", color: .gray)
                 }
-                LabeledContent {
-                    Text("⌥ Space").font(.system(.body, design: .rounded)).foregroundStyle(.secondary)
+                Picker(selection: $shortcut) {
+                    Text(verbatim: SearchShortcut.optionSpace.label).tag(SearchShortcut.optionSpace.rawValue)
+                    Text("\(SearchShortcut.commandSpace.label) (instead of Spotlight)").tag(SearchShortcut.commandSpace.rawValue)
+                    Text(verbatim: SearchShortcut.controlOptionSpace.label).tag(SearchShortcut.controlOptionSpace.rawValue)
                 } label: {
                     IconLabel(title: "Search shortcut", symbol: "keyboard", color: .gray)
+                }
+                .onChange(of: shortcut) { _, _ in state.registerShortcut() }
+                if shortcut == SearchShortcut.commandSpace.rawValue && spotlightOn {
+                    // macOS gives ⌘Space to Spotlight until its shortcut is turned off; Lantern does not change it.
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("⌘ Space still opens Spotlight", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("Turn off Spotlight's shortcut in System Settings → Keyboard → Keyboard Shortcuts… → Spotlight. Lantern takes over ⌘ Space as soon as it is free.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Open Keyboard Settings…") { NSWorkspace.shared.open(SpotlightShortcut.keyboardSettings) }
+                    }
+                    .padding(.vertical, 4)
                 }
                 Picker(selection: $hints) {
                     Text("On the selected result").tag(ShortcutHints.row.rawValue)
@@ -298,6 +317,32 @@ private struct GeneralPane: View {
                 Text("Lantern follows the macOS language unless you choose one here (also in System Settings → General → Language & Region → Applications).")
                     .font(.caption)
             }
+            Section {
+                ForEach(state.languages?.effective ?? [], id: \.self) { code in
+                    HStack {
+                        Text(LanguageName.of(code))
+                        Spacer()
+                        if state.languages?.extra.contains(code) == true {
+                            Button { state.changeLanguage("remove", code) } label: {
+                                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove")
+                        } else if state.languages?.system.contains(code) == true {
+                            Text(verbatim: "macOS").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                HStack {
+                    Spacer()
+                    Button("Add Language…") { addingLanguage = true }
+                }
+            } header: {
+                Text("Preferred Languages")
+            } footer: {
+                Text("Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included.")
+                    .font(.caption)
+            }
             if let s = state.settings {
                 Section {
                     Picker(selection: Binding(get: { s.indexMode }, set: { state.setConfig("index_mode", $0) })) {
@@ -311,6 +356,21 @@ private struct GeneralPane: View {
                 }
             } else {
                 Section { Text(state.connectionError ?? String(localized: "Connecting to the daemon…")).foregroundStyle(.secondary) }
+            }
+        }
+        .task {
+            await state.loadLanguages()
+            while !Task.isCancelled {  // follow changes made in System Settings while this pane is open
+                spotlightOn = SpotlightShortcut.isOn
+                if shortcut == SearchShortcut.commandSpace.rawValue && !spotlightOn && state.shortcutNeedsRetry {
+                    state.registerShortcut()
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+        .sheet(isPresented: $addingLanguage) {
+            LanguagePicker(existing: state.languages?.effective ?? []) { code in
+                state.changeLanguage("add", code)
             }
         }
         .alert("Restart Lantern to change the language?", isPresented: $askRestart) {
@@ -620,5 +680,65 @@ private struct AboutPane: View {
                 }
             }
         }
+    }
+}
+
+/// A language's name in Lantern's own language ("pl" -> "Polish" / "polski").
+enum LanguageName {
+    static func of(_ code: String) -> String {
+        let name = Locale.current.localizedString(forIdentifier: code) ?? code
+        return name.prefix(1).uppercased() + name.dropFirst()
+    }
+}
+
+/// Adds a preferred language, like the + under Preferred Languages in System Settings.
+private struct LanguagePicker: View {
+    let existing: [String]
+    let add: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    /// Languages macOS has a locale for, by their name in Lantern's language.
+    private static let all: [String] = {
+        let codes = Set(Locale.availableIdentifiers.map { Locale(identifier: $0).language.languageCode?.identifier ?? "" })
+        return codes.filter { !$0.isEmpty && Locale.current.localizedString(forLanguageCode: $0) != nil }
+            .sorted { LanguageName.of($0).localizedCompare(LanguageName.of($1)) == .orderedAscending }
+    }()
+
+    private var shown: [String] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return Self.all.filter { code in
+            !existing.contains(code) && (q.isEmpty || LanguageName.of(code).localizedCaseInsensitiveContains(q))
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TextField("", text: $query, prompt: Text("Search languages"))
+                .textFieldStyle(.roundedBorder)
+                .padding(12)
+            List(shown, id: \.self) { code in
+                Button {
+                    add(code)
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(LanguageName.of(code))
+                        Spacer()
+                        Text(Locale(identifier: code).localizedString(forIdentifier: code) ?? "")
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(12)
+        }
+        .frame(width: 380, height: 440)
     }
 }

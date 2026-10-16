@@ -21,14 +21,12 @@ struct LanternApp: App {
 
 /// Starts the daemon, registers ⌥Space, handles notification actions and stops the daemon on quit.
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    private var hotKey: HotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated {
             AppState.shared.start()
-            hotKey = HotKey { Task { @MainActor in SearchPanelController.shared.toggle() } }
-            if hotKey == nil { AppState.shared.lastMessage = String(localized: "The ⌥Space shortcut is used by another app.") }
+            AppState.shared.registerShortcut()
             handleLaunchArguments()
         }
     }

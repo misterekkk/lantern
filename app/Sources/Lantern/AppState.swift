@@ -41,6 +41,23 @@ final class AppState: ObservableObject {
 
     // MARK: - Lifecycle
 
+    private var hotKey: HotKey?
+    @Published private(set) var shortcut = SearchShortcut.current
+
+    /// (Re)registers the search shortcut chosen in Settings → General.
+    func registerShortcut() {
+        hotKey = nil  // unregisters the old one first
+        shortcut = SearchShortcut.current
+        hotKey = HotKey(modifiers: shortcut.carbonModifiers) { Task { @MainActor in SearchPanelController.shared.toggle() } }
+        if hotKey == nil {
+            lastMessage = String(localized: "The \(shortcut.label) shortcut is used by another app.")
+        }
+        shortcutNeedsRetry = shortcut == .commandSpace && SpotlightShortcut.isOn
+    }
+
+    /// ⌘Space chosen while Spotlight still had it: register again once Spotlight lets go.
+    private(set) var shortcutNeedsRetry = false
+
     func start() {
         Task {
             await supervisor.start()
@@ -72,6 +89,18 @@ final class AppState: ObservableObject {
             } else {
                 connectionError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
+        }
+    }
+
+    @Published var languages: LanguageList?
+
+    func loadLanguages() async {
+        languages = try? await client.call("languages", as: LanguageList.self)
+    }
+
+    func changeLanguage(_ action: String, _ code: String) {
+        Task {
+            languages = try? await client.call("languages", ["action": action, "language": code], as: LanguageList.self)
         }
     }
 

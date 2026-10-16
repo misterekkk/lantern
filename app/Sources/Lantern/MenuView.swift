@@ -156,7 +156,7 @@ struct MenuView: View {
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            MenuButton(title: "Search…", systemImage: "magnifyingglass", shortcut: "⌥Space") {
+            MenuButton(title: "Search…", systemImage: "magnifyingglass", shortcut: state.shortcut.label) {
                 MenuBarMenu.close()
                 SearchPanelController.shared.show()
             }

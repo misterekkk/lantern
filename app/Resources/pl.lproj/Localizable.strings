@@ -292,3 +292,12 @@
 "Application" = "Aplikacja";
 "Applications" = "Aplikacje";
 "System Settings" = "Ustawienia systemowe";
+"%@ (instead of Spotlight)" = "%@ (zamiast Spotlight)";
+"⌘ Space still opens Spotlight" = "⌘ Spacja nadal otwiera Spotlight";
+"Turn off Spotlight's shortcut in System Settings → Keyboard → Keyboard Shortcuts… → Spotlight. Lantern takes over ⌘ Space as soon as it is free." = "Wyłącz skrót Spotlight w Ustawieniach systemowych → Klawiatura → Skróty klawiszowe… → Spotlight. Lantern przejmie ⌘ Spację, gdy tylko będzie wolna.";
+"Open Keyboard Settings…" = "Otwórz ustawienia klawiatury…";
+"Preferred Languages" = "Preferowane języki";
+"Add Language…" = "Dodaj język…";
+"Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included." = "W tych językach Lantern czyta nazwy aplikacji i ustawień oraz tekst na obrazach. Języki macOS pochodzą z Ustawień systemowych → Ogólne → Język i region; angielski jest zawsze dołączony.";
+"Search languages" = "Szukaj języków";
+"The %@ shortcut is used by another app." = "Skrót %@ jest używany przez inną aplikację.";
