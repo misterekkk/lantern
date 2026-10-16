@@ -110,11 +110,15 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     public var photos: [SearchResult]
     public var photosFirst: Bool
     public var definitions: [Definition]
+    public var categories: [ResultCategory]
+    public var category: ResultCategory?
+    public var completion: String?
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
 
-    enum CodingKeys: String, CodingKey { case results, photos, photosFirst, definitions, eventId, vectorMs, keywordMs }
+    enum CodingKeys: String, CodingKey { case results, photos, photosFirst, definitions, categories, category, completion, eventId, vectorMs, keywordMs
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -122,6 +126,10 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         photos = try c.decodeIfPresent([SearchResult].self, forKey: .photos) ?? []  // daemons before Phase 7
         photosFirst = try c.decodeIfPresent(Bool.self, forKey: .photosFirst) ?? false
         definitions = try c.decodeIfPresent([Definition].self, forKey: .definitions) ?? []  // before Phase 8
+        let names = try c.decodeIfPresent([String].self, forKey: .categories) ?? []
+        categories = names.compactMap(ResultCategory.init(rawValue:))  // unknown future categories are ignored
+        category = try c.decodeIfPresent(String.self, forKey: .category).flatMap(ResultCategory.init(rawValue:))
+        completion = try c.decodeIfPresent(String.self, forKey: .completion)
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -134,6 +142,23 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let files = ResultSection(kind: .files, results: results)
         let photos = ResultSection(kind: .photos, results: photos)
         return ([definitions] + (photosFirst ? [photos, files] : [files, photos])).filter { !$0.results.isEmpty }
+    }
+}
+
+/// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
+public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
+    case code, docs, pdf, photos, media
+    public var id: String { rawValue }
+}
+
+/// The inline completion shown after the typed text (accepted with →).
+public enum QueryCompletion {
+    /// The part to show after `query`, if `completion` still extends what is typed now (responses can be stale).
+    public static func remainder(query: String, completion: String?) -> String? {
+        guard let completion, completion.count > query.count,
+              completion.lowercased().hasPrefix(query.lowercased()), !query.isEmpty
+        else { return nil }
+        return String(completion.dropFirst(query.count))
     }
 }
 

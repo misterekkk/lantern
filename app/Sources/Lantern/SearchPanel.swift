@@ -116,6 +116,19 @@ final class SearchModel: ObservableObject {
     @Published var appearToken = 0
     /// Quick look shown in place of the results (⌘Y); Esc returns to the list.
     @Published var preview: PreviewContent?
+    /// Filter pills: categories with matches for this query, and the chosen one (nil = all).
+    @Published private(set) var categories: [ResultCategory] = []
+    @Published var category: ResultCategory? { didSet { if category != oldValue { search() } } }
+    /// Inline completion from the daemon (earlier queries, definitions, file names); → accepts it.
+    @Published private(set) var completion: String?
+    var completionRemainder: String? { QueryCompletion.remainder(query: query, completion: completion) }
+    /// Pills to show: the categories with matches, plus the chosen one even if it has none now.
+    var pillCategories: [ResultCategory] {
+        var list = categories
+        if let category, !list.contains(category) { list.append(category) }
+        return ResultCategory.allCases.filter(list.contains)
+    }
+    var showsPills: Bool { !query.isEmpty && (pillCategories.count > 1 || category != nil) }
     private var eventId: Int?
     private var pending: Task<Void, Never>?
 
@@ -133,16 +146,22 @@ final class SearchModel: ObservableObject {
         guard !q.isEmpty else {
             sections = []
             message = nil
+            categories = []
+            completion = nil
+            if category != nil { category = nil }
             return
         }
         searching = true
         Task {
             defer { searching = false }
             do {
-                let resp = try await AppState.shared.client.call(
-                    "search", ["query": q, "limit": 8], as: SearchResponse.self, timeout: 10)
+                var params: [String: Any] = ["query": q, "limit": 8]
+                if let category { params["category"] = category.rawValue }
+                let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
                 sections = resp.sections
+                categories = resp.categories
+                completion = resp.completion
                 eventId = resp.eventId
                 selection = 0
                 preview = nil
@@ -152,6 +171,27 @@ final class SearchModel: ObservableObject {
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
         }
+    }
+
+    /// → at the end of the field: take the suggested ending.
+    func acceptCompletion() -> Bool {
+        guard completionRemainder != nil, let completion else { return false }
+        query = completion
+        focusToken += 1  // puts the caret at the end of the accepted text
+        return true
+    }
+
+    /// Tab / ⇧Tab: next or previous filter pill ("All" first).
+    func cycleCategory(_ delta: Int) {
+        let options: [ResultCategory?] = [nil] + pillCategories
+        let current = options.firstIndex(of: category) ?? 0
+        category = options[(current + delta + options.count) % options.count]
+    }
+
+    /// ⌘1 = All, ⌘2… = the pills in order.
+    func selectCategory(number: Int) {
+        let options: [ResultCategory?] = [nil] + pillCategories
+        if options.indices.contains(number - 1) { category = options[number - 1] }
     }
 
     func move(_ delta: Int) {
@@ -231,6 +271,113 @@ final class SearchModel: ObservableObject {
     }
 }
 
+enum ShortcutHints: String, CaseIterable {
+    case row, bar, off
+    static let key = "shortcutHints"
+}
+
+/// Keycap in Spotlight's style: a soft capsule with the key's symbol.
+private struct KeyCap: View {
+    let keys: String
+    var body: some View {
+        Text(keys)
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.primary.opacity(0.1)))
+    }
+}
+
+/// The two actions of the selected result: label in grey, key in a capsule.
+private struct RowHint: View {
+    let result: SearchResult
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                Text("preview").foregroundStyle(.secondary)
+                KeyCap(keys: "⌘Y")
+            }
+            HStack(spacing: 4) {
+                Text(result.isMedia ? "play" : "open").foregroundStyle(.secondary)
+                KeyCap(keys: "↩")
+            }
+        }
+        .font(.system(size: 11))
+        .transition(.opacity)
+    }
+}
+
+/// Filter pills under the field: All + the kinds of results that match.
+private struct ScopeBar: View {
+    @ObservedObject var model: SearchModel
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                pill(nil)
+                ForEach(model.pillCategories) { pill($0) }
+            }
+            .padding(.horizontal, 20)
+        }
+        .padding(.bottom, 10)
+    }
+
+    private func pill(_ category: ResultCategory?) -> some View {
+        let selected = model.category == category
+        return Button { model.category = category } label: {
+            Text(title(category))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary.opacity(0.08))))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func title(_ category: ResultCategory?) -> LocalizedStringKey {
+        switch category {
+        case nil: "All"
+        case .code: "Code"
+        case .docs: "Documents"
+        case .pdf: "PDFs"
+        case .photos: "Photos"
+        case .media: "Recordings and videos"
+        }
+    }
+}
+
+/// Optional bar of shortcuts at the bottom (Settings → General); aligned with the result text, hairline above.
+private struct ShortcutBar: View {
+    let previewing: Bool
+    let pills: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider().opacity(0.5)
+            HStack(spacing: 16) {
+                item("↩", "open here")
+                item("⌥↩", "from the start")
+                item("⌘Y", previewing ? "back" : "preview")
+                if pills { item("⇥", "filter") }
+                item("⌘↩", "Finder")
+                Spacer()
+                item("esc", previewing ? "back" : "close")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 9)
+        }
+    }
+
+    private func item(_ keys: String, _ label: LocalizedStringKey) -> some View {
+        HStack(spacing: 5) {
+            KeyCap(keys: keys)
+            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Sections with each result's index in the flat display order (the selection index).
 private func numbered(_ sections: [ResultSection]) -> [(section: ResultSection, rows: [(index: Int, result: SearchResult)])] {
     var next = 0
@@ -261,6 +408,8 @@ private struct SectionHeader: View {
 struct SearchView: View {
     @ObservedObject var model: SearchModel
     let close: () -> Void
+    /// Keyboard shortcut hints: "row" (on the selected result, like Spotlight), "bar" (a bar at the bottom) or "off".
+    @AppStorage(ShortcutHints.key) private var hints = ShortcutHints.row.rawValue
     @FocusState private var focused: Bool
     @State private var shown = false
     @Namespace private var selectionSpace
@@ -278,6 +427,11 @@ struct SearchView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
+
+            if model.showsPills && model.preview == nil {
+                ScopeBar(model: model)
+                    .transition(.opacity)
+            }
 
             if !model.results.isEmpty || model.message != nil {
                 Divider().opacity(0.5)
@@ -299,7 +453,8 @@ struct SearchView: View {
                                     SectionHeader(kind: group.section.kind, first: i == 0)
                                 }
                                 ForEach(group.rows, id: \.result.id) { index, result in
-                                    ResultRow(result: result, selected: index == model.selection, space: selectionSpace)
+                                    ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
+                                              showsHint: hints == ShortcutHints.row.rawValue)
                                         .id(index)
                                         .transition(.opacity)
                                         .onTapGesture(count: 2) {
@@ -325,17 +480,9 @@ struct SearchView: View {
                     .animation(.smooth(duration: 0.22), value: model.results.map(\.id))
                 }
                 }
-                Divider().opacity(0.5)
-                HStack(spacing: 14) {
-                    Hint(keys: "↩", label: "open here")
-                    Hint(keys: "⌥↩", label: "from the start")
-                    Hint(keys: "⌘Y", label: model.preview == nil ? "preview" : "back")
-                    Hint(keys: "⌘↩", label: "Finder")
-                    Spacer()
-                    Hint(keys: "esc", label: model.preview == nil ? "close" : "back")
+                if hints == ShortcutHints.bar.rawValue {
+                    ShortcutBar(previewing: model.preview != nil, pills: model.showsPills)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
             }
         }
         .frame(width: 720)
@@ -361,6 +508,23 @@ struct SearchView: View {
             model.act(.preview)
             return .handled
         }
+        // Filter pills, like Tab narrowing the scope in Spotlight. ⇧Tab arrives as the "backtab" character (U+0019).
+        .onKeyPress(keys: [.tab, KeyEquivalent("\u{19}")], phases: .down) { press in
+            guard model.showsPills, model.preview == nil else { return .ignored }
+            let back = press.key == KeyEquivalent("\u{19}") || press.modifiers.contains(.shift)
+            model.cycleCategory(back ? -1 : 1)
+            return .handled
+        }
+        .onKeyPress(keys: ["1", "2", "3", "4", "5", "6"], phases: .down) { press in
+            guard press.modifiers.contains(.command), model.showsPills, let n = Int(String(press.characters)) else {
+                return .ignored
+            }
+            model.selectCategory(number: n)
+            return .handled
+        }
+        .onKeyPress(.rightArrow, phases: .down) { _ in model.acceptCompletion() ? .handled : .ignored }
+        .animation(.snappy(duration: 0.18), value: model.showsPills)
+        .animation(.snappy(duration: 0.18), value: model.category)
         .animation(.snappy(duration: 0.2), value: model.preview)
         .onChange(of: model.focusToken) { _, _ in focused = true }
         .onAppear { focused = true }
@@ -375,10 +539,22 @@ private struct QueryField: View {
     private let prompt: LocalizedStringKey = "Search Lantern — by meaning, in code, recordings…"
 
     var body: some View {
-        if #available(macOS 15.0, *) {
-            SelectionAwareField(model: model, focused: focused, prompt: prompt)
-        } else {
-            TextField(prompt, text: $model.query).modifier(QueryStyle(model: model, focused: focused))
+        ZStack(alignment: .leading) {
+            // The suggested ending in grey right after the typed text (→ accepts it), like Spotlight's completion.
+            if let rest = model.completionRemainder {
+                HStack(spacing: 0) {
+                    Text(model.query).opacity(0)
+                    Text(rest).foregroundStyle(.tertiary)
+                }
+                .font(.system(size: 24, weight: .regular))
+                .lineLimit(1)
+                .allowsHitTesting(false)
+            }
+            if #available(macOS 15.0, *) {
+                SelectionAwareField(model: model, focused: focused, prompt: prompt)
+            } else {
+                TextField(prompt, text: $model.query).modifier(QueryStyle(model: model, focused: focused))
+            }
         }
     }
 }
@@ -421,6 +597,7 @@ private struct ResultRow: View {
     let result: SearchResult
     let selected: Bool
     let space: Namespace.ID
+    var showsHint = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -437,9 +614,13 @@ private struct ResultRow: View {
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 8)
-                    Text(Format.sources(result))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                    if selected && showsHint {  // what ↩ and ⌘Y do with this result, like Spotlight's "tab" chip
+                        RowHint(result: result)
+                    } else {
+                        Text(Format.sources(result))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 Text(Format.subtitle(result))
                     .font(.system(size: 11))
@@ -458,29 +639,13 @@ private struct ResultRow: View {
         .padding(.vertical, 8)
         .background {
             if selected {  // one highlight that slides between rows
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                // concentric with the panel: panel radius (26) minus the list inset (8)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.accentColor.opacity(0.22))
                     .matchedGeometryEffect(id: "selection", in: space)
             }
         }
         .contentShape(Rectangle())
-    }
-}
-
-private struct Hint: View {
-    let keys: String
-    let label: LocalizedStringKey
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(keys)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4).fill(.quaternary))
-            Text(label).font(.system(size: 11))
-        }
-        .foregroundStyle(.secondary)
     }
 }
 

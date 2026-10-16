@@ -670,6 +670,30 @@ Results:
 - Cost: indexing the 75 images took 32 s instead of 25 s; a text PDF page ~14 ms, a scanned page ~130 ms.
 - No regressions: the 12 mixed queries keep the right section first; code definitions unchanged (12/12).
 
+## Panel: filter pills, completion and shortcut hints (2026-10-16)
+
+Reference: the real Spotlight on macOS 26 (opened on this Mac): a pill bar under the field (sources of the results:
+apps such as IDLE or Numbers, or categories such as Applications, Menu Items), inline completion of the top hit's name
+("term" → "terminal — Open"), Tab on the top hit scopes the search to that app, and a contextual chip on the selected
+row ("Search (Terminal) · tab"); no shortcut bar at the bottom.
+
+Decisions:
+- **Filter pills by kind of result** instead of apps: All, Code, Documents, PDFs, Photos, Recordings and videos, in a
+  fixed order (stable ⌘1…⌘6), only for kinds with matches; the daemon filters (`category`) so a pill shows more of
+  that kind, not a subset of 8. Tab / ⇧Tab cycle the pills (Spotlight's Tab also narrows the scope).
+- **Inline completion only from what exists or what the user said:** earlier queries that led to an opened result,
+  then definitions and file names; never invented sentences (semantic search does not need them). → accepts it.
+- **History of search-as-you-type:** a query that extends the previous one within 5 s, with nothing opened, replaces
+  it ("postgres", not "po", "pos", "post"…); cleaner suggestions and cleaner reranker data.
+- **Shortcut hints on the selected row by default, the bottom bar optional (off by default).** Spotlight, Alfred and
+  Apple's own panels show no shortcut bar; Spotlight shows the relevant key on the selected row. A permanent bar costs
+  a row of space for something learnt in a day, while row hints teach the two keys that matter (↩, ⌘Y) exactly where
+  they apply. Settings → General → Shortcut hints: on the selected result / bar at the bottom / hidden.
+- **Edges:** pills and the bar start at the same 20 pt inset as the result text; the selection is concentric with the
+  panel (radius 26 − inset 8 = 18), as macOS 26 draws nested shapes; keycaps are small capsules like Spotlight's.
+- Verified with key events sent only to Lantern (`CGEvent.postToPid`): → accepts and moves the caret to the end,
+  Tab / ⇧Tab move between pills (⇧Tab arrives as U+0019 and first selected the field's text — fixed).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -782,3 +806,5 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 30. PDF page jumps in viewers other than Preview (Skim, Acrobat) to verify; Preview cannot open a page.
 31. OCR on real libraries (phone photos of documents: perspective, blur) and on large screenshot folders; tuning the
     gate (two words of 3+ letters) if it lets through noise such as shirt numbers or shop signs.
+32. Scoping with Tab to a folder (Spotlight's "search in app" equivalent), e.g. Tab on a result from ~/Studia/Projekt
+    searches only there.

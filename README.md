@@ -109,6 +109,13 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 - **⌥Space** opens the search panel. Results come in sections like in Spotlight: **Definitions** (functions and
   classes, with file, line and signature), **Photos** (with thumbnails) and **Files**. Recordings and videos show the
   moment of the match, e.g. `vlog.mp4 · 1:48`.
+- **Filter pills** under the query field, like Spotlight's: All, Code, Documents, PDFs, Photos, Recordings and
+  videos — only the kinds that match appear. Tab / ⇧Tab move between them, ⌘1…⌘6 pick one, a click works too.
+- **Inline completion:** while you type, the rest of a likely query appears in grey; → accepts it. Suggestions come
+  from your earlier searches that led to an opened result, then from function and file names in the index (never
+  from the internet, never invented sentences).
+- **Shortcut hints:** by default the selected result shows what ↩ and ⌘Y do with it (as Spotlight does); Settings →
+  General → Shortcut hints switches to a bar at the bottom or hides them.
 - **Shortcuts in the panel** (double-click = ↩, ⌥ + double-click = ⌥↩):
 
   | Key | Code and text | Recordings and videos |
@@ -118,6 +125,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   | ⌘Y | preview in the panel: the passage highlighted, with context | preview in the panel from the moment |
   | ⌘↩ | show in Finder | show in Finder |
   | ↑↓ / Esc | select / close (from a preview: back to the list) | |
+  | Tab / ⇧Tab, ⌘1…⌘6 | next / previous filter pill, pick a pill | |
+  | → | accept the grey completion | |
 
   - PDFs open in their default app (Preview cannot be told to open a page); ⌘Y shows the matching page in Lantern
     with the passage highlighted.

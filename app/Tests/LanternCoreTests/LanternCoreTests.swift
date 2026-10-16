@@ -166,6 +166,23 @@ import Testing
         #expect(Format.count(12_345, locale: pl) == "12,3\u{00A0}tys." && Format.count(100_000_000, locale: pl) == "100\u{00A0}mln")
     }
 
+    @Test func filterCategoriesAndCompletionDecode() throws {
+        let json = """
+        {"results": [], "photos": [], "event_id": null, "vector_ms": 1, "keyword_ms": 1,
+         "categories": ["code", "pdf", "future"], "category": "pdf", "completion": "backoff_wrapper"}
+        """
+        let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        #expect(resp.categories == [.code, .pdf] && resp.category == .pdf && resp.completion == "backoff_wrapper")
+    }
+
+    @Test func completionRemainderFollowsWhatIsTyped() {
+        #expect(QueryCompletion.remainder(query: "backoff_w", completion: "backoff_wrapper") == "rapper")
+        #expect(QueryCompletion.remainder(query: "BACKOFF_W", completion: "BACKOFF_Wrapper") == "rapper")
+        #expect(QueryCompletion.remainder(query: "backoff_x", completion: "backoff_wrapper") == nil)  // stale
+        #expect(QueryCompletion.remainder(query: "backoff_wrapper", completion: "backoff_wrapper") == nil)
+        #expect(QueryCompletion.remainder(query: "", completion: "x") == nil)
+    }
+
     @Test func shortPath() {
         #expect(Format.shortPath("/Users/x/Dokumenty/a.md", home: "/Users/x") == "~/Dokumenty/a.md")
         #expect(Format.shortPath("/Volumes/Dysk/a.md", home: "/Users/x") == "/Volumes/Dysk/a.md")

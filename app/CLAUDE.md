@@ -24,6 +24,11 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   `FolderTree` and toolbar search, `PatternsPage`), Battery and Heat, Performance (`PerformanceView`, Swift Charts,
   polls `perf` every second while visible), Privacy, About. The window needs `sceneBridgingOptions = [.title, .toolbars]`. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
   string-literal `Text` (Markdown).
+- Panel extras: filter pills (`ScopeBar`, `ResultCategory`; the daemon returns `categories` and filters with
+  `category`), inline completion (`completion` from `search/suggest.py`, shown behind the field, → accepts), shortcut
+  hints (`@AppStorage("shortcutHints")`: row / bar / off). Test keys with `CGEvent.postToPid` (sends only to Lantern),
+  never System Events (it types into the frontmost app). ⇧Tab arrives as U+0019. Corners are concentric: selection
+  radius = panel radius 26 − list inset 8.
 - Panel shortcuts go through `SearchModel.act(OpenAction)`: ↩ at location, ⌥↩ from start, ⌘Y preview inside the
   panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder. Recordings: `MediaOpener` runs
   osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs

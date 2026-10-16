@@ -337,11 +337,12 @@ class Daemon:
         self.query_embedder_used = time.monotonic()
         return self.query_embedder
 
-    def _search(self, query: str, limit: int, log: bool, lang: str):
+    def _search(self, query: str, limit: int, log: bool, lang: str, category: str | None = None):
         conn = self._conn()
         try:
             self._refresh_has_images(conn)
-            return search(conn, self.embedder, query, limit, log=log, lang=lang, query_embedder=self._photo_model())
+            return search(conn, self.embedder, query, limit, log=log, lang=lang, query_embedder=self._photo_model(),
+                          category=category)  # fmt: skip
         finally:
             conn.close()
 
@@ -358,15 +359,18 @@ class Daemon:
 
         return {"photo_model": self.model_thread.submit(warm).result()}
 
-    def api_search(self, query: str, limit: int = 10, log: bool = True, lang: str | None = None) -> dict:
+    def api_search(
+        self, query: str, limit: int = 10, log: bool = True, lang: str | None = None, category: str | None = None
+    ) -> dict:
         from lantern.syslang import system_language
 
-        resp = self.model_thread.submit(self._search, query, limit, log, lang or system_language()).result()
+        resp = self.model_thread.submit(self._search, query, limit, log, lang or system_language(), category).result()
         return {
             "results": [asdict(r) for r in resp.results], "event_id": resp.event_id,
             "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms, "image_ms": resp.image_ms,
             "photos": [asdict(r) for r in resp.photos], "photos_first": resp.photos_first,
             "definitions": [asdict(d) for d in resp.definitions], "symbol_ms": resp.symbol_ms,
+            "categories": resp.categories, "category": resp.category, "completion": resp.completion,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:

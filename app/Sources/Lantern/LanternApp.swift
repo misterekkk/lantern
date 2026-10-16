@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             SearchPanelController.shared.show(query: query)
+            if let name = value(after: "--category") {  // a filter pill chosen (development screenshots)
+                SearchPanelController.shared.model.category = ResultCategory(rawValue: name)
+            }
             if args.contains("--preview") {  // quick look of the first result (development screenshots)
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 SearchPanelController.shared.model.act(.preview)

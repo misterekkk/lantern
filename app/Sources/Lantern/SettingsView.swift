@@ -251,6 +251,7 @@ private struct StatusRow: View {
 
 private struct GeneralPane: View {
     @EnvironmentObject var state: AppState
+    @AppStorage(ShortcutHints.key) private var hints = ShortcutHints.row.rawValue
     @State private var language = AppLanguage.current
     @State private var askRestart = false
 
@@ -266,6 +267,13 @@ private struct GeneralPane: View {
                     Text("⌥ Space").font(.system(.body, design: .rounded)).foregroundStyle(.secondary)
                 } label: {
                     IconLabel(title: "Search shortcut", symbol: "keyboard", color: .gray)
+                }
+                Picker(selection: $hints) {
+                    Text("On the selected result").tag(ShortcutHints.row.rawValue)
+                    Text("Bar at the bottom").tag(ShortcutHints.bar.rawValue)
+                    Text("Hidden").tag(ShortcutHints.off.rawValue)
+                } label: {
+                    IconLabel(title: "Shortcut hints in the panel", symbol: "command", color: .gray)
                 }
                 Picker(selection: $language) {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
