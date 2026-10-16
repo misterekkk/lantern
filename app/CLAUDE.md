@@ -26,7 +26,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   string-literal `Text` (Markdown).
 - Panel extras: filter pills (`ScopeBar`, `ResultCategory`; the daemon returns `categories` and filters with
   `category`), inline completion (`completion` from `search/suggest.py`, shown behind the field, → accepts), shortcut
-  hints (`@AppStorage("shortcutHints")`: row / bar / off). Test keys with `CGEvent.postToPid` (sends only to Lantern),
+  hints (`@AppStorage("shortcutHints")`: row / bar / off), matched query words in bold in each result
+  (LanternCore `QueryHighlight` + `TextFold`, unit-tested; the demo site has a JS port). Test keys with `CGEvent.postToPid` (sends only to Lantern),
   never System Events (it types into the frontmost app). ⇧Tab arrives as U+0019. Corners are concentric: selection
   radius = panel radius 26 − list inset 8.
 - Panel shortcuts go through `SearchModel.act(OpenAction)`: ↩ at location, ⌥↩ from start, ⌘Y preview inside the

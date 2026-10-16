@@ -454,7 +454,7 @@ struct SearchView: View {
                                 }
                                 ForEach(group.rows, id: \.result.id) { index, result in
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
-                                              showsHint: hints == ShortcutHints.row.rawValue)
+                                              query: model.query, showsHint: hints == ShortcutHints.row.rawValue)
                                         .id(index)
                                         .transition(.opacity)
                                         .onTapGesture(count: 2) {
@@ -597,7 +597,19 @@ private struct ResultRow: View {
     let result: SearchResult
     let selected: Bool
     let space: Namespace.ID
+    var query = ""
     var showsHint = false
+
+    /// The passage with the words that match the query in bold (`QueryHighlight`), like Spotlight marks matches.
+    private var preview: AttributedString {
+        var text = AttributedString(result.preview)
+        for match in QueryHighlight.ranges(query: query, in: result.preview) {
+            guard let range = Range(match, in: text) else { continue }
+            text[range].inlinePresentationIntent = .stronglyEmphasized
+            text[range].foregroundColor = .primary
+        }
+        return text
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -628,7 +640,7 @@ private struct ResultRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if !result.preview.isEmpty {
-                    Text(result.preview)
+                    Text(preview)
                         .font(result.isDefinition ? .system(size: 12, design: .monospaced) : .system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

@@ -691,6 +691,9 @@ Decisions:
   they apply. Settings → General → Shortcut hints: on the selected result / bar at the bottom / hidden.
 - **Edges:** pills and the bar start at the same 20 pt inset as the result text; the selection is concentric with the
   panel (radius 26 − inset 8 = 18), as macOS 26 draws nested shapes; keycaps are small capsules like Spotlight's.
+- **Matched words in bold** in each result's passage (Spotlight marks matches the same way): query words of 3+
+  characters, by word start and folded (`QueryHighlight`), so the reason for a keyword match is visible; a result
+  found only by meaning shows no bold words, which is honest too.
 - Verified with key events sent only to Lantern (`CGEvent.postToPid`): → accepts and moves the caret to the end,
   Tab / ⇧Tab move between pills (⇧Tab arrives as U+0019 and first selected the field's text — fixed).
 

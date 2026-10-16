@@ -202,3 +202,16 @@ import Testing
         #expect(TextFold.ranges(of: "nic", in: text).isEmpty)
     }
 }
+
+@Suite struct QueryHighlightTests {
+    private func marked(_ query: String, _ text: String) -> [String] {
+        QueryHighlight.ranges(query: query, in: text).map { (text as NSString).substring(with: $0) }
+    }
+
+    @Test func marksWholeWordsByTheirStartFolded() {
+        #expect(marked("dog on the beach", "Took Rex to the beach; the dog loved beaches") == ["beach", "dog", "beaches"])
+        #expect(marked("faktura za prąd lodz", "Fakturę za prąd z Łodzi opłacono") == ["Fakturę", "prąd", "Łodzi"])
+        #expect(marked("error 0x80070002", "Error code: 0x80070002") == ["Error", "0x80070002"])
+        #expect(marked("cat", "concatenate") == [])  // only word starts
+    }
+}
