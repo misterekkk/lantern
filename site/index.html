@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lantern — search your Mac by meaning</title>
+  <meta name="description" content="Lantern is a local, offline Mac app that finds files, code, photos and moments in recordings by meaning. Try it in your browser.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="assets/lantern.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!--
+    An interactive walkthrough of Lantern that looks like a Mac desktop. Everything is drawn here (own wallpaper and
+    SVG icons, the visitor's system font): no Apple assets, no analytics, no third-party requests.
+  -->
+  <main class="stage" id="stage">
+    <div class="desktop" id="desktop" aria-label="A simulated Mac desktop">
+      <div class="wallpaper" aria-hidden="true"></div>
+
+      <header class="menubar" id="menubar">
+        <div class="menubar-left">
+          <span class="menubar-logo" aria-hidden="true"></span>
+          <strong>Finder</strong><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+        </div>
+        <div class="menubar-right">
+          <button class="menubar-item lantern-item" id="lanternItem" aria-label="Lantern menu" aria-haspopup="true" aria-expanded="false"></button>
+          <span class="menubar-item" data-icon="battery" aria-hidden="true"></span>
+          <span class="menubar-item" data-icon="wifi" aria-hidden="true"></span>
+          <span class="menubar-item" data-icon="search" aria-hidden="true"></span>
+          <span class="menubar-item" data-icon="control" aria-hidden="true"></span>
+          <span class="menubar-clock" id="clock"></span>
+        </div>
+      </header>
+
+      <div class="desktop-files" aria-hidden="true">
+        <div class="desktop-file" data-kind="doc"><i></i><span>trip-notes.md</span></div>
+        <div class="desktop-file" data-kind="video"><i></i><span>vlog_weekend.mp4</span></div>
+        <div class="desktop-file" data-kind="folder"><i></i><span>Projects</span></div>
+      </div>
+
+      <!-- Lantern's menu (opened from the menu bar) -->
+      <section class="menu glass" id="menu" hidden aria-label="Lantern">
+        <div class="menu-header">
+          <span class="app-icon small" aria-hidden="true"></span>
+          <strong>Lantern</strong>
+          <span class="chip" id="menuChip">Off</span>
+        </div>
+        <div class="menu-body" id="menuBody"></div>
+      </section>
+
+      <!-- The search panel (⌥Space) -->
+      <section class="panel glass" id="panel" hidden aria-label="Lantern search">
+        <div class="panel-query">
+          <span class="panel-glyph" aria-hidden="true"></span>
+          <div class="query-field" id="queryField" tabindex="0" role="textbox" aria-label="Search query">
+            <span class="typed" id="typed"></span><span class="caret" aria-hidden="true"></span><span class="ghost" id="ghost"></span>
+          </div>
+          <button class="type-for-me" id="typeForMe" type="button">Type it for me</button>
+        </div>
+        <div class="panel-content" id="panelContent" hidden></div>
+        <footer class="panel-hints" id="panelHints" hidden>
+          <span><kbd>↩</kbd> open here</span>
+          <span><kbd>⌥↩</kbd> from the start</span>
+          <span><kbd>⌘Y</kbd> <span id="previewHint">preview</span></span>
+          <span><kbd>⌘↩</kbd> Finder</span>
+          <span class="spacer"></span>
+          <span><kbd>esc</kbd> close</span>
+        </footer>
+      </section>
+
+      <!-- Notification banner -->
+      <aside class="notification glass" id="notification" hidden role="status">
+        <span class="app-icon small" aria-hidden="true"></span>
+        <div><strong>Lantern</strong><p id="notificationText"></p></div>
+      </aside>
+
+      <!-- The shortcut tile shown before the first search (clickable: ⌥Space is taken on some systems) -->
+      <button class="shortcut glass" id="shortcut" hidden type="button" aria-label="Open Lantern search (Option Space)">
+        <kbd>⌥ option</kbd><span>+</span><kbd class="wide">space</kbd>
+      </button>
+
+      <!-- Hint bubble -->
+      <div class="hint glass" id="hint" hidden role="status" aria-live="polite">
+        <p id="hintText"></p>
+        <div class="hint-actions" id="hintActions"></div>
+      </div>
+
+      <div class="dock glass" aria-hidden="true" id="dock"></div>
+    </div>
+  </main>
+
+  <div class="small-screen" id="smallScreen" hidden>
+    <span class="app-icon" aria-hidden="true"></span>
+    <h1>Lantern</h1>
+    <p>Search your Mac by meaning — files, code, photos and moments in recordings. 100% local and offline.</p>
+    <p class="muted">This tour is a Mac desktop in your browser; it works best on a larger screen.</p>
+    <button type="button" id="continueAnyway">Show it anyway</button>
+    <a href="https://github.com/misterekkk/lantern">View on GitHub</a>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

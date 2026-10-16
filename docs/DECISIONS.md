@@ -591,6 +591,23 @@ Limitations: the QuickTime permission was verified from the VS Code process (the
 first ↩ on a recording); on very large folders (the whole home folder) tree search may not finish in 3 s and then shows
 the first results.
 
+## Phase 10: demo site (2026-10-16)
+
+`site/` holds a static, dependency-free tour: a Mac-like desktop (own wallpaper, own SVG icons, the visitor's system
+font) with Liquid Glass-style hint bubbles. Steps: open Lantern in the menu bar → start it → index 1,248 new files
+(animated progress, notification) → close the menu → ⌥Space (or click the key tile: Alt+Space is taken by Windows,
+and a Mac with Lantern installed would catch ⌥Space itself) → type the suggested phrase (other letters are rejected;
+"Type it for me" for touch screens) → results in Lantern's sections → ⌘Y preview → three more searches → end card.
+Scenarios: a photo ("dog on the beach"), a moment in a video ("when we talked about the match", plays from 1:45),
+code at its line ("def add_two(x, y):", line 200), a song by its lyrics. Result images are own SVG drawings, not stock
+photos; the song is found through its transcribed lyrics, which Lantern really does (Whisper), rather than claiming
+that audio embeddings recognise music.
+
+Checks: headless Chrome screenshots of every step at 1440×900 and 1280×720, phone emulation (390×844 shows a short
+intro with "Show it anyway"), and a DevTools-protocol test that clicks and types through the whole tour (20 checks,
+including the rejected wrong letter and playback from the timestamp). No request leaves the page except the GitHub
+link. Deployment: `.github/workflows/pages.yml` (GitHub Actions → Pages) once the repository is public.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

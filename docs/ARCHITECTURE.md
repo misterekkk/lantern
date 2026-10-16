@@ -58,7 +58,7 @@ All logic lives in the daemon. Clients only call the API.
 | 7 | search in photos and video frames (ffmpeg → frames → EG2 vision tower + SigLIP 2), preceded by a quality and speed test; photos section in the panel | done |
 | 8 | precise code search: tree-sitter symbol table (name, kind, signature, line), correct names in C/C++/Go and methods of small classes, "Definitions" section, opening at the line in the default editor | done |
 | 9 | settings and media (plan below): folder tree with search, ignored extensions, Performance pane, audio/video switch, ⌘Y preview, recordings from the timestamp, settings window like System Settings | done |
-| 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | in progress |
+| 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | ready in `site/`; goes live when the repository is public |
 
 ### Phase 9 plan (agreed with the user, 2026-10-16)
 
