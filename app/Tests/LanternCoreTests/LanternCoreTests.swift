@@ -80,6 +80,39 @@ import Testing
         #expect(resp.photos.isEmpty && !resp.photosFirst && resp.sections.isEmpty)
     }
 
+    @Test func definitionsComeFirstAndOpenAtTheirLine() throws {
+        let json = """
+        {"results": [{"path": "/a/uzycie.py", "chunk_id": 1, "preview": "", "score": 0.02, "kind": "code",
+           "start_line": 3, "end_line": 3}],
+         "definitions": [{"path": "/a/skrypt.py", "line": 200, "end_line": 201, "name": "add_two",
+           "kind": "function", "signature": "def add_two(x, y)", "parent": null, "match": "exact", "score": 4,
+           "chunk_id": 7}],
+         "photos": [], "photos_first": false, "event_id": 1, "vector_ms": 9, "keyword_ms": 0.3}
+        """
+        let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        #expect(resp.sections.map(\.kind) == [.definitions, .files])
+        let d = resp.sections[0].results[0]
+        #expect(d.isDefinition && d.openLine == 200 && Format.title(d) == "add_two  ·  skrypt.py")
+        #expect(Format.sources(d) == "definition" && d.id != resp.results[0].id)
+    }
+
+    @Test func lineJumpUsesTheDefaultEditorsOwnMechanism() {
+        let app = URL(fileURLWithPath: "/Applications/X.app")
+        let vscode = LineJump.make(bundleId: "com.microsoft.VSCode", appURL: app, executable: nil,
+                                   file: "/Users/x/My Code/a.py", line: 200)
+        #expect(vscode == .url(URL(string: "vscode://file/Users/x/My%20Code/a.py:200")!))
+        let xcode = LineJump.make(bundleId: "com.apple.dt.Xcode", appURL: URL(fileURLWithPath: "/Applications/Xcode.app"),
+                                  executable: nil, file: "/a.swift", line: 5)
+        #expect(xcode == .command(executable: "/usr/bin/xed", arguments: ["-l", "5", "/a.swift"],
+                                  environment: ["DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"]))
+        let idea = LineJump.make(bundleId: "com.jetbrains.pycharm", appURL: app,
+                                 executable: URL(fileURLWithPath: "/Applications/PyCharm.app/Contents/MacOS/pycharm"),
+                                 file: "/a.py", line: 9)
+        #expect(idea == .command(executable: "/Applications/PyCharm.app/Contents/MacOS/pycharm",
+                                 arguments: ["--line", "9", "/a.py"], environment: [:]))
+        #expect(LineJump.make(bundleId: "org.python.IDLE", appURL: app, executable: nil, file: "/a.py", line: 1) == .plain)
+    }
+
     @Test func shortPath() {
         #expect(Format.shortPath("/Users/x/Dokumenty/a.md", home: "/Users/x") == "~/Dokumenty/a.md")
         #expect(Format.shortPath("/Volumes/Dysk/a.md", home: "/Users/x") == "/Volumes/Dysk/a.md")

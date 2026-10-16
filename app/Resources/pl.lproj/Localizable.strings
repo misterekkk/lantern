@@ -58,6 +58,9 @@
 "Photos" = "Zdjęcia";
 "Files" = "Pliki";
 "%@  —  lines %lld–%lld" = "%@  —  linie %lld–%lld";
+"%@  —  line %lld" = "%@  —  linia %lld";
+"definition" = "definicja";
+"Definitions" = "Definicje";
 
 /* Settings */
 "Lantern Settings" = "Ustawienia Lantern";

@@ -163,9 +163,9 @@ final class SearchModel: ObservableObject {
         if reveal {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } else {
-            NSWorkspace.shared.open(url)
+            EditorOpener.open(url, line: hit.openLine)
         }
-        if let eventId {  // which result was chosen: training data for a future reranker
+        if let eventId, hit.chunkId >= 0 {  // which result was chosen: training data for a future reranker
             Task { try? await AppState.shared.client.callRaw("opened", ["event_id": eventId, "chunk_id": hit.chunkId]) }
         }
         SearchPanelController.shared.hide()
@@ -189,7 +189,7 @@ private struct SectionHeader: View {
     let first: Bool
 
     var body: some View {
-        Text(kind == .photos ? "Photos" : "Files")
+        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : "Files")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -364,7 +364,7 @@ private struct ResultRow: View {
                     .truncationMode(.middle)
                 if !result.preview.isEmpty {
                     Text(result.preview)
-                        .font(.system(size: 12))
+                        .font(result.isDefinition ? .system(size: 12, design: .monospaced) : .system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
