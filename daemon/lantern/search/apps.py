@@ -71,6 +71,8 @@ def name_match(query: str, names: list[str], keywords: list[str]) -> tuple[str, 
         words = name.replace("-", " ").split()
         if q == name:
             offer("exact", 1.0)
+        elif len(name) >= 3 and q.startswith(name + " "):  # "pogoda w warszawie", "chrome nowa karta"
+            offer("leading", 0.65)
         elif name.startswith(q):
             offer("prefix", 0.9 - 0.1 * (1 - len(q) / len(name)))
         elif any(w.startswith(q) for w in words[1:]):

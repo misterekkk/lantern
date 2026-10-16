@@ -217,13 +217,16 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     public var answer: AnswerResult?
     public var definition: WordDefinitionResult?
     public var definitionFirst: Bool
+    /// Each section's confidence on one 0..1 scale (`hybrid._section_scores`); sections are ordered by it, and the
+    /// app adds its own (clipboard, web) on the same scale.
+    public var sectionScores: [String: Double]
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
 
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
-        case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst
+        case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst, sectionScores
         case vectorMs, keywordMs
     }
 
@@ -246,6 +249,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         answer = try c.decodeIfPresent(AnswerResult.self, forKey: .answer)
         definition = try c.decodeIfPresent(WordDefinitionResult.self, forKey: .definition)
         definitionFirst = try c.decodeIfPresent(Bool.self, forKey: .definitionFirst) ?? false
+        sectionScores = try c.decodeIfPresent([String: Double].self, forKey: .sectionScores) ?? [:]
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -265,6 +269,14 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let shortcutSection = ResultSection(kind: .shortcuts, results: shortcuts.map(\.asResult))
         let dictionary = ResultSection(kind: .dictionary, results: definition.map { [$0.asResult] } ?? [])
         // Same order as the daemon logs: answer, then name matches, then the rest, then hints.
+        if !sectionScores.isEmpty {  // one scale for every kind: highest first, ties keep this order
+            let all = [answerSection, apps, shortcutSection, settings, definitions, photos, files, dictionary]
+            return all.filter { !$0.results.isEmpty && sectionScores[$0.kind.daemonName] != nil }
+                .enumerated().sorted { a, b in
+                    let (sa, sb) = (sectionScores[a.element.kind.daemonName]!, sectionScores[b.element.kind.daemonName]!)
+                    return sa != sb ? sa > sb : a.offset < b.offset
+                }.map(\.element)
+        }
         let first = [answerSection] + (appsFirst ? [apps] : []) + [shortcutSection]
             + (definitionFirst ? [dictionary] : []) + (settingsFirst ? [settings] : [])
         let last = (settingsFirst ? [] : [settings]) + (appsFirst ? [] : [apps]) + (definitionFirst ? [] : [dictionary])
@@ -292,6 +304,9 @@ public enum QueryCompletion {
 public struct ResultSection: Equatable, Sendable, Identifiable {
     public enum Kind: String, Sendable {
         case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, clipboard, web
+
+        /// The section's name in `section_scores`.
+        public var daemonName: String { self == .dictionary ? "definition" : rawValue }
     }
     public var kind: Kind
     public var results: [SearchResult]
@@ -438,9 +453,23 @@ public struct ScanSummary: Decodable, Equatable, Sendable {
 }
 
 public enum ResultLayout {
-    /// Where the "search the web" row goes: near the top when nothing local really matches (no file, photo or
-    /// definition contains the query's words, no answer or definition): "cena dolara" is a web question. Otherwise
-    /// last, as a fallback. Apps, shortcuts and settings matched by name stay above it.
+    /// The web row's place on the daemon's scale: below answers, name matches and files that contain every word of
+    /// the query; above guesses by meaning.
+    public static let webScore = 0.5
+
+    /// Adds the app's own sections (clipboard, web) to the daemon's, ordered on the same 0..1 scale.
+    public static func merge(_ sections: [ResultSection], scores: [String: Double],
+                             extra: [(section: ResultSection, score: Double)]) -> [ResultSection] {
+        guard !scores.isEmpty else { return withWeb(sections + extra.filter { $0.section.kind != .web }.map(\.section),
+                                                    web: extra.filter { $0.section.kind == .web }.map(\.section)) }
+        var rows = sections.enumerated().map { (section: $0.element, score: scores[$0.element.kind.daemonName] ?? 0,
+                                                order: $0.offset) }
+        rows += extra.enumerated().map { (section: $0.element.section, score: $0.element.score,
+                                          order: sections.count + $0.offset) }
+        return rows.sorted { $0.score != $1.score ? $0.score > $1.score : $0.order < $1.order }.map(\.section)
+    }
+
+    /// Older daemons without scores: the web row near the top when nothing local contains the query's words.
     public static func withWeb(_ sections: [ResultSection], web: [ResultSection]) -> [ResultSection] {
         guard !web.isEmpty else { return sections }
         let local: Set<ResultSection.Kind> = [.files, .photos, .definitions]

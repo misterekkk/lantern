@@ -276,3 +276,15 @@ import Testing
         #expect(ResultLayout.withWeb([file(keyword: 1)], web: web).map(\.kind) == [.files, .web])
     }
 }
+
+@Suite struct SectionScoreTests {
+    @Test func appSectionsJoinTheDaemonsScale() {
+        let files = ResultSection(kind: .files, results: [SearchResult(path: "/a.md", chunkId: 1, kind: "text")])
+        let web = ResultSection(kind: .web, results: [SearchResult(path: "https://x", chunkId: 0, kind: "web")])
+        let clip = ResultSection(kind: .clipboard, results: [SearchResult(path: "clipboard:1", chunkId: 0, kind: "clipboard")])
+        let weak = ResultLayout.merge([files], scores: ["files": 0.35], extra: [(clip, 0.9), (web, ResultLayout.webScore)])
+        #expect(weak.map(\.kind) == [.clipboard, .web, .files])
+        let strong = ResultLayout.merge([files], scores: ["files": 0.72], extra: [(web, ResultLayout.webScore)])
+        #expect(strong.map(\.kind) == [.files, .web])
+    }
+}

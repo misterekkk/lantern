@@ -424,6 +424,7 @@ class Daemon:
             "answer": asdict(resp.answer) if resp.answer else None,
             "definition": asdict(resp.definition) if resp.definition else None,
             "definition_first": resp.definition_first,
+            "section_scores": resp.section_scores, "order": [name for name, _ in resp.sections()],
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:

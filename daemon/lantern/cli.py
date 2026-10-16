@@ -209,7 +209,7 @@ def cmd_search(args: argparse.Namespace) -> int:
                  *(["settings"] if settings_first else [])]  # fmt: skip
         last = [*([] if settings_first else ["settings"]), *([] if apps_first else ["apps"]),
                 *([] if word_first else ["definition"])]  # fmt: skip
-        names = first + names + last
+        names = resp["order"] if resp.get("order") is not None else first + names + last
         ordered = [(name, sections[name]) for name in names if sections[name]]
         took = sum(resp.get(k, 0) for k in ("vector_ms", "keyword_ms", "image_ms", "symbol_ms"))
         logged = resp["event_id"]

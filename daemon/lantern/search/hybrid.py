@@ -20,6 +20,7 @@ from lantern.search.settings import SettingHit, settings_search
 from lantern.search.suggest import completion
 from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
+from lantern.textnorm import STOPWORDS, query_terms
 
 RRF_K = 60
 CANDIDATES = 50  # files per list before fusion
@@ -48,6 +49,14 @@ CATEGORIES = {
 MIN_LIST_WEIGHT = 0.25
 TEXT_GAP_LOW, TEXT_GAP_HIGH = 0.02, 0.08  # cosine gap (top - median of candidates): flat .. clear
 PHOTO_Z_LOW, PHOTO_Z_HIGH = 1.0, 4.0  # per-model z of the top photo against the photo candidate pool
+# One scale for every section (DECISIONS.md, "Ordering sections"): answers and name matches first, then files that
+# contain every word of the query, then the web row (0.5, added by the app), then guesses by meaning.
+WEB_ROW_SCORE = 0.5
+PHOTO_SHOW_Z = 7.0  # summed z of both photo models: below it, photos that match only by look are not shown
+FILE_MEANING_STRONG = 0.78  # top text vector score that counts as a clear meaning match (with a clear gap)
+_NAME_SCORES = {"exact": 0.97, "prefix": 0.93, "word": 0.85, "initials": 0.85, "typo": 0.8, "keyword": 0.75,
+                "leading": 0.76,
+                "words": 0.8, "meaning": 0.42, "partial": 0.6}  # fmt: skip
 
 
 def _ramp(x: float, low: float, high: float) -> float:
@@ -114,9 +123,17 @@ class SearchResponse:
     answer: Answer | None = None  # arithmetic, units, world time: always the top line
     definition: WordDefinition | None = None  # dictionary entry for a single word: near the end
     definition_first: bool = False  # no file contains the word: the definition is the better answer
+    section_scores: dict[str, float] = field(default_factory=dict)  # 0..1 per section, on one scale (see top)
 
     def sections(self) -> list[tuple[str, list]]:
-        """Non-empty sections in display order: definitions (exact answers) first, then photos/files by confidence."""
+        """Non-empty sections in display order: by section_scores when set (one scale for every kind), otherwise
+        the fixed order below."""
+        if self.section_scores:
+            named = {"answer": [self.answer] if self.answer else [], "apps": self.apps, "shortcuts": self.shortcuts,
+                     "settings": self.settings, "definitions": self.definitions, "photos": self.photos,
+                     "files": self.results, "definition": [self.definition] if self.definition else []}  # fmt: skip
+            order = sorted(named, key=lambda n: -self.section_scores.get(n, 0.0))  # stable: ties keep this order
+            return [(n, named[n]) for n in order if named[n] and n in self.section_scores]
         media = [("photos", self.photos), ("files", self.results)]
         order = [("definitions", self.definitions)] + (media if self.photos_first else media[::-1])
         first = [("answer", [self.answer] if self.answer else [])]
@@ -215,6 +232,55 @@ def _categories(vector: list[Hit], keyword: list[Hit], image: list[Hit], definit
     if definitions:
         kinds.add("code")
     return [name for name, members in CATEGORIES.items() if kinds & members]
+
+
+def _section_scores(
+    query,
+    results,
+    file_vector,
+    keyword,
+    image,
+    photos,
+    exact_text,
+    apps,
+    settings,
+    shortcuts,
+    definitions,
+    answer,
+    word_definition,
+) -> dict[str, float]:
+    """Each non-empty section's confidence on one 0..1 scale, so sections of different kinds can be ordered and
+    weak ones dropped (measured on local and web-like queries: DECISIONS.md, "Ordering sections")."""
+    scores: dict[str, float] = {}
+    if answer:
+        scores["answer"] = 1.0
+    for name, hits in (("apps", apps), ("settings", settings), ("shortcuts", shortcuts)):
+        if hits:
+            scores[name] = _NAME_SCORES.get(hits[0].match, 0.5)
+    if definitions:
+        scores["definitions"] = {"exact": 0.9, "prefix": 0.8}.get(definitions[0].match, 0.6)
+    terms = query_terms(query)
+    content = [t for t, _ in terms if t.replace(" ", "") and t.split()[0] not in STOPWORDS]
+    whole = bool(content) and any(h.coverage >= 1.0 for h in keyword[:5] if h.kind not in ("image", "ocr"))
+    clear_meaning = (
+        bool(file_vector) and file_vector[0].score >= FILE_MEANING_STRONG and (text_list_confidence(file_vector) >= 0.9)
+    )
+    if results:
+        scores["files"] = 0.72 if whole else 0.6 if clear_meaning else 0.35
+    if photos:
+        by_text = any(r.text_rank for r in photos) or any(
+            h.kind in ("image", "ocr") and h.coverage >= 1.0 for h in keyword[:5]
+        )
+        top_z = image[0].score if image else 0.0
+        if exact_text:
+            scores["photos"] = 0.85
+        elif by_text:
+            scores["photos"] = 0.7
+        elif top_z >= PHOTO_SHOW_Z:  # the surer the photo models, the higher (z 7 -> 0.66, z 9 -> 0.82)
+            scores["photos"] = 0.66 + 0.16 * min(1.0, (top_z - PHOTO_SHOW_Z) / 2.0)
+    if word_definition:
+        scores["definition"] = 0.64 if not any(r.keyword_rank for r in results) else 0.3
+    return scores
 
 
 def _settings_app_name(conn: sqlite3.Connection) -> str | None:
@@ -322,6 +388,10 @@ def search(
         and (exact_text or not looks_like_code(query))
         and photo_confidence > text_list_confidence(file_vector)
     )
+    scores = _section_scores(query, results, file_vector, keyword, image, photos, exact_text, apps, settings,
+                             shortcuts, definitions, answer, word_definition)  # fmt: skip
+    if "photos" not in scores:
+        photos = []  # photos that only look a bit like the query: noise, not shown
     resp = SearchResponse(
         results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,
         photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,
@@ -331,6 +401,7 @@ def search(
         settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,
         shortcuts=shortcuts, answer=answer, definition=word_definition,
         definition_first=bool(word_definition) and not any(r.keyword_rank for r in results),
+        section_scores=scores,
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))

@@ -193,8 +193,10 @@ final class SearchModel: ObservableObject {
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
                 let clipboard = category == nil ? ClipboardHistory.shared.section(for: q, limit: 3) : nil
-                sections = ResultLayout.withWeb(resp.sections + (clipboard.map { [$0] } ?? []),
-                                                web: WebSearch.section(for: q, filtered: category != nil))
+                // Copied text that contains the whole query is a near-certain answer; a short query less so.
+                var extra = clipboard.map { [(section: $0, score: q.count >= 4 ? 0.9 : 0.55)] } ?? []
+                extra += WebSearch.section(for: q, filtered: category != nil).map { ($0, ResultLayout.webScore) }
+                sections = ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra)
                 categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
                 completion = resp.completion
                 eventId = resp.eventId

@@ -802,6 +802,29 @@ What Spotlight on macOS 26 offers and where Lantern stands:
 | Web search | a last row that opens the default browser with the chosen engine (Lantern sends nothing) |
 | Weather, flights, currency, Siri suggestions | no for now: they need the network; possible later as opt-in settings |
 
+## Ordering sections on one scale (2026-10-16)
+
+Each kind of result used its own rule (photos vs files by list confidence, apps first on a name match, the web row
+last), so a weak photo section could sit above the right answer and the web row below noise. Now every section gets
+a confidence on one 0..1 scale (`hybrid._section_scores`) and the panel orders by it; the app adds its own sections
+on the same scale (clipboard 0.9 when the copied text contains the whole query, the web row 0.5).
+
+Measured on the test index (local queries vs web-like ones):
+
+- Files: "contains every content word of the query" separates them: local queries have full coverage, web-like ones
+  ("pogoda w warszawie", "cena dolara", "kurs euro", "stolica francji", "wynik meczu legii") at most 0.5, and "co tam"
+  has only stop words. Full coverage → 0.72; a clear meaning match (top cosine ≥ 0.78 with a clear gap, e.g. "web
+  scraper" vs WebScrapper) → 0.6; otherwise 0.35 (below the web row).
+- Photos: summed z of both photo models was 7.6–8.5 for real photo queries, at most 6.2 for unrelated ones. Below 7
+  a photo that only looks a bit like the query is not shown; above, 0.66 rising to 0.82 at z 9; exact text in an image
+  0.85, by its text or name 0.7.
+- Name matches: exact 0.97, prefix 0.93, word / initials 0.85, typo 0.8, keyword 0.75, query starting with the name
+  ("pogoda w warszawie" → Pogoda) 0.76, meaning-only 0.42. Definitions: exact 0.9. Answers 1.0. A dictionary entry
+  0.64 when no file contains the word, else 0.3.
+- Result: local queries keep files, definitions, apps and photos above the web row; web-like queries put it first.
+  Known miss: "przepis na pierogi" has full coverage through prefix stems (stem false positives, open question 8), so
+  files stay above the web row there.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
