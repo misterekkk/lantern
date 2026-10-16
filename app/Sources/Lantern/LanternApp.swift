@@ -113,11 +113,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return NSApp.windows.lazy.compactMap { find($0.contentView) }.first
     }
 
-    static var isOpen: Bool {
-        NSApp.windows.contains { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtraWindow") }
+    private static var openWindow: NSWindow? {
+        NSApp.windows.first { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtraWindow") }
     }
 
+    static var isOpen: Bool { openWindow != nil }
+
+    /// Fades out like a system menu after choosing an item (clicking elsewhere closes it at once, as MenuBarExtra
+    /// already does). Measured on macOS 26 with CGWindowList: alpha falls exponentially, about half after 40 ms,
+    /// 0.15 after 100 ms, gone after ~200 ms; this replays that curve, then closes through the icon so MenuBarExtra's
+    /// own state stays right.
     static func close() {
-        if isOpen { button()?.performClick(nil) }
+        guard let window = openWindow else { return }
+        let start = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { timer in
+            let t = CACurrentMediaTime() - start
+            MainActor.assumeIsolated {
+                guard t < 0.2 else {
+                    timer.invalidate()
+                    window.alphaValue = 0
+                    button()?.performClick(nil)
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 250_000_000)  // hidden by now: ready for the next opening
+                        window.alphaValue = 1
+                    }
+                    return
+                }
+                window.alphaValue = exp(-t / 0.055)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
     }
 }
