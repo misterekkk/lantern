@@ -9,6 +9,7 @@ import json
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, field, replace
+from pathlib import Path
 
 from lantern.answers import Answer, instant_answer
 from lantern.dictionary import Definition as WordDefinition
@@ -20,7 +21,7 @@ from lantern.search.settings import SettingHit, settings_search
 from lantern.search.suggest import completion
 from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
-from lantern.textnorm import STOPWORDS, query_terms
+from lantern.textnorm import STOPWORDS, query_terms, term_coverage
 
 RRF_K = 60
 CANDIDATES = 50  # files per list before fusion
@@ -54,9 +55,10 @@ PHOTO_Z_LOW, PHOTO_Z_HIGH = 1.0, 4.0  # per-model z of the top photo against the
 WEB_ROW_SCORE = 0.5
 PHOTO_SURE_Z = 7.0  # summed z of both photo models: a confident visual match (real photo queries: 7.6–8.5)
 PHOTO_SHOW_Z = 5.0  # below it, photos that only look a bit like the query are hidden ("co tam": 3.7); 5–7 sit low
+FILE_AGREE_RANK = 10  # a file found by every word must also rank this high by meaning to count as a sure answer
 FILE_MEANING_STRONG = 0.78  # top text vector score that counts as a clear meaning match (with a clear gap)
 _NAME_SCORES = {"exact": 0.97, "prefix": 0.93, "word": 0.85, "initials": 0.85, "typo": 0.8, "keyword": 0.75,
-                "leading": 0.76,
+                "leading": 0.76, "contains": 0.74,
                 "words": 0.8, "meaning": 0.42, "partial": 0.6}  # fmt: skip
 
 
@@ -264,15 +266,23 @@ def _section_scores(
         scores["definitions"] = {"exact": 0.9, "prefix": 0.8}.get(definitions[0].match, 0.6)
     terms = query_terms(query)
     content = [t for t, _ in terms if t.replace(" ", "") and t.split()[0] not in STOPWORDS]
-    whole = bool(content) and any(h.coverage >= 1.0 for h in keyword[:5] if h.kind not in ("image", "ocr"))
+    # Files are a sure answer when both lists agree on one: it contains every content word AND its meaning ranks near
+    # the top. "Every word somewhere" alone is weak in a big index ("cena" + "dolarów" in some statistics PDF).
+    whole = bool(content) and any(
+        (r.keyword_coverage or 0) >= 1.0 and r.vector_rank is not None and r.vector_rank <= FILE_AGREE_RANK
+        for r in results[:5]
+    )
     clear_meaning = (
         bool(file_vector) and file_vector[0].score >= FILE_MEANING_STRONG and (text_list_confidence(file_vector) >= 0.9)
     )
     if results:
         scores["files"] = 0.72 if whole else 0.6 if clear_meaning else 0.35
     if photos:
-        by_text = any(r.text_rank for r in photos) or any(
-            h.kind in ("image", "ocr") and h.coverage >= 1.0 for h in keyword[:5]
+        # Every word of the query in the text read from the image, or in its file name ("hats_simulation.gif").
+        by_text = any(
+            (h.kind == "ocr" and h.coverage >= 1.0)
+            or (h.kind == "image" and term_coverage(query, Path(h.path).stem.replace("_", " ")) >= 1.0)
+            for h in keyword[:5]
         )
         top_z = image[0].score if image else 0.0
         if exact_text:
