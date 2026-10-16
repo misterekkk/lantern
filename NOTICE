@@ -1,0 +1,9 @@
+Lantern
+Copyright 2026 Kacper Piotrowski
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Lantern does not include model weights. Users download them separately; each model has its own license:
+- EmbeddingGemma 2 (google/embeddinggemma-2; MLX conversion mlx-community/embeddinggemma-2-8bit): Apache License 2.0
+- SigLIP 2 (google/siglip2-base-patch16-224; MLX conversion mlx-community/siglip2-base-patch16-224-8bit): Apache License 2.0
+- Whisper large-v3-turbo (OpenAI; MLX conversion mlx-community/whisper-large-v3-turbo): MIT License

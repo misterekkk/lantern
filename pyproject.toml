@@ -1,8 +1,10 @@
 [project]
 name = "lantern"
 version = "0.0.1"
-description = "Local, offline semantic search over files (text, code, audio) on macOS."
+description = "Local, offline semantic search over files, code, photos and recordings on macOS."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # Embedding backend (ADR-001): MLX + pinned mlx-vlm branch with EmbeddingGemma 2.
