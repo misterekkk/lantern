@@ -1,356 +1,299 @@
 # Lantern
 
-Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tylko po słowach: tekst, kod, dokumenty,
-nagrania audio, filmy i zdjęcia. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
-uruchamiany natywnie na Apple Silicon przez MLX.
+Search your Mac **by meaning**, not just by file name: text, code, documents, photos, recordings and videos.
+Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind's open **EmbeddingGemma 2** model
+(Apache 2.0) on Apple Silicon through MLX, and nothing ever leaves the machine.
 
-> **Stan projektu: Faza 9 (ustawienia i podgląd).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
-> (dźwięk i klatki) oraz zdjęć, wyszukiwanie łączące znaczenie i słowa, wyszukiwanie definicji w kodzie co do linii
-> („def add_two(x, y):” → `skrypt.py`, linia 200), demon w tle oraz aplikacja macOS: ikona w pasku menu (stan,
-> zgoda na indeksowanie, pauza, foldery), panel wyszukiwania w stylu Spotlight pod **⌥Space** z podglądem (⌘Y)
-> oraz okno ustawień z drzewkiem folderów, ignorowanymi rozszerzeniami i wykresem pamięci.
+- *"decision tree pruning"* finds the README that explains it, even if it is written in Polish.
+- *"def add_two(x, y):"* jumps to `script.py`, line 200, in your code editor.
+- *"dog on the beach"* finds the photo; *"the cow on the farm"* finds the moment in a recording where it is said.
 
-## Aplikacja (pasek menu i panel ⌥Space)
+> **Status:** all planned phases are done (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)). Lantern is a working
+> prototype tested on one Mac (M4, 16 GB). This README describes only what exists today.
 
-```bash
-app/build.sh                 # buduje i podpisuje app/build/Lantern.app (wymaga Xcode 26, patrz niżej)
-open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
-```
+## Features
 
-- **Ikona w pasku menu** pokazuje stan (gotowy, indeksuje, czeka na zgodę, pauza), postęp, liczbę plików i pamięć
-  demona; przyciski: Zaindeksuj / Później, Wstrzymaj / Wznów, Dodaj folder…, Ustawienia…, Zakończ.
-- **⌥Space** otwiera panel wyszukiwania (jak Spotlight). Nagrania i filmy pokazują moment wypowiedzi
-  (np. `vlog.mp4 · 1:48`). Wyniki są w dwóch sekcjach, jak
-  w Spotlight: **Zdjęcia** (z miniaturami) i **Pliki**; wyżej jest ta, która lepiej pasuje do zapytania („pies”:
-  najpierw zdjęcia, „postgres”: najpierw pliki). Zapytanie o funkcję lub klasę pokazuje na górze sekcję
-  **Definicje** z plikiem, linią i sygnaturą.
-- **Skróty w panelu** (kliknięcie podwójne = ↩, z ⌥ = ⌥↩):
+- **Spotlight-style search panel** (⌥Space) with sections for code definitions, photos and files; the section that
+  fits the query best comes first.
+- **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
+- **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
+  a definition.
+- **Photos and video frames:** two models (EmbeddingGemma 2 vision tower and SigLIP 2) vote on what is in a picture.
+- **Recordings and videos:** audio embeddings plus Whisper transcripts, with the moment each phrase is spoken.
+- **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery and heat, and a
+  settings window laid out like System Settings.
+- **Private by design:** offline after a one-time model download, read-only access to your files, no telemetry.
 
-  | Skrót | Kod i tekst | Nagranie i film |
-  |---|---|---|
-  | ↩ | plik w miejscu trafienia (początek fragmentu) | QuickTime Player od momentu wypowiedzi |
-  | ⌥↩ | plik od początku | całe nagranie od początku, w domyślnej aplikacji |
-  | ⌘Y | podgląd w panelu: fragment podświetlony, z kontekstem | podgląd w panelu od momentu wypowiedzi |
-  | ⌘↩ | pokaż w Finderze | pokaż w Finderze |
-  | ↑↓ / Esc | wybór / zamknij (z podglądu: wróć do listy) | |
+## Requirements
 
-- **Miejsce trafienia w kodzie i tekście:** plik otwiera się w aplikacji, którą macOS ma ustawioną dla tego typu,
-  na właściwej linii, jeśli ta aplikacja to umożliwia: VS Code (sprawdzone), Cursor, Xcode, edytory JetBrains
-  (IntelliJ, PyCharm, CLion…). Inne (TextEdit, RStudio…) otwierają plik od początku, a podgląd ⌘Y pokazuje fragment
-  zawsze. Lantern nigdy nie przełącza na inną aplikację niż domyślna.
-- **Nagrania w QuickTime:** za pierwszym razem macOS zapyta „Lantern chce sterować aplikacją QuickTime Player”.
-  Bez tej zgody (albo gdy coś zawiedzie) ↩ pokazuje podgląd w panelu od tego samego momentu. Formatów, których macOS
-  nie odtwarza (mkv, webm), ↩ nie przewinie: otwierają się od początku w domyślnej aplikacji (np. VLC, IINA).
-- **⌘Y zamiast spacji:** fokus w panelu jest w polu zapytania, więc spacja musi wpisywać spację. ⌘Y to systemowy
-  skrót Quick Look z Findera.
-- **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
-- **Język** aplikacji jest zgodny z językiem macOS (polski lub angielski).
-- **Ustawienia** (koło zębate w menu) w układzie jak Ustawienia systemowe, z panelami po lewej:
-  - **Ogólne:** uruchamianie przy logowaniu, tryb indeksowania, zdjęcia, pliki audio i filmy (a pod nimi
-    transkrypcja i klatki), pauza na baterii/temperaturze,
-  - **Foldery:** indeksowane foldery, **drzewko** z polami wyboru (rozwijane aż do plików, wyszukiwarka nazw,
-    liczba plików w indeksie, powód przy elementach zawsze pomijanych, potwierdzenie z liczbą usuwanych plików),
-    **ignorowane rozszerzenia** jako pigułki (wpisz `csv`, `.csv` albo `*.csv` i przecinek albo użyj ＋;
-    podpowiedzi filtrują się w trakcie pisania), wzorce wykluczeń dla zaawansowanych,
-  - **Wydajność:** wykres pamięci demona i procesu indeksującego na żywo (60 s, 5 lub 10 min, godzina na osi
-    w formacie systemu), szczyty, bieżące zadanie i tempo, lista modeli (rewizja, rozmiar, czy załadowany i gdzie),
-  - **Prywatność:** historia, zagęszczenie indeksu, uprawnienia macOS; **Informacje**.
-- **Aplikacja sama uruchamia demona** (proces potomny), więc zgody macOS na Biurko, Dokumenty i Pobrane dotyczą
-  aplikacji Lantern i pojawiają się jako zwykłe okna „Lantern chce uzyskać dostęp do…”. Gdy aplikacja się zamknie
-  (także po awarii), demon kończy się razem z nią. Jeśli działa już demon z LaunchAgenta, aplikacja z niego korzysta.
-- Wymagania do budowania: Xcode 26 (SDK macOS 26 dla efektu Liquid Glass; skrypt używa go przez `DEVELOPER_DIR`,
-  bez zmiany `xcode-select`). Podpis: certyfikat „Apple Development” (Xcode → Settings → Accounts → Manage
-  Certificates); bez niego podpis tymczasowy (ad-hoc) i macOS może ponownie pytać o zgody po każdej przebudowie.
-> To README opisuje tylko to, co faktycznie działa, a dalsze funkcje oznacza fazą, w której się pojawią.
-
-## Użycie
-
-```bash
-uv run lantern index ~/Projekty            # pierwszy raz: skan + indeksowanie; kolejne: tylko zmiany
-uv run lantern search "optymalizacja drzewa decyzyjnego"
-uv run lantern search "backoff_wrapper" -n 5
-uv run lantern open 1                      # otwórz 1. wynik ostatniego wyszukiwania (--reveal: pokaż w Finderze)
-uv run lantern status
-uv run lantern remove ~/Projekty           # usuń folder i wszystkie jego dane z indeksu
-uv run lantern compact                     # fizycznie wymaż usunięte dane z pliku indeksu
-uv run lantern clear-history               # usuń lokalną historię wyszukiwań
-```
-
-- `index` porównuje folder z indeksem: nowe i zmienione pliki indeksuje, przeniesione rozpoznaje po treści (bez
-  ponownego liczenia), usunięte usuwa z indeksu razem z fragmentami i wektorami.
-- Jeśli folder jest niedostępny (odłączony dysk, udział sieciowy), nic nie jest usuwane. Jeśli zniknęłaby ponad połowa
-  plików folderu, `index` odmawia i wymaga `--force`.
-- `search` łączy dwie listy w jeden ranking (Reciprocal Rank Fusion): **po znaczeniu** (EmbeddingGemma 2, parafrazy,
-  inne języki) i **po słowach** (dokładne nazwy funkcji, komunikaty błędów). Przy każdym wyniku widać, skąd pochodzi
-  dopasowanie, np. `(meaning #1 · keywords #3)`. Wyszukiwanie po słowach pomija słowa nieistotne („jak”, „się”, „the”)
-  i dopasowuje polską odmianę po rdzeniu („decyzyjnego” znajdzie „decyzyjny”).
-- Każde wyszukiwanie i otwarty wynik (`lantern open`) trafia do **lokalnej** historii w bazie (zapytanie, pozycje
-  wyników, bez treści plików). To dane pod przyszłe uczenie rankingu. `--no-log` pomija zapis, `clear-history` czyści.
-- Zmiana zasad dzielenia plików albo modelu powoduje automatyczny ponowny indeks przy następnym `index`.
-- Indeksowane typy: kod (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP i inne, dzielony na
-  funkcje i klasy), tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.; pliki tekstowe ponad 2 MB i binarne są
-  pomijane), audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), wideo (mp4, mov, mkv, webm, avi…: dźwięk i klatki)
-  oraz zdjęcia (jpg, png, heic, gif, webp, tiff, bmp).
-
-### Definicje w kodzie (funkcje, klasy, metody)
-
-- Wklej linię z kodu albo samą nazwę: `def add_two(x, y):`, `add_two`, `addTwo`, `class Client`,
-  `Client::connect`, `BinMapper.transform`, `public void testReplaceIndex()`. Wynik: plik, **dokładna linia**
-  definicji i sygnatura, np. `skrypt.py:200   def add_two(x, y)`.
-- Nazwy są porównywane bez względu na styl (`add_two` = `addTwo` = `AddTwo`), najpierw dokładnie, potem po
-  początku nazwy (`add_two` → `add_two_numbers`) i po fragmencie (`UserToken` → `parseUserToken`). Liczba
-  argumentów, rodzaj (`def`, `class`…) i klasa nadrzędna pomagają wybrać właściwą definicję.
-- Zwykłe zdania („optymalizacja drzewa”) nie dają definicji; pojedyncze słowo daje tylko dokładnie tak nazwane.
-- Języki: Python, JavaScript, TypeScript, Go, Rust, Java, Kotlin, Swift, C, C++, Objective-C, C#, Scala, Ruby, PHP,
-  Lua, R, Dart, Elixir, Haskell, SQL, Bash (test dla każdego). Każda funkcja i metoda ma własny wpis, także
-  w małych klasach. Wywołania funkcji (użycia) nie są jeszcze wyszukiwane, tylko definicje.
-- `lantern open <n> --print` wypisuje `ścieżka:linia`; `lantern open <n>` otwiera plik w domyślnej aplikacji
-  (bez skoku do linii; skok robi aplikacja Lantern).
-
-### Zdjęcia i klatki filmów
-
-- Zdjęcie znajdziesz po tym, **co na nim jest** („pies”, „rower”, „dziecko w wodzie”, „zachód słońca”), po polsku
-  i po angielsku, oraz po nazwie pliku. Wyniki: sekcja „Photos:”/„Zdjęcia” w CLI i w panelu.
-- Każde zdjęcie liczą **dwa modele**: wieża wizyjna EmbeddingGemma 2 (lepsza na opisach zdaniem i po polsku) oraz
-  SigLIP 2 base (lepszy na pojedynczych słowach). Wyniki obu są normalizowane i sumowane; zdjęcie trafia do wyników
-  tylko, gdy wyraźnie odstaje od reszty (inaczej każde zapytanie zwracałoby „najbliższe z przypadkowych” zdjęć).
-- Filmy: klatki przy zmianach scen (ffmpeg), co najmniej jedna na 30 s, bez powtórzeń (podobne klatki są pomijane
-  przed liczeniem). Wynik pokazuje moment w filmie, np. `wakacje.mov · 2:05`.
-- Pomijane: obrazy mniejsze niż 96 px (ikony), większe niż 100 MB, uszkodzone. HEIC dekoduje systemowe `sips`.
-- Szybkość (M4): ~3 zdjęcia/s razem z ładowaniem modeli, czyli 10 tys. zdjęć ≈ 1 h w tle.
-- Wyłączenie: Ustawienia → „Wyszukiwanie zdjęć po treści” / „Wyszukiwanie w klatkach filmów” albo
-  `lantern config index_photos false` / `lantern config index_video_frames false`. Wyłączenie zdjęć usuwa je
-  z indeksu przy najbliższym skanie (demon skanuje od razu). Wyłączenie klatek dotyczy filmów indeksowanych później.
-
-### Nagrania i filmy
-
-- ffmpeg wyciąga dźwięk (16 kHz mono) strumieniowo, okno po oknie, więc długość nagrania nie wpływa na zużycie RAM.
-- Dwa tory wyszukiwania, łączone w jednym rankingu:
-  1. **embedding audio** (EmbeddingGemma 2) okien 30 s z nakładką 5 s: znaczenie wypowiedzi, także międzyjęzykowo,
-  2. **transkrypcja** (Whisper large-v3-turbo, język wykrywany automatycznie) dzielona na fragmenty ~20 s:
-     pojedyncze słowa („krowa”), podgląd tekstu w wynikach, wyszukiwanie po słowach.
-- Wynik pokazuje plik i moment, np. `filmy/vlog.mp4 @ 1:48–2:13`, oraz tekst wypowiedzi z tego odcinka.
-- Modele audio ładują się tylko na czas indeksowania nagrań, po kolei (najpierw embedding audio, potem Whisper),
-  i są zwalniane po zakończeniu.
-- `lantern index <folder> --no-transcribe` pomija transkrypcję (szybciej, bez Whispera, ale bez wyszukiwania
-  pojedynczych słów).
-
-## Prywatność w skrócie
-
-- Wszystko działa **lokalnie i offline**, po jednorazowym pobraniu modelu. Brak telemetrii i zewnętrznych API.
-- Lantern **tylko czyta** indeksowane pliki. Nigdy ich nie modyfikuje, nie przenosi ani nie usuwa.
-- Indeks to jeden plik SQLite w `~/Library/Application Support/Lantern/` (poza iCloud).
-- Szczegóły: [docs/PRIVACY.md](docs/PRIVACY.md).
-
-## Wymagania
-
-| Co | Po co | Instalacja |
+| What | Why | Install |
 |---|---|---|
-| Mac z Apple Silicon (testowane: M4, 16 GB) | MLX działa tylko na Apple Silicon | – |
-| Xcode Command Line Tools | kompilator i git | `xcode-select --install` |
-| Xcode 26 | budowanie aplikacji w pasku menu (SDK macOS 26) | App Store |
-| Homebrew | menedżer pakietów | https://brew.sh |
-| uv | środowisko Pythona i zależności | `brew install uv` |
-| Python 3.12 | język demona; **instalowany przez uv**, nie systemowy | automatycznie przez `uv sync` |
-| ffmpeg | dekodowanie audio i ścieżki dźwiękowej filmów do 16 kHz mono | `brew install ffmpeg` |
+| Mac with Apple Silicon (tested: M4, 16 GB) | MLX runs on Apple Silicon only | – |
+| Xcode Command Line Tools | compiler, git | `xcode-select --install` |
+| Xcode 26 | builds the menu bar app (macOS 26 SDK) | App Store |
+| Homebrew | package manager | https://brew.sh |
+| uv | Python environment and dependencies | `brew install uv` |
+| Python 3.12 | the daemon; **installed by uv**, not the system Python | automatic with `uv sync` |
+| ffmpeg | decodes audio and video | `brew install ffmpeg` |
 
-Instalowane automatycznie przez `uv sync` do `.venv` projektu (nic globalnie):
-MLX i `mlx-vlm` (backend modelu, przypięty commit gałęzi z EmbeddingGemma 2), `tokenizers`, `transformers`, `torch`,
-`torchvision` i `pillow` (wymagane przez `mlx-vlm` i przyszłe przetwarzanie audio), `sqlite-vec` (wektory w SQLite),
-`tree-sitter-language-pack` (parsery kodu), `pathspec` (`.gitignore`), `charset-normalizer` (kodowania plików),
-`mlx-whisper` (transkrypcja), `soundfile`.
+`uv sync` installs everything else into the project's `.venv` (nothing global): MLX and a pinned `mlx-vlm` commit
+(EmbeddingGemma 2 support), `transformers`, `torch`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
+`pathspec`, `charset-normalizer`, `mlx-whisper`, `pillow`, `soundfile`, `watchdog`.
 
-**Nie są potrzebne:** Ollama, llama.cpp, LanceDB. Zostały sprawdzone i odrzucone w Fazie 0, uzasadnienie jest w
-`docs/DECISIONS.md`.
+> The python.org Python (e.g. 3.13) does not work: it cannot load SQLite extensions, which `sqlite-vec` needs. The
+> Python that uv installs can.
 
-> Python z python.org (np. 3.13) **nie nadaje się**: nie obsługuje ładowania rozszerzeń SQLite, czego wymaga
-> sqlite-vec. Python instalowany przez uv to obsługuje.
-
-## Instalacja krok po kroku
+## Installation
 
 ```bash
-# 1. Narzędzia systemowe
-xcode-select --install                       # jeśli jeszcze nie ma
-# Homebrew: https://brew.sh. Jeśli `brew` nie jest w PATH (Apple Silicon):
+# 1. System tools
+xcode-select --install
+# Homebrew: https://brew.sh. If `brew` is not on your PATH (Apple Silicon):
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew install uv ffmpeg
 
-# 2. Projekt i zależności (uv sam pobierze Pythona 3.12 do ~/.local/share/uv)
+# 2. Project and dependencies (uv downloads Python 3.12 into ~/.local/share/uv)
 cd lantern
 uv sync
 
-# 3. Jednorazowe pobranie modelu (z internetem)
-#    a) wagi MLX 8-bit (~1,2 GB)
+# 3. One-time model download (needs internet; models go to ~/.cache/huggingface/hub/)
+#    a) EmbeddingGemma 2, MLX 8-bit (~1.2 GB) — required
 uv run hf download mlx-community/embeddinggemma-2-8bit --revision 7505ef2f8ddef45efef6d060865f27989b3c9cec
-#    b) Whisper do transkrypcji nagrań i filmów (~1,6 GB; pomiń, jeśli nie indeksujesz audio/wideo
-#       albo używasz `lantern index --no-transcribe`)
+#    b) Whisper for transcripts (~1.6 GB) — skip if you do not index recordings or use --no-transcribe
 uv run hf download mlx-community/whisper-large-v3-turbo --revision a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb
-#    c) SigLIP 2 do wyszukiwania zdjęć (~0,8 GB + ~0,2 GB; pomiń, jeśli nie indeksujesz zdjęć ani klatek; bez nich
-#       zdjęcia liczy sama EmbeddingGemma 2)
+#    c) SigLIP 2 for photo search (~0.8 GB + ~0.2 GB) — optional; without it EmbeddingGemma 2 ranks photos alone
 uv run hf download google/siglip2-base-patch16-224 --revision 75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2
 uv run hf download mlx-community/siglip2-base-patch16-224-8bit --revision 5249fc157310584fe99dae6964707278eb6df50f
 
-# 4. Sprawdzenie
+# 4. Check
 uv run lantern --help
 uv run pytest
+
+# 5. Menu bar app
+app/build.sh --install        # builds, signs and copies Lantern.app to /Applications
+open /Applications/Lantern.app
 ```
 
-Model trafia do `~/.cache/huggingface/hub/`.
+Lantern always loads models with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1`;
+an automated test checks that loading and embedding open no network connection.
 
-### Tryb offline (wymuszony)
+**Building the app** needs Xcode 26 (the script selects it with `DEVELOPER_DIR`, without changing `xcode-select`).
+It signs with your "Apple Development" certificate if you have one (Xcode → Settings → Accounts → Manage
+Certificates); otherwise it signs ad hoc and macOS may ask for folder permissions again after every rebuild.
 
-Po pobraniu modelu ustaw (np. w `~/.zprofile`, a w Fazie 5 trafią do plisty LaunchAgenta):
+## The app
+
+- **Menu bar icon:** state (ready, indexing, waiting for approval, paused), progress, file count and memory.
+  Actions: Index now / Later, Pause / Resume, Add Folder…, Settings…, Quit. A notification with the same actions
+  appears when new files are found in "ask" mode.
+- **⌥Space** opens the search panel. Results come in sections like in Spotlight: **Definitions** (functions and
+  classes, with file, line and signature), **Photos** (with thumbnails) and **Files**. Recordings and videos show the
+  moment of the match, e.g. `vlog.mp4 · 1:48`.
+- **Shortcuts in the panel** (double-click = ↩, ⌥ + double-click = ⌥↩):
+
+  | Key | Code and text | Recordings and videos |
+  |---|---|---|
+  | ↩ | open at the match (start of the passage) | QuickTime Player at the moment it is said |
+  | ⌥↩ | open from the top | the whole recording from the start, in its default app |
+  | ⌘Y | preview in the panel: the passage highlighted, with context | preview in the panel from the moment |
+  | ⌘↩ | show in Finder | show in Finder |
+  | ↑↓ / Esc | select / close (from a preview: back to the list) | |
+
+  - Files open in the app macOS uses for their type, at the right line when that app supports it: VS Code
+    (verified), Cursor, Xcode, JetBrains IDEs. Other apps (TextEdit, …) open the file at the top; the ⌘Y preview
+    always shows the passage. Lantern never switches to an app other than your default.
+  - The first time a recording opens, macOS asks "Lantern wants to control QuickTime Player". Without that
+    permission ↩ shows the preview from the same moment. Formats macOS cannot play (mkv, webm) open from the start
+    in their default app (VLC, IINA, …).
+  - ⌘Y instead of Space: the panel's focus stays in the query field, where Space types a space. ⌘Y is the Quick
+    Look shortcut of Finder.
+- **Settings** (Settings… in the menu), laid out like System Settings:
+  - **General:** open at login, language, search shortcut, ask before indexing or index automatically,
+  - **File Types:** photos, recordings and videos (with transcription and video frames), ignored extensions,
+  - **Folders:** indexed folders, *Choose What to Index* (a folder tree with checkboxes, down to single files, with
+    name search and the number of indexed files), exclusion patterns,
+  - **Battery and Heat:** pause indexing on battery power or when the Mac is hot,
+  - **Performance:** live memory chart of the daemon and the indexing process, peaks, current work and speed,
+    models (revision, size on disk, where they are loaded),
+  - **Privacy:** clear history, compact the index, data folder, macOS permissions; **About**.
+- **Language:** the app follows the macOS language (English and Polish today). To choose one for Lantern only:
+  Settings → General → Language (Lantern restarts), or System Settings → General → Language & Region → Applications.
+- **The app starts the daemon** as its child process, so macOS file permissions (Desktop, Documents, Downloads) are
+  granted to Lantern with the usual "Lantern would like to access…" prompts. When the app quits or crashes, the
+  daemon stops too. If a daemon from the LaunchAgent is already running, the app uses it.
+
+## Command line
 
 ```bash
-export HF_HUB_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export HF_HUB_DISABLE_TELEMETRY=1
-export DO_NOT_TRACK=1
+uv run lantern index ~/Projects            # first run: scan + index; later runs: only changes
+uv run lantern search "decision tree pruning"
+uv run lantern search "def add_two(x, y):" -n 5
+uv run lantern open 1                      # open result 1 of the last search (--reveal: Finder, --print: path:line)
+uv run lantern status
+uv run lantern remove ~/Projects           # remove a folder and all its data from the index
+uv run lantern compact                     # physically erase deleted data from the index file
+uv run lantern clear-history               # delete the local search history
 ```
 
-W Fazie 0 sprawdzono, że z tymi zmiennymi ładowanie modelu i embedowanie nie otwiera żadnych połączeń sieciowych.
+- `index` compares the folder with the index: new and changed files are indexed, moved files are recognised by
+  content (no recomputation), deleted files are removed together with their text and vectors.
+- If a folder is unavailable (unplugged disk, network share), nothing is removed. If more than half of a folder's
+  files vanished, `index` refuses without `--force`. Files you excluded on purpose (still on the disk) are removed
+  without it.
+- Every search and opened result is kept in a **local** history (query and result positions, no file content), as
+  training data for a future ranking model. `--no-log` skips it, `clear-history` deletes it.
+- Changing the chunking rules or the model re-indexes the affected files automatically.
 
-## Testy i lint
+## How search works
 
-```bash
-uv run pytest            # szybkie testy (bez prawdziwego modelu)
-uv run pytest -m model   # testy z prawdziwym modelem (wymagają pobranego modelu): zgodność z referencją,
-                         # brak ruchu sieciowego, wyszukiwanie parafrazy
-uv run ruff check
-```
+- **Two lists, one ranking:** meaning (EmbeddingGemma 2: paraphrases, other languages) and exact words (FTS5/BM25:
+  function names, error messages), fused with Reciprocal Rank Fusion. Each result shows where it came from, e.g.
+  `(meaning #1 · keywords #3)`. Keyword search skips stop words and matches Polish inflections by stem.
+- **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
+  functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
+  audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and photos
+  (jpg, png, heic, gif, webp, tiff, bmp).
 
-## Demon w tle
+### Code definitions
 
-```bash
-uv run lantern daemon install     # instaluje i uruchamia LaunchAgent (start przy logowaniu, niski priorytet)
-uv run lantern daemon run         # albo: demon na pierwszym planie (Ctrl+C kończy)
-uv run lantern status             # stan demona, kolejka, pamięć
-uv run lantern pending            # pliki wykryte przez demona, czekające na zgodę
-uv run lantern approve            # zaindeksuj je (albo: lantern decline — zapytaj ponownie przy kolejnych zmianach)
-uv run lantern pause | resume     # wstrzymaj / wznów indeksowanie w tle
-uv run lantern config index_mode auto   # indeksuj od razu, bez pytania (domyślnie: ask)
-uv run lantern daemon stop | uninstall
-```
+- Paste a line of code or just a name: `def add_two(x, y):`, `add_two`, `addTwo`, `class Client`, `Client::connect`,
+  `BinMapper.transform`, `public void testReplaceIndex()`. The result is the file, the **exact line** and the
+  signature, e.g. `script.py:200   def add_two(x, y)`.
+- Names match regardless of style (`add_two` = `addTwo` = `AddTwo`): exactly first, then by prefix (`add_two` →
+  `add_two_numbers`) and by fragment (`UserToken` → `parseUserToken`). The number of arguments, the kind (`def`,
+  `class`…) and the parent class help pick the right definition. Sentences ("tree pruning") never list definitions.
+- Languages: Python, JavaScript, TypeScript, Go, Rust, Java, Kotlin, Swift, C, C++, Objective-C, C#, Scala, Ruby,
+  PHP, Lua, R, Dart, Elixir, Haskell, SQL, Bash (each covered by a test). Only definitions are searched, not calls.
 
-- **Po starcie** (także po dłuższym wyłączeniu komputera lub demona) demon skanuje wszystkie foldery. Usunięte pliki
-  znikają z indeksu od razu, a nowe i zmienione w trybie `ask` czekają na `lantern approve`. Jeśli `notify = true`,
-  demon wysyła powiadomienie macOS. W trakcie działania zmiany wykrywa obserwator FSEvents (po kilku sekundach ciszy).
-- **Gdy demon działa**, `lantern index/search/status/remove/compact/clear-history` łączą się z nim (wyszukiwanie
-  używa już załadowanego modelu, ~20–90 ms). `lantern index <folder>` z demonem dodaje folder i od razu zatwierdza
-  jego indeksowanie, które idzie w tle.
-- **Indeksowanie w osobnym procesie** z priorytetem tła: modele audio i Whisper żyją tylko w nim i znikają z pamięci
-  po zakończeniu. Demon w spoczynku zajmuje ~490 MB.
-- **Pauza automatyczna** na zasilaniu z baterii i przy ostrzeżeniu termicznym (`pause_on_battery`, `pause_on_thermal`).
-  Bieżący plik jest kończony, reszta wraca do kolejki.
-- **Ustawienia** (`lantern config`): `index_mode` (`ask`/`auto`), `pause_on_battery`, `pause_on_thermal`,
-  `transcribe`, `notify`, `debounce_s`. Zapisane w `~/Library/Application Support/Lantern/config.toml`.
-- **API:** socket Unix `~/Library/Application Support/Lantern/lantern.sock` (`0600`, katalog `0700`), JSON w liniach.
-  Tego samego API użyje aplikacja w pasku menu (Faza 6).
-- **Logi:** `~/Library/Application Support/Lantern/logs/` (ścieżki i błędy, bez treści plików i zapytań).
+### Photos and video frames
 
-## Foldery i wykluczenia
+- Find a photo by **what is in it** ("dog", "bicycle", "child in the water", "sunset"), in English or Polish, or by
+  its file name.
+- Two models rate every photo: the EmbeddingGemma 2 vision tower (better at sentences and Polish) and SigLIP 2 base
+  (better at single words). Their scores are normalised and summed; a photo is listed only when it clearly stands
+  out from the rest.
+- Videos: frames at scene changes (ffmpeg), at least one every 30 s, near-duplicates dropped before embedding.
+- Skipped: images under 96 px (icons), over 100 MB, or broken. HEIC is decoded with the system's `sips`.
+- Speed (M4): ~3 photos/s including model loading, i.e. ~1 hour for 10,000 photos in the background.
 
-- Folder dodajesz przez `lantern index <folder>`. Możesz też dodać cały katalog domowy: `lantern index ~`.
-  Najpierw warto zrobić suchy przebieg `lantern index ~ --dry-run`, który tylko liczy pliki i szacuje czas, niczego
-  nie czytając z treści i niczego nie zapisując.
-- **Zasady dla katalogu domowego** (zawsze aktywne):
-  - pomijany jest `~/Library` (poczta, cache, dane aplikacji), z wyjątkiem **iCloud Drive**,
-  - pomijane są `~/Applications`, biblioteka muzyki Apple i wszystkie pakiety macOS (`*.app`, `*.photoslibrary`,
-    pakiety iWork `*.pages/*.numbers/*.key`, obrazy maszyn wirtualnych, `.dmg` itd.),
-  - pomijane są ukryte katalogi i pliki (`~/.ssh`, `~/.aws`, `~/.config`, dotfiles), z wyjątkiem `.github`.
-- **iCloud:** pliki, które iCloud trzyma tylko w chmurze („optymalizuj miejsce”), są pomijane, bo ich odczyt
-  pobrałby je z sieci. Trafią do indeksu, gdy będą na dysku. Plik już zaindeksowany, który iCloud przeniósł do chmury,
-  zostaje w indeksie: wyszukiwanie go znajdzie, a otwarcie pobierze.
-- **Uprawnienia macOS:** do Biurka, Dokumentów, Pobranych i iCloud Drive proces potrzebuje zgody (Ustawienia
-  systemowe → Prywatność i ochrona → Pliki i foldery albo Pełny dostęp do dysku). Folder bez dostępu jest pomijany,
-  a jego wcześniej zaindeksowane pliki **nie są usuwane**; `lantern status` pokazuje ostrzeżenie. Aplikacja Lantern
-  prosi o te zgody zwykłymi oknami macOS.
-- Domyślne wykluczenia (lista w `daemon/lantern/config.py` i `scanner/walk.py`):
-  - katalogi: `.git`, `node_modules`, `.venv`/`venv`, `__pycache__`, `build`, `dist`, `target`, `out`, `.cache`,
-    `DerivedData`, `Pods` i inne katalogi buildów oraz cache,
-  - pliki z sekretami: `.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, certyfikaty, klucze SSH `id_*`, `.netrc`, `.npmrc`,
-    `credentials*`, `secrets.*`, `*secret*.json|yaml`, `*token*.json|txt`, `*.tfstate`, `*.tfvars` i inne,
-  - lockfile'y (`package-lock.json`, `uv.lock`, `Cargo.lock` …), wszystko z plików `.gitignore` (także zagnieżdżonych),
-  - linki symboliczne (nigdy nie wychodzimy poza wskazany folder).
-- **Drzewko w Ustawieniach → Foldery** to najprostszy sposób: odznaczenie pliku lub folderu dodaje go do
-  wykluczeń, zaznaczenie elementu wewnątrz wykluczonego folderu przywraca tylko ten element.
-- **Ignorowane rozszerzenia** (domyślnie `.ipynb`, `.csv`, `.tsv`: notebooki i tabele to głównie wyniki i liczby):
+### Recordings and videos
+
+- ffmpeg streams the audio (16 kHz mono) window by window, so the length of a recording does not affect memory.
+- Two tracks in one ranking: **audio embeddings** of 30 s windows with 5 s overlap (the meaning of what is said,
+  also across languages) and **Whisper large-v3-turbo transcripts** in ~20 s chunks (single words, text previews).
+- `lantern index <folder> --no-transcribe` skips Whisper (faster, but single words are not found).
+
+## Folders and exclusions
+
+- Add folders in the app (Add Folder…) or with `lantern index <folder>`. You can add your whole home folder:
+  `lantern index ~ --dry-run` first counts files and estimates the time without reading or writing anything.
+- **Home folder rules** (always on): `~/Library` is skipped (mail, caches, app data) except **iCloud Drive**;
+  `~/Applications`, the Apple Music library and all macOS packages (`*.app`, `*.photoslibrary`, iWork documents,
+  disk images…) are skipped; hidden folders and files are skipped except `.github`.
+- **iCloud:** files that exist only in the cloud are skipped (reading them would download them) and indexed once they
+  are on the disk. A file already indexed that iCloud evicts stays in the index.
+- **Permissions:** Desktop, Documents, Downloads and iCloud Drive need macOS permission. A folder without access is
+  skipped and its previously indexed files are **kept**; `lantern status` shows a warning.
+- **Always excluded:** `.git`, `node_modules`, virtual environments, build and cache folders; files with secrets
+  (`.env*`, `*.pem`, `*.key`, `*.p12`, SSH keys `id_*`, `.netrc`, credential and token files, `*.tfstate`…);
+  lockfiles; everything in `.gitignore` files; symbolic links (Lantern never leaves the folder you chose).
+- **Choose what to index:** in Settings → Folders → Choose What to Index, unchecking a file or folder excludes it;
+  checking an item inside an excluded folder brings back only that item.
+- **Ignored extensions** (default: `.ipynb`, `.csv`, `.tsv` — notebooks and tables are mostly output and numbers):
 
   ```bash
   uv run lantern ignore list
-  uv run lantern ignore add json log        # csv, .csv i *.csv znaczą to samo
+  uv run lantern ignore add json log        # csv, .csv and *.csv mean the same
   uv run lantern ignore remove csv
   ```
 
-- **Rodzaje plików:** `lantern config index_audio_video false` wyłącza nagrania i filmy (także w Ustawieniach).
-- **Usuwanie przy wykluczeniu:** pliki, które nadal są na dysku, a zostały wykluczone (drzewko, rozszerzenie,
-  wyłączony rodzaj), znikają z indeksu przy najbliższym skanie bez `--force`. Ochrona przed masowym usunięciem
-  dotyczy tylko plików, które naprawdę zniknęły (np. odłączony dysk).
-- **Własne wykluczenia:**
+- **Exclusion patterns and paths:**
 
   ```bash
-  uv run lantern exclude add ~/Downloads/commons-math3-3.6.1   # konkretny folder lub plik
-  uv run lantern exclude add "*.csv"                           # wzorzec jak w .gitignore (w każdym folderze)
-  uv run lantern exclude list
-  uv run lantern exclude remove "*.csv"
+  uv run lantern exclude add ~/Downloads/some-library   # a folder or file
+  uv run lantern exclude add "*.log"                    # a .gitignore-style pattern, in every folder
+  uv run lantern exclude list | remove <pattern>
   ```
 
-  Zmiana działa przy następnym skanie (demon skanuje od razu); pasujące, już zaindeksowane pliki są wtedy usuwane
-  z indeksu.
+- **File types:** `lantern config index_photos false`, `index_audio_video false`, `index_video_frames false`,
+  `transcribe false` (also in Settings → File Types). Excluded files disappear from the index at the next scan.
 
-## Gdzie są dane i jak wykluczyć je z Time Machine
-
-- Indeks: `~/Library/Application Support/Lantern/index.db` (od Fazy 2). Ten katalog nie jest synchronizowany z iCloud.
-- Model: `~/.cache/huggingface/hub/`.
-- Wykluczenie indeksu z kopii Time Machine (zalecane, bo indeks zawiera pochodne Twoich plików):
+## Background daemon
 
 ```bash
-tmutil addexclusion "$HOME/Library/Application Support/Lantern"
-tmutil isexcluded "$HOME/Library/Application Support/Lantern"   # sprawdzenie
+uv run lantern daemon install     # install and start the LaunchAgent (starts at login, low priority)
+uv run lantern daemon run         # or run the daemon in the foreground (Ctrl+C stops it)
+uv run lantern pending            # files found by the daemon, waiting for approval
+uv run lantern approve | decline  # index them / ask again on the next change
+uv run lantern pause | resume
+uv run lantern config index_mode auto   # index right away instead of asking (default: ask)
+uv run lantern daemon stop | uninstall
 ```
 
-## Użycie na kodzie firmowym
+- **On start** (also after a long shutdown) the daemon scans all folders: deleted files leave the index at once; new
+  and changed ones wait for approval in "ask" mode. While running, FSEvents report changes.
+- **Indexing runs in a separate background-priority process**: the audio, vision and Whisper models live only there
+  and are released when it finishes. The idle daemon uses ~490 MB.
+- **Automatic pause** on battery power and on thermal warnings; the current file is finished, the rest waits.
+- **Settings** live in `~/Library/Application Support/Lantern/config.toml` (`lantern config` lists them).
+- **API:** Unix socket `~/Library/Application Support/Lantern/lantern.sock` (mode `0600`, folder `0700`), JSON lines.
+  The menu bar app uses the same API.
+- **Logs:** `~/Library/Application Support/Lantern/logs/` (paths and errors, never file contents or queries).
 
-- Indeks zawiera **dane pochodne z kodu**: fragmenty tekstu (do wyszukiwania słów) oraz wektory, które pozwalają częściowo
-  odtworzyć treść. Traktuj plik indeksu jak kopię kodu.
-- Nic nie opuszcza komputera, ale **uzgodnij użycie z działem IT/security** przed indeksowaniem repozytoriów firmowych
-  (polityki DLP, szyfrowanie dysku, kopie zapasowe).
-- Zalecenia: FileVault włączony, indeks wykluczony z Time Machine, domyślne wykluczenia sekretów pozostawione.
-- `lantern remove <folder>` usuwa fragmenty i wektory folderu i od razu zagęszcza bazę (VACUUM). Test automatyczny
-  sprawdza, że usunięty tekst nie występuje w surowych bajtach pliku bazy. Po usunięciu wielu plików `index` sam zagęszcza bazę.
+## Privacy
 
-## Znane ograniczenia i otwarte pytania
+- Everything runs **locally and offline** after the one-time model download. No telemetry, no external APIs.
+- Lantern **only reads** the files it indexes. It never modifies, moves or deletes them.
+- The index is one SQLite file in `~/Library/Application Support/Lantern/` (not synced with iCloud). It contains text
+  passages, code signatures and vectors derived from your files: treat it like a copy of them. Exclude it from
+  Time Machine if you like:
 
-- Backend MLX korzysta z **niewydanej gałęzi `mlx-vlm`** (przypięty commit) i społecznościowej konwersji wag
-  `mlx-community`. Wektory są zgodne z oryginałem (cos 0,9998), ale to zależność do obserwowania.
-- Pamięć (zmierzone na M4): demon w spoczynku ~490 MB, plus ~340 MB na model zapytań do zdjęć, ładowany przy otwarciu
-  panelu i zwalniany po 5 min bezczynności; proces indeksujący do ~2 GB dla tekstu, ~3,3 GB dla nagrań i filmów
-  (embedding audio, potem Whisper) i ~4 GB dla zdjęć (dwa modele), po czym kończy się i zwalnia pamięć.
-- Jakość wyszukiwania zdjęć zmierzona na 1000 zdjęć z Flickr30k i 80 zdjęciach w folderze testowym; na prawdziwej
-  bibliotece (zrzuty ekranu, dokumenty, setki podobnych zdjęć) może wypaść inaczej. Tekst na zdjęciach (OCR) nie jest
-  odczytywany.
-- Transkrypcja obejmuje maksymalnie pierwsze 4 godziny nagrania (Whisper dekoduje całość do pamięci, ~230 MB na godzinę).
-  Embedding audio obejmuje całe nagranie.
-- Jakość wyszukiwania audio sprawdzona dotąd na mowie syntetycznej (`say`); prawdziwe nagrania (szum, wielu mówców)
-  mogą wypaść gorzej.
-- Duże pliki (> 64 MB, głównie filmy) są rozpoznawane po rozmiarze i próbkach treści (początek, środek, koniec), a nie
-  po pełnym hashu. Zmiana w innym miejscu pliku bez zmiany rozmiaru i daty modyfikacji nie zostanie wykryta.
-- CSV/TSV i duże pliki z przewagą liczb są indeksowane tylko od początku (nagłówek i pierwsze wiersze). Lockfile'y
-  (`package-lock.json`, `uv.lock` itd.) są pomijane.
-- Polska odmiana w wyszukiwaniu słów to przybliżenie (prefiks rdzenia), a nie prawdziwy stemmer. Krótkie słowa
-  (do 4 liter, np. „bazą”) muszą pasować dokładnie.
-- Domyślny procesor ucina audio po 30 s bez ostrzeżenia. Lantern zawsze ustawia limit jawnie (okna z nakładką).
-- Pełna lista otwartych pytań: [docs/DECISIONS.md](docs/DECISIONS.md#otwarte-pytania).
+  ```bash
+  tmutil addexclusion "$HOME/Library/Application Support/Lantern"
+  ```
 
-## Struktura
+- Deleted means deleted: text, keyword index rows and vectors are removed in one transaction, with SQLite
+  `secure_delete`, FTS5 `secure-delete` and `VACUUM` (`lantern compact`, automatic after large removals). A test
+  checks that removed text is gone from the raw bytes of the database file.
+- **Company code:** nothing leaves the Mac, but check with your IT/security team before indexing company
+  repositories. Keep FileVault on and the default secret exclusions in place.
+- Details: [docs/PRIVACY.md](docs/PRIVACY.md).
+
+## Known limitations
+
+- The MLX backend uses an **unreleased `mlx-vlm` branch** (pinned commit) and community-converted `mlx-community`
+  weights. Vectors match the original model (cosine 0.9998), but this dependency needs watching.
+- Memory (measured on M4): idle daemon ~490 MB, plus ~340 MB for the photo query model while the panel is in use
+  (released after 5 minutes); the indexing process up to ~2 GB for text, ~3.3 GB for recordings and ~4 GB for photos,
+  then it exits.
+- Photo search was measured on 1,000 Flickr30k photos and an 80-photo test folder; real libraries (screenshots,
+  documents, many similar photos) may behave differently. Text inside images is not read (no OCR).
+- Audio search was evaluated on synthetic speech; real recordings (noise, several speakers) may do worse.
+  Transcripts cover the first 4 hours of a recording; audio embeddings cover all of it.
+- Large files (> 64 MB, mostly videos) are recognised by size and content samples, not a full hash.
+- CSV/TSV and large number-heavy files are indexed by their head only (when not ignored).
+- Polish inflection in keyword search is approximated by stem prefixes, not a real stemmer.
+- Full list of open questions: [docs/DECISIONS.md](docs/DECISIONS.md#otwarte-pytania).
+
+## Development
+
+```bash
+uv run pytest            # fast tests (no real model)
+uv run pytest -m model   # tests with the real models (downloaded): reference vectors, no network access, search
+uv run ruff check
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
+```
 
 ```
 README.md, CLAUDE.md, pyproject.toml
-docs/        ARCHITECTURE.md, DECISIONS.md (ADR + otwarte pytania), PRIVACY.md
-daemon/      kod demona (pakiet `lantern`): api, scanner, queue, extractors, chunking, embedding, store, search, cli.py
-app/         aplikacja Swift w pasku menu (Swift Package: LanternCore + Lantern, build.sh)
-launchd/     szablon LaunchAgenta (Faza 5)
-spikes/      skrypty pomiarowe Fazy 0 (nie są częścią aplikacji)
-tests/       testy
+docs/        ARCHITECTURE.md, DECISIONS.md (decisions, measurements, open questions), PRIVACY.md — in Polish
+daemon/      the daemon (Python package `lantern`): api, scanner, queue, extractors, chunking, embedding, store,
+             search, service, cli.py
+app/         the menu bar app (Swift package: LanternCore + Lantern, build.sh)
+launchd/     LaunchAgent template
+spikes/      measurement scripts behind the decisions (not part of the app)
+tests/       pytest suite
 ```
+
+`CLAUDE.md`, `daemon/CLAUDE.md` and `app/CLAUDE.md` describe the conventions for contributors (and coding agents).

@@ -51,61 +51,42 @@ final class TreeNode: ObservableObject, Identifiable {
     }
 }
 
-/// Folder tree with checkboxes: expand down to single files, uncheck what Lantern must not index.
+/// Folder tree with checkboxes: expand down to single files, uncheck what Lantern must not index. With a query,
+/// a flat list of matching files and folders (the daemon searches names in the indexed folders).
 struct FolderTree: View {
     @EnvironmentObject var state: AppState
+    let query: String
+    let showAll: Bool
     @State private var roots: [TreeNode] = []
-    @State private var showAll = false
     @State private var pending: (node: TreeNode, count: Int)?
-    @State private var query: String = {  // `--tree-query x`: development screenshots
-        let args = CommandLine.arguments
-        return args.firstIndex(of: "--tree-query").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil } ?? ""
-    }()
     @State private var hits: [TreeNode]?
     @State private var hitsTruncated = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("", text: $query, prompt: Text("Find a file or folder"))
-                    .textFieldStyle(.plain)
-                    .labelsHidden()
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.quaternary.opacity(0.6)))
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if let hits {
-                        ForEach(hits) { hit in
-                            TreeRow(node: hit, depth: 0, showAll: true, toggle: toggle)
-                        }
-                        if hits.isEmpty {
-                            Text("Nothing found in the indexed folders.").foregroundStyle(.secondary).padding(8)
-                        } else if hitsTruncated {
-                            Text("Showing the first matches; type more to narrow down.")
-                                .font(.caption).foregroundStyle(.secondary).padding(8)
-                        }
-                    } else {
-                        ForEach(roots) { root in
-                            TreeRow(node: root, depth: 0, showAll: showAll, toggle: toggle)
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let hits {
+                    ForEach(hits) { hit in
+                        TreeRow(node: hit, depth: 0, showAll: true, toggle: toggle)
+                    }
+                    if hits.isEmpty {
+                        Text("Nothing found in the indexed folders.").foregroundStyle(.secondary).padding(12)
+                    } else if hitsTruncated {
+                        Text("Showing the first matches; type more to narrow down.")
+                            .font(.caption).foregroundStyle(.secondary).padding(12)
+                    }
+                } else {
+                    ForEach(roots) { root in
+                        TreeRow(node: root, depth: 0, showAll: showAll, toggle: toggle)
                     }
                 }
-                .padding(.vertical, 4)
             }
-            .frame(minHeight: 180, maxHeight: 260)
-            .background(RoundedRectangle(cornerRadius: 6).fill(.background.opacity(0.5)))
-            Toggle("Show files Lantern does not index", isOn: $showAll)
-                .toggleStyle(.checkbox)
-                .font(.caption)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.background.secondary))
+            .padding(20)
         }
+        .softScrollEdge()
         .task(id: state.status?.roots.map(\.path) ?? []) { syncRoots() }
         .task(id: query) { await runSearch() }
         .alert(

@@ -10,9 +10,16 @@ struct PerformanceTab: View {
     @State private var window: Double = 60
 
     var body: some View {
-        Form {
+        SettingsPage {
             Section {
                 if let snap {
+                    Picker("Range", selection: $window) {
+                        Text("60 s").tag(60.0)
+                        Text("5 min").tag(300.0)
+                        Text("10 min").tag(600.0)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                     // Clock time on the x axis, in the system's own time format (24 h in Polish, AM/PM in US English).
                     Chart(snap.points.filter { $0.t >= -window }, id: \.t) { p in
                         LineMark(x: .value("Time", fetched.addingTimeInterval(p.t)), y: .value("MB", p.mb))
@@ -29,13 +36,9 @@ struct PerformanceTab: View {
                         }
                     }
                     .chartYAxisLabel("MB")
-                    .frame(height: 160)
-                    Picker("Range", selection: $window) {
-                        Text("60 s").tag(60.0)
-                        Text("5 min").tag(300.0)
-                        Text("10 min").tag(600.0)
-                    }
-                    .pickerStyle(.segmented)
+                    .chartForegroundStyleScale([String(localized: "Daemon"): Color.teal, String(localized: "Indexing"): Color.purple])
+                    .frame(height: 180)
+                    .padding(.top, 6)
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 160)
                 }
@@ -76,7 +79,7 @@ struct PerformanceTab: View {
                 }
             }
         }
-        .formStyle(.grouped)
+        .navigationSubtitle(subtitle)
         .task {
             while !Task.isCancelled {
                 if let s = try? await state.client.call("perf", as: PerfSnapshot.self, timeout: 5) {
@@ -86,6 +89,14 @@ struct PerformanceTab: View {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
+    }
+
+    private var subtitle: String {
+        guard let snap else { return "" }
+        if snap.worker.running, let mb = snap.worker.mb {
+            return String(localized: "Indexing · \(mb) MB")
+        }
+        return snap.daemon.mb.map { String(localized: "Idle · \($0) MB") } ?? ""
     }
 
     private func mb(_ v: Int?) -> String { v.map { "\($0) MB" } ?? "–" }
@@ -100,6 +111,9 @@ private struct ModelRow: View {
     let model: PerfSnapshot.Model
 
     var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            SettingsIcon(symbol: model.key == "whisper" ? "waveform" : model.key.hasPrefix("siglip") ? "photo.fill" : "brain",
+                         color: model.key == "whisper" ? .orange : model.key.hasPrefix("siglip") ? .pink : .purple)
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(title).font(.body.weight(.medium))
@@ -112,6 +126,7 @@ private struct ModelRow: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+        }
         }
     }
 

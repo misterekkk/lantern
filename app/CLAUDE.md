@@ -15,10 +15,14 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   unit-tested) to jump to the line: `vscode://` / `cursor://` URLs, `xed -l` with `DEVELOPER_DIR` set to that
   Xcode (xcode-select may point at the Command Line Tools), JetBrains launchers with `--line`; anything else opens
   the file normally. Never switch to a different app than the user's default.
-- Settings: `SettingsView` is a `NavigationSplitView` (sidebar panes like System Settings): General, Folders
-  (`FolderTree` with lazy `TreeNode`s and name search, `ExtensionField` pills — parsing in LanternCore
-  `ExtensionInput`), Performance (`PerformanceView`, Swift Charts, polls `perf` every second while visible),
-  Privacy, About. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
+- Settings: `SettingsView` copies System Settings (`NavigationSplitView`, sidebar search + status row, panes in
+  groups, ← → arrows, subpages in a `NavigationStack`). Panes are built from `SettingsKit.swift`: `PaneHeader`
+  (icon, title, one-line description), `IconLabel` rows with coloured icons, `SettingsPage` (grouped form + soft
+  scroll edge; `scrollEdgeEffectStyle` on macOS 26, gradient mask before). Dependent rows are dimmed, never indented.
+  Panes: General (login, language via `AppLanguage` + relaunch, shortcut, index mode), File Types (switches,
+  `ExtensionField` pills — parsing in LanternCore `ExtensionInput`), Folders (roots; subpages `TreePage` with
+  `FolderTree` and toolbar search, `PatternsPage`), Battery and Heat, Performance (`PerformanceView`, Swift Charts,
+  polls `perf` every second while visible), Privacy, About. The window needs `sceneBridgingOptions = [.title, .toolbars]`. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
   string-literal `Text` (Markdown).
 - Panel shortcuts go through `SearchModel.act(OpenAction)`: ↩ at location, ⌥↩ from start, ⌘Y preview inside the
   panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder. Recordings: `MediaOpener` runs

@@ -563,6 +563,12 @@ Decyzje:
 - **Pomiar na żywo (80 zdjęć, izolowany demon):** proces indeksujący 0,7 → 3,2 GB (szczyt jądra 3220 MB, najwyższa
   próbka 1 s 3198 MB), po zakończeniu demon 391 MB; panel pokazał załadowane części (EmbeddingGemma: obraz, SigLIP).
 
+Po uwagach użytkownika okno ustawień przebudowane według zrzutów Ustawień systemowych (macOS 26): pasek boczny
+z wyszukiwarką i wierszem stanu Lanterna, panele w grupach, strzałki ← → i tytuł w pasku narzędzi, karta nagłówka
+(ikona, tytuł, opis), wiersze z kolorowymi ikonami, podstrony (drzewko, wzorce), miękka krawędź przewijania
+(`scrollEdgeEffectStyle(.soft)`), opcje zależne przygaszone zamiast wcięte. Wybór języka aplikacji (jak w macOS /
+polski / angielski) w panelu Ogólne, z ponownym uruchomieniem; README po angielsku (repozytorium publiczne).
+
 Ograniczenia: zgoda na sterowanie QuickTime sprawdzona z procesu VS Code (aplikacja Lantern zapyta o własną przy
 pierwszym ↩ na nagraniu); wyszukiwarka drzewka przy bardzo dużych folderach (cały katalog domowy) może nie zdążyć
 w 3 s i pokazuje wtedy pierwsze wyniki.
