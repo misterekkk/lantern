@@ -114,6 +114,8 @@ final class SearchModel: ObservableObject {
     @Published private(set) var searching = false
     @Published var focusToken = 0
     @Published var appearToken = 0
+    /// Quick look shown in place of the results (⌘Y); Esc returns to the list.
+    @Published var preview: PreviewContent?
     private var eventId: Int?
     private var pending: Task<Void, Never>?
 
@@ -143,6 +145,7 @@ final class SearchModel: ObservableObject {
                 sections = resp.sections
                 eventId = resp.eventId
                 selection = 0
+                preview = nil
                 message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
             } catch {
                 sections = []
@@ -156,19 +159,73 @@ final class SearchModel: ObservableObject {
         selection = (selection + delta + results.count) % results.count
     }
 
-    func open(reveal: Bool = false) {
-        guard results.indices.contains(selection) else { return }
-        let hit = results[selection]
+    var selected: SearchResult? { results.indices.contains(selection) ? results[selection] : nil }
+
+    /// One entry point for every shortcut and click (OpenAction): same meaning for code, text and recordings.
+    func act(_ action: OpenAction) {
+        guard let hit = selected else { return }
         let url = URL(fileURLWithPath: hit.path)
-        if reveal {
+        switch action {
+        case .preview:
+            togglePreview(hit)
+            return
+        case .reveal:
             NSWorkspace.shared.activateFileViewerSelecting([url])
-        } else {
+        case .fromStart:
+            NSWorkspace.shared.open(url)  // default app, top of the file / beginning of the recording
+        case .atLocation:
+            if hit.isMedia {
+                openRecording(hit)
+                return
+            }
             EditorOpener.open(url, line: hit.openLine)
         }
+        recordOpened(hit)
+        SearchPanelController.shared.hide()
+    }
+
+    /// ↩ on a recording: QuickTime at the moment (plan B); if that fails or QuickTime cannot play the format,
+    /// Lantern's own preview from the same moment (plan A).
+    private func openRecording(_ hit: SearchResult) {
+        recordOpened(hit)
+        guard MediaOpen.quickTimePlays(hit.path) else {
+            // mkv, webm…: neither QuickTime nor Lantern's preview (same AVFoundation engine) can play them, so the
+            // default app (VLC, IINA…) opens the file from the beginning.
+            NSWorkspace.shared.open(URL(fileURLWithPath: hit.path))
+            SearchPanelController.shared.hide()
+            return
+        }
+        SearchPanelController.shared.hide()
+        MediaOpener.openInQuickTime(hit) { [weak self] ok in
+            guard !ok, let self else { return }
+            self.preview = .media(hit)
+            SearchPanelController.shared.show()
+        }
+    }
+
+    private func togglePreview(_ hit: SearchResult) {
+        if preview != nil {
+            preview = nil
+            return
+        }
+        if hit.isMedia {
+            preview = .media(hit)
+        } else if hit.isVisual {
+            preview = .image(hit)
+        } else if let line = hit.startLine {
+            Task {
+                let params: [String: Any] = ["path": hit.path, "start_line": line, "end_line": hit.endLine ?? line]
+                if let p = try? await AppState.shared.client.call("preview", params, as: TextPreview.self) {
+                    preview = .text(p, hit)
+                }
+            }
+        }
+    }
+
+    private func recordOpened(_ hit: SearchResult) {
         if let eventId, hit.chunkId >= 0 {  // which result was chosen: training data for a future reranker
             Task { try? await AppState.shared.client.callRaw("opened", ["event_id": eventId, "chunk_id": hit.chunkId]) }
         }
-        SearchPanelController.shared.hide()
     }
 }
 
@@ -222,6 +279,16 @@ struct SearchView: View {
 
             if !model.results.isEmpty || model.message != nil {
                 Divider().opacity(0.5)
+                if let preview = model.preview {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(Format.title(preview.result))
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
+                        PreviewView(content: preview)
+                    }
+                    .transition(.opacity)
+                } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 2) {
@@ -233,7 +300,11 @@ struct SearchView: View {
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace)
                                         .id(index)
                                         .transition(.opacity)
-                                        .onTapGesture(count: 2) { model.selection = index; model.open() }
+                                        .onTapGesture(count: 2) {
+                                            model.selection = index
+                                            // ⌥ double-click: from the top / beginning, like ⌥↩
+                                            model.act(NSEvent.modifierFlags.contains(.option) ? .fromStart : .atLocation)
+                                        }
                                         .onTapGesture { model.selection = index }
                                 }
                             }
@@ -251,13 +322,15 @@ struct SearchView: View {
                     .animation(.snappy(duration: 0.18), value: model.selection)
                     .animation(.smooth(duration: 0.22), value: model.results.map(\.id))
                 }
+                }
                 Divider().opacity(0.5)
                 HStack(spacing: 14) {
-                    Hint(keys: "↩", label: "open")
-                    Hint(keys: "⌘↩", label: "show in Finder")
-                    Hint(keys: "↑↓", label: "select")
+                    Hint(keys: "↩", label: "open here")
+                    Hint(keys: "⌥↩", label: "from the start")
+                    Hint(keys: "⌘Y", label: model.preview == nil ? "preview" : "back")
+                    Hint(keys: "⌘↩", label: "Finder")
                     Spacer()
-                    Hint(keys: "esc", label: "close")
+                    Hint(keys: "esc", label: model.preview == nil ? "close" : "back")
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -271,13 +344,22 @@ struct SearchView: View {
             shown = false
             withAnimation(.snappy(duration: 0.2)) { shown = true }
         }
-        .onKeyPress(.upArrow) { model.move(-1); return .handled }
-        .onKeyPress(.downArrow) { model.move(1); return .handled }
-        .onKeyPress(.escape) { close(); return .handled }
-        .onKeyPress(.return, phases: .down) { press in
-            model.open(reveal: press.modifiers.contains(.command))
+        .onKeyPress(.upArrow) { model.preview = nil; model.move(-1); return .handled }
+        .onKeyPress(.downArrow) { model.preview = nil; model.move(1); return .handled }
+        .onKeyPress(.escape) {
+            if model.preview != nil { model.preview = nil } else { close() }
             return .handled
         }
+        .onKeyPress(.return, phases: .down) { press in
+            model.act(press.modifiers.contains(.command) ? .reveal : press.modifiers.contains(.option) ? .fromStart : .atLocation)
+            return .handled
+        }
+        .onKeyPress(keys: ["y"], phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            model.act(.preview)
+            return .handled
+        }
+        .animation(.snappy(duration: 0.2), value: model.preview)
         .onChange(of: model.focusToken) { _, _ in focused = true }
         .onAppear { focused = true }
     }
@@ -329,7 +411,7 @@ private struct QueryStyle: ViewModifier {
             .textFieldStyle(.plain)
             .font(.system(size: 24, weight: .regular))
             .focused(focused)
-            .onSubmit { model.open() }
+            .onSubmit { model.act(.atLocation) }
     }
 }
 

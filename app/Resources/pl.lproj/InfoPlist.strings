@@ -5,3 +5,4 @@
 "NSRemovableVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach zewnętrznych, które wskażesz.";
 "NSNetworkVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach sieciowych, które wskażesz.";
 "NSHumanReadableCopyright" = "Lantern — lokalne wyszukiwanie, bez wysyłania danych.";
+"NSAppleEventsUsageDescription" = "Lantern otwiera nagranie w QuickTime Player w momencie, w którym padają wyszukane słowa.";

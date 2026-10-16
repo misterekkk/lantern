@@ -113,6 +113,51 @@ import Testing
         #expect(LineJump.make(bundleId: "org.python.IDLE", appURL: app, executable: nil, file: "/a.py", line: 1) == .plain)
     }
 
+    @Test func extensionPillsFromTypedText() {
+        #expect(ExtensionInput.normalize("csv") == ".csv" && ExtensionInput.normalize("*.CSV") == ".csv")
+        #expect(ExtensionInput.normalize("a b") == nil && ExtensionInput.normalize("*") == nil)
+        let r = ExtensionInput.split("*.csv, .json,tsv,, bad/x, .lo")
+        #expect(r.completed == [".csv", ".json", ".tsv"] && r.invalid == ["bad/x"] && r.remainder == ".lo")
+        #expect(ExtensionInput.split("csv").completed.isEmpty)  // no separator yet: still typing
+    }
+
+    @Test func extensionSuggestionsFilterAsYouType() {
+        let items = [
+            ExtensionSuggestions.Item(ext: ".json", kind: "text", indexed: 40),
+            ExtensionSuggestions.Item(ext: ".js", kind: "code", indexed: 90),
+            ExtensionSuggestions.Item(ext: ".csv", kind: "text", indexed: 3),
+        ]
+        #expect(ExtensionInput.suggestions(for: "j", from: items, ignored: []).map(\.ext) == [".js", ".json"])
+        #expect(ExtensionInput.suggestions(for: "*.js", from: items, ignored: [".js"]).map(\.ext) == [".json"])
+    }
+
+    @Test func treeAndPerfDecode() throws {
+        let tree = """
+        {"path": "/p", "entries": [{"name": "app", "path": "/p/app", "is_dir": true, "state": "partial",
+          "reason": null, "indexed": 12}, {"name": ".env", "path": "/p/.env", "is_dir": false, "state": "skipped",
+          "reason": "hidden", "indexed": 0}], "truncated": false}
+        """
+        let listing = try DaemonClient.decoder.decode(TreeListing.self, from: Data(tree.utf8))
+        #expect(listing.entries[0].state == .partial && !listing.entries[1].toggleable)
+        let perf = """
+        {"interval_s": 1, "samples": [[-2, 480.5, null], [-1, 481, 1200.2]],
+         "daemon": {"mb": 481, "peak_mb": 900}, "worker": {"running": true, "mb": 1200, "peak_mb": 3900,
+         "last_peak_mb": null, "stage": "index", "done": 3, "total": 10, "path": "/a.jpg", "rate": 3.1},
+         "models": [{"key": "whisper", "repo": "r", "revision": "v", "where": "worker", "size_mb": 1550,
+           "downloaded": true, "loaded_daemon": false, "loaded_worker": false, "worker_parts": []}]}
+        """
+        let snap = try DaemonClient.decoder.decode(PerfSnapshot.self, from: Data(perf.utf8))
+        #expect(snap.points.count == 3 && snap.points.last?.series == "worker" && snap.worker.rate == 3.1)
+        let preview = #"{"path": "/a.py", "start_line": 2, "end_line": 2, "total_lines": 3, "lines": [[1, "def main():"], [2, "    pass"]]}"#
+        let p = try DaemonClient.decoder.decode(TextPreview.self, from: Data(preview.utf8))
+        #expect(p.numbered.map(\.number) == [1, 2] && p.numbered[1].text == "    pass")
+    }
+
+    @Test func mediaOpensInQuickTimeOnlyForItsFormats() {
+        #expect(MediaOpen.quickTimePlays("/a/vlog.MOV") && !MediaOpen.quickTimePlays("/a/film.mkv"))
+        #expect(MediaOpen.startSeconds(108_000) == 105 && MediaOpen.startSeconds(1_000) == 0)
+    }
+
     @Test func shortPath() {
         #expect(Format.shortPath("/Users/x/Dokumenty/a.md", home: "/Users/x") == "~/Dokumenty/a.md")
         #expect(Format.shortPath("/Volumes/Dysk/a.md", home: "/Users/x") == "/Volumes/Dysk/a.md")

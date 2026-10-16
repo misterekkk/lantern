@@ -152,6 +152,109 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var notify: Bool
     public var debounceS: Double
     public var exclude: [String]
+    public var excludeExtensions: [String]
+    public var indexAudioVideo: Bool
+}
+
+/// One folder level of the settings tree (`api_tree`).
+public struct TreeListing: Decodable, Equatable, Sendable {
+    public var path: String
+    public var entries: [TreeEntry]
+    public var truncated: Bool?
+    public var note: String?  // cloud | no_access
+}
+
+public struct TreeEntry: Decodable, Equatable, Sendable, Identifiable {
+    public enum State: String, Decodable, Sendable { case included, partial, excluded, skipped }
+    public var name: String
+    public var path: String
+    public var isDir: Bool
+    public var state: State
+    public var reason: String?  // why a skipped entry is skipped (hidden, secret, build, gitignore, extension…)
+    public var indexed: Int  // files in the index (folders) or 0/1 (files)
+    public var id: String { path }
+    public var toggleable: Bool { state != .skipped }
+}
+
+/// `api_perf`: memory history and current work.
+public struct PerfSnapshot: Decodable, Equatable, Sendable {
+    public struct Process: Decodable, Equatable, Sendable {
+        public var mb: Int?
+        public var peakMb: Int?
+    }
+    public struct Worker: Decodable, Equatable, Sendable {
+        public var running: Bool
+        public var mb: Int?
+        public var peakMb: Int?
+        public var lastPeakMb: Int?
+        public var stage: String?
+        public var done: Int?
+        public var total: Int?
+        public var path: String?
+        public var rate: Double?
+    }
+    public struct Model: Decodable, Equatable, Sendable, Identifiable {
+        public var key: String
+        public var repo: String
+        public var revision: String
+        public var sizeMb: Int?
+        public var downloaded: Bool
+        public var loadedDaemon: Bool
+        public var loadedWorker: Bool
+        public var workerParts: [String]
+        public var id: String { key }
+    }
+    public var intervalS: Double
+    public var samples: [[Double?]]  // [seconds ago (negative), daemon MB, worker MB or null]
+    public var daemon: Process
+    public var worker: Worker
+    public var models: [Model]
+
+    public struct Point: Equatable, Sendable { public var t: Double; public var mb: Double; public var series: String }
+    /// Chart points per series ("daemon", "worker"); a gap where the worker was not running.
+    public var points: [Point] {
+        samples.flatMap { s -> [Point] in
+            guard s.count == 3, let t = s[0] else { return [] }
+            var out: [Point] = []
+            if let d = s[1] { out.append(Point(t: t, mb: d, series: "daemon")) }
+            if let w = s[2] { out.append(Point(t: t, mb: w, series: "worker")) }
+            return out
+        }
+    }
+}
+
+/// `api_preview`: lines around a text/code result.
+public struct TextPreview: Decodable, Equatable, Sendable {
+    public var path: String
+    public var startLine: Int
+    public var endLine: Int
+    public var totalLines: Int
+    public var lines: [[Line]]
+
+    public enum Line: Decodable, Equatable, Sendable {
+        case number(Int), text(String)
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if let n = try? c.decode(Int.self) { self = .number(n) } else { self = .text(try c.decode(String.self)) }
+        }
+    }
+
+    public var numbered: [(number: Int, text: String)] {
+        lines.compactMap { pair in
+            guard pair.count == 2, case .number(let n) = pair[0], case .text(let s) = pair[1] else { return nil }
+            return (n, s)
+        }
+    }
+}
+
+public struct ExtensionSuggestions: Decodable, Equatable, Sendable {
+    public struct Item: Decodable, Equatable, Sendable {
+        public var ext: String
+        public var kind: String?
+        public var indexed: Int
+    }
+    public var suggestions: [Item]
+    public var ignored: [String]
 }
 
 public struct ScanSummary: Decodable, Equatable, Sendable {

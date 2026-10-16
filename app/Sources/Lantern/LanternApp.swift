@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         MainActor.assumeIsolated { AppState.shared.supervisor.stop() }
     }
 
-    /// Development flags: `--show-search "<query>"` opens the panel on launch; `--snapshot <dir>` then writes
+    /// Development flags: `--show-search "<query>"` opens the panel on launch (`--preview`: then ⌘Y on the first result); `--snapshot <dir>` then writes
     /// search.png and menu.png into <dir> (layout checks without screen-recording permission).
     @MainActor private func handleLaunchArguments() {
         let args = CommandLine.arguments
@@ -61,6 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             SearchPanelController.shared.show(query: query)
+            if args.contains("--preview") {  // quick look of the first result (development screenshots)
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                SearchPanelController.shared.model.act(.preview)
+            }
             guard let dir = value(after: "--snapshot") else { return }
             try? await Task.sleep(nanoseconds: 4_000_000_000)  // results arrive
             let folder = URL(fileURLWithPath: dir)

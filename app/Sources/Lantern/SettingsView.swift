@@ -13,7 +13,9 @@ final class SettingsWindowController {
             let host = NSHostingController(rootView: SettingsView().environmentObject(AppState.shared))
             let w = NSWindow(contentViewController: host)
             w.title = String(localized: "Lantern Settings")
-            w.styleMask = [.titled, .closable, .miniaturizable]
+            // Like System Settings: the sidebar runs up into the title bar.
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            w.toolbarStyle = .unified
             w.isReleasedWhenClosed = false
             w.center()
             window = w
@@ -23,18 +25,80 @@ final class SettingsWindowController {
     }
 }
 
-/// Settings window (⌘,): general, folders and exclusions, privacy, about.
+/// Settings window (gear in the menu bar), laid out like System Settings: panes in a sidebar on the left.
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, folders, performance, privacy, about
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: "General"
+        case .folders: "Folders"
+        case .performance: "Performance"
+        case .privacy: "Privacy"
+        case .about: "About"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape.fill"
+        case .folders: "folder.fill"
+        case .performance: "gauge.with.dots.needle.67percent"
+        case .privacy: "hand.raised.fill"
+        case .about: "info"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: .gray
+        case .folders: .blue
+        case .performance: .green
+        case .privacy: .indigo
+        case .about: .secondary
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
+    /// Development: `--settings-tab folders|performance|…` opens that pane (screenshots).
+    @State private var pane: SettingsPane? = {
+        let args = CommandLine.arguments
+        let name = args.firstIndex(of: "--settings-tab").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
+        return name.flatMap(SettingsPane.init(rawValue:)) ?? .general
+    }()
 
     var body: some View {
-        TabView {
-            GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
-            FoldersTab().tabItem { Label("Folders", systemImage: "folder") }
-            PrivacyTab().tabItem { Label("Privacy", systemImage: "hand.raised") }
-            AboutTab().tabItem { Label("About", systemImage: "info.circle") }
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: $pane) { p in
+                Label {
+                    Text(p.title)
+                } icon: {
+                    Image(systemName: p.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(p.color.gradient))
+                }
+                .tag(p)
+            }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            Group {
+                switch pane ?? .general {
+                case .general: GeneralTab()
+                case .folders: FoldersTab()
+                case .performance: PerformanceTab()
+                case .privacy: PrivacyTab()
+                case .about: AboutTab()
+                }
+            }
+            .navigationTitle(pane?.title ?? "General")
         }
-        .frame(width: 560, height: 420)
+        .frame(minWidth: 760, idealWidth: 820, minHeight: 560, idealHeight: 660)
         .task { await state.loadSettings() }
     }
 }
@@ -56,13 +120,20 @@ private struct GeneralTab: View {
                         Text("Ask before indexing").tag("ask")
                         Text("Index automatically").tag("auto")
                     }
-                    Toggle("Transcribe recordings and videos (Whisper)", isOn: Binding(
-                        get: { s.transcribe }, set: { state.setConfig("transcribe", $0 ? "true" : "false") }))
                     Toggle("Search photos by content", isOn: Binding(
                         get: { s.indexPhotos }, set: { state.setConfig("index_photos", $0 ? "true" : "false") }))
-                    Toggle("Search video frames", isOn: Binding(
-                        get: { s.indexVideoFrames },
-                        set: { state.setConfig("index_video_frames", $0 ? "true" : "false") }))
+                    Toggle("Index audio files and videos", isOn: Binding(
+                        get: { s.indexAudioVideo },
+                        set: { state.setConfig("index_audio_video", $0 ? "true" : "false") }))
+                    Group {
+                        Toggle("Transcribe recordings and videos (Whisper)", isOn: Binding(
+                            get: { s.transcribe }, set: { state.setConfig("transcribe", $0 ? "true" : "false") }))
+                        Toggle("Search video frames", isOn: Binding(
+                            get: { s.indexVideoFrames },
+                            set: { state.setConfig("index_video_frames", $0 ? "true" : "false") }))
+                    }
+                    .padding(.leading, 18)
+                    .disabled(!s.indexAudioVideo)
                     Toggle("Pause on battery power", isOn: Binding(
                         get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") }))
                     Toggle("Pause when the Mac is hot", isOn: Binding(
@@ -80,7 +151,10 @@ private struct FoldersTab: View {
     @EnvironmentObject var state: AppState
     @State private var newPattern = ""
 
+    private var patterns: [String] { state.settings?.exclude.filter { !$0.hasPrefix("/") && !$0.hasPrefix("~") } ?? [] }
+
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             Section("Searched folders") {
                 ForEach(state.status?.roots ?? []) { root in
@@ -98,7 +172,24 @@ private struct FoldersTab: View {
                 Button("Add Folder…") { state.chooseFolder() }
             }
             Section {
-                ForEach(state.settings?.exclude ?? [], id: \.self) { pattern in
+                FolderTree()
+            } header: {
+                Text("What Lantern indexes")
+            } footer: {
+                Text("Expand a folder down to single files and uncheck what Lantern must not read. Greyed items are always skipped; hover for the reason.")
+                    .font(.caption)
+            }
+            Section {
+                ExtensionField()
+                    .id("extensions")  // `--scroll-to extensions`: development screenshots
+            } header: {
+                Text("Ignored file extensions")
+            } footer: {
+                Text("Type an extension and a comma, or use +. Already indexed files with these extensions are removed from the index.")
+                    .font(.caption)
+            }
+            Section {
+                ForEach(patterns, id: \.self) { pattern in
                     HStack {
                         Text(pattern).font(.system(.body, design: .monospaced))
                         Spacer()
@@ -107,7 +198,9 @@ private struct FoldersTab: View {
                     }
                 }
                 HStack {
-                    TextField("e.g. ~/Downloads/archive or *.csv", text: $newPattern)
+                    // String, not a string literal: a literal Text would read ** as Markdown bold.
+                    TextField("", text: $newPattern, prompt: Text(String(localized: "e.g. **/fixtures/** or draft-*")))
+                        .labelsHidden()
                     Button("Add") {
                         state.addExclude(newPattern)
                         newPattern = ""
@@ -115,13 +208,19 @@ private struct FoldersTab: View {
                     .disabled(newPattern.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             } header: {
-                Text("Exclusions")
+                Text("Exclusion patterns")
             } footer: {
-                Text("Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files not on this Mac.")
+                Text("Advanced: .gitignore-style patterns matched in every indexed folder. Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files not on this Mac.")
                     .font(.caption)
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            if CommandLine.arguments.contains("--scroll-to") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { proxy.scrollTo("extensions", anchor: .top) }
+            }
+        }
+        }
     }
 }
 
@@ -165,7 +264,7 @@ private struct AboutTab: View {
             Text("Lantern").font(.title2.weight(.semibold))
             Text("Local search by meaning in files, code and recordings.")
                 .foregroundStyle(.secondary)
-            Text("Model: EmbeddingGemma 2 (MLX, 8-bit) · Whisper large-v3-turbo")
+            Text("Models: EmbeddingGemma 2 · SigLIP 2 · Whisper large-v3-turbo (details in Performance)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let s = state.status {

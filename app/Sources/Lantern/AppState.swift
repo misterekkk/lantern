@@ -97,6 +97,17 @@ final class AppState: ObservableObject {
     func setConfig(_ key: String, _ value: String) { run("config_set", ["key": key, "value": value]) }
     func addExclude(_ pattern: String) { run("exclude", ["action": "add", "pattern": pattern]) }
     func removeExclude(_ pattern: String) { run("exclude", ["action": "remove", "pattern": pattern]) }
+    func addExtension(_ ext: String) { run("extensions", ["action": "add", "extension": ext]) }
+    func removeExtension(_ ext: String) { run("extensions", ["action": "remove", "extension": ext]) }
+    /// Check/uncheck in the folder tree; the daemon rewrites path exclusions and rescans.
+    func setIncluded(_ path: String, _ included: Bool) async {
+        do {
+            try await client.callRaw("tree_set", ["path": path, "included": included], timeout: 60)
+        } catch {
+            lastMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+        await loadSettings()
+    }
     func removeFolder(_ path: String) { run("remove", ["path": path], message: String(localized: "Removed \(Format.shortPath(path)) from the index.")) }
     func clearHistory() { run("clear_history", message: String(localized: "Search history deleted.")) }
     func compact() { run("compact", message: String(localized: "Index compacted.")) }

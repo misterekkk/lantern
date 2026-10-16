@@ -15,6 +15,16 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   unit-tested) to jump to the line: `vscode://` / `cursor://` URLs, `xed -l` with `DEVELOPER_DIR` set to that
   Xcode (xcode-select may point at the Command Line Tools), JetBrains launchers with `--line`; anything else opens
   the file normally. Never switch to a different app than the user's default.
+- Settings: `SettingsView` is a `NavigationSplitView` (sidebar panes like System Settings): General, Folders
+  (`FolderTree` with lazy `TreeNode`s and name search, `ExtensionField` pills — parsing in LanternCore
+  `ExtensionInput`), Performance (`PerformanceView`, Swift Charts, polls `perf` every second while visible),
+  Privacy, About. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
+  string-literal `Text` (Markdown).
+- Panel shortcuts go through `SearchModel.act(OpenAction)`: ↩ at location, ⌥↩ from start, ⌘Y preview inside the
+  panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder. Recordings: `MediaOpener` runs
+  osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs
+  `NSAppleEventsUsageDescription`.
+- Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`.
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),
