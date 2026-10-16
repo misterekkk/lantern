@@ -29,8 +29,11 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 ## Features
 
-- **A quick search panel** (⌥Space) with sections for code definitions, photos and files; the section that
-  fits the query best comes first.
+- **A quick search panel** (⌥Space, or ⌘Space instead of Spotlight) with sections for applications, System
+  Settings, code definitions, photos and files; the section that fits the query best comes first.
+- **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
+  `kalkul`, `dicsord`, `vsc`), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
+  and both by what they do as a fallback (`procent baterii`, `web browser`).
 - **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
 - **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
   a definition.
@@ -129,14 +132,20 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 - **Menu bar icon:** state (ready, indexing, waiting for approval, paused), progress, file count and memory.
   Actions: Index now / Later, Pause / Resume, Add Folder…, Settings…, Quit. A notification with the same actions
   appears when new files are found in "ask" mode.
-- **⌥Space** opens the search panel. Results come in sections like in Spotlight: **Definitions** (functions and
-  classes, with file, line and signature), **Photos** (with thumbnails) and **Files**. Recordings and videos show the
-  moment of the match, e.g. `vlog.mp4 · 1:48`.
-- **Filter pills** under the query field, like Spotlight's: All, Code, Documents, PDFs, Photos, Recordings and
-  videos — only the kinds that match appear. Tab / ⇧Tab move between them, ⌘1…⌘6 pick one, a click works too.
+- **⌥Space** opens the search panel (Settings → General: ⌘Space instead of Spotlight, or ⌃⌥Space). Results come
+  in sections like in Spotlight: **Applications** and **System Settings** (↩ opens them), **Definitions**
+  (functions and classes, with file, line and signature), **Photos** (with thumbnails) and **Files**. Recordings and
+  videos show the moment of the match, e.g. `vlog.mp4 · 1:48`.
+  - Names that come from macOS (apps, settings, "Ustawienia systemowe") are shown in the system's language; Lantern's
+    own words follow Lantern's language.
+  - To use ⌘Space, macOS's Spotlight shortcut has to be turned off (System Settings → Keyboard → Keyboard
+    Shortcuts… → Spotlight); Lantern says so and opens that page, but never changes system settings itself.
+- **Filter pills** under the query field, like Spotlight's: All, Applications, System Settings, Code, Documents,
+  PDFs, Photos, Recordings and videos — only the kinds that match appear. Tab / ⇧Tab move between them, ⌘1…⌘8 pick
+  one, a click works too.
 - **Inline completion:** while you type, the rest of a likely query appears in grey; → accepts it. Suggestions come
-  from your earlier searches that led to an opened result, then from function and file names in the index (never
-  from the internet, never invented sentences).
+  from your earlier searches that led to an opened result, then from app and System Settings names, then function
+  and file names in the index (never from the internet, never invented sentences).
 - **Shortcut hints:** by default the selected result shows what ↩ and ⌘Y do with it (as Spotlight does); Settings →
   General → Shortcut hints switches to a bar at the bottom or hides them.
 - **Shortcuts in the panel** (double-click = ↩, ⌥ + double-click = ⌥↩):
@@ -162,7 +171,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   - ⌘Y instead of Space: the panel's focus stays in the query field, where Space types a space. ⌘Y is the Quick
     Look shortcut of Finder.
 - **Settings** (Settings… in the menu), laid out like System Settings:
-  - **General:** open at login, language, search shortcut, ask before indexing or index automatically,
+  - **General:** open at login, language, search shortcut, preferred languages (the macOS ones plus any you add:
+    used for app and setting names and for reading text in images), ask before indexing or index automatically,
   - **File Types:** photos and the text in them (OCR), recordings and videos (with transcription and video frames),
     ignored extensions,
   - **Folders:** indexed folders, *Choose What to Index* (a folder tree with checkboxes, down to single files, with

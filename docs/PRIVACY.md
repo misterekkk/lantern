@@ -31,7 +31,11 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     checks that reading opens no network connection. The recognised text is stored in the index like document text,
     so private text in screenshots (passwords, banking) becomes searchable: OCR can be switched off in Settings → File
     Types. PDFs are only opened for reading, never saved.
-11. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+11. **Applications and System Settings:** only the bundles' own descriptions are read (Info.plist, translations,
+    keywords, the search terms of System Settings); nothing is launched, and opening a pane uses macOS's
+    x-apple.systempreferences links. The ⌘Space option reads whether Spotlight's shortcut is on; it never writes
+    system settings.
+12. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

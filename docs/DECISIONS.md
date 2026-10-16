@@ -747,6 +747,60 @@ AnyAscii) was not added: it would also rewrite scripts the models handle nativel
 table covers the Latin letters that matter. Existing indexes are re-folded by schema migration 4 → 5 (FTS rows only,
 no re-embedding). A test fails if a future SQLite starts folding these letters itself.
 
+## Applications, System Settings and the scope icons (2026-10-16)
+
+Goal: Lantern can replace Spotlight. Verified on this Mac (macOS 26.6, 102 apps, Polish system):
+
+- **App names come from the bundles.** Apple apps keep translations in `InfoPlist.loctable` (Kalkulator, Zdjęcia,
+  Ustawienia systemowe, plus keywords such as "Preferencje systemowe"), other apps in `<lang>.lproj/InfoPlist.strings`
+  (UTF-16, read with plutil). Two thirds of the apps declare an App Store category (`LSApplicationCategoryType`);
+  Chrome, Steam, DBeaver do not. Reading all of them takes 0.09 s.
+- **Names are matched as text, not by meaning.** 12/12 name queries right (`kalkulator`, `calc`, `dicsord`, `vsc`,
+  `visual stu`, `zdjęcia`, `ustawienia`, `preferencje systemowe`, `chrome`, `spotfy`, `monitor akt`, `terminal`): exact,
+  prefix, word start, initials, one or two typos (optimal string alignment), keywords. A misspelt short name has no
+  useful vector, so meaning is only a fallback.
+- **Meaning for descriptions** (one vector per app: names, category, keywords): good descriptions score 0.74–0.84
+  (`web browser` → Chrome, `edytor kodu` → Claude / Xcode / VS Code, `muzyka` → Music / Spotify), but some miss
+  (`arkusz kalkulacyjny` → Calculator, `komunikator` → VoiceOver Utility); queries that should show no app reach 0.71
+  at most. Floor 0.735, band 0.02 below the best; meaning-only apps are shown below the other sections, never as
+  the top hit.
+- **System Settings:** each pane is a Settings extension (`/System/Library/ExtensionKit/Extensions`, point
+  `com.apple.Settings.extension.ui`); its `searchTermsFileName` names `<lang>.lproj/<name>.searchTerms` files with
+  the settings inside (title + index words): 48 panes and ~560 settings in Polish and English. Panes with several
+  personalities (Battery / Energy Saver) name themselves through `representations[].sidebar-name`, translated in
+  another `.loctable`. Words: `24 godz` → "Używaj formatu 24-godzinnego na pasku menu", `night shift`, `bater`, `touch
+  id` all right. Meaning: good descriptions 0.79–0.86 (`procent baterii`, `powiększ tekst`, `udostępnianie ekranu`),
+  unrelated queries 0.67 at most → floor 0.78. Weak spot: "dark mode" / "ciemny motyw" — the Appearance pane lists no
+  such setting in its search terms, so there is nothing to match; the floor hides the wrong guesses.
+- **Language rule:** things that come from macOS (app and setting names, "Ustawienia systemowe") are shown in the
+  system's language; Lantern's own words follow Lantern's language (a Polish Mac with an English Lantern shows
+  "Ustawienia systemowe › Bateria" next to "open"). Preferred languages = macOS's list + languages added in Settings +
+  English; text in images is read in the first four that Vision supports (30 on this Mac, Polish included).
+- **⌘Space:** macOS keeps it for Spotlight (symbolic hotkey 64, `com.apple.symbolichotkeys`) until the user turns it
+  off; Lantern reads that flag, explains the step and opens Keyboard settings, and re-registers once it is free. It
+  never writes system preferences.
+- **Scope icons (prototype, `--scope-style icons`):** round Liquid Glass buttons with SF Symbols beside the field, all
+  kinds before typing, then only the kinds with matches; hover widens a button into its name; choosing one grows a
+  chip with its ⌘N at the start of the field while the button folds away (~0.3 s, no bounce). A first version that
+  flew the chip across the text overlapped it and broke "⌘4" onto two lines; replaced. Pills stay the default until
+  the design is approved.
+- **Menu fade:** measured the native NSMenu dismissal with CGWindowList: alpha falls exponentially (half after ~40 ms,
+  gone after ~200 ms); Lantern replays that curve after an item is chosen; a click elsewhere still closes at once.
+
+What Spotlight on macOS 26 offers and where Lantern stands:
+
+| Spotlight | Lantern |
+|---|---|
+| Files, documents, PDFs | yes, by meaning and words (beyond Spotlight: code lines, photos by content, moments in recordings) |
+| Applications, System Settings | yes (this section) |
+| Calculator, unit conversion | not yet; possible offline (currency needs the network: excluded) |
+| Dictionary definitions | not yet; possible offline through macOS's dictionaries |
+| Shortcuts / actions (App Intents) | not yet; `shortcuts list` / `run` are local |
+| Menu items and windows of apps | not yet; needs Accessibility permission |
+| Clipboard history | not yet; sensitive, would be opt-in |
+| Contacts, events, mail | not planned without a clear privacy design (macOS permissions) |
+| Web, weather, flights, Siri suggestions | no: they need the network |
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -865,3 +919,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     loop (toggle Low Power Mode, watch `lantern status`); until then `pmset` is checked too.
 34. After `lantern daemon install`: check the daemon's priority (`ps -o pri`) and search latency under the
     `Interactive` LaunchAgent.
+35. System Settings deep links to a single setting (anchors after the pane id): unverified, so results open the pane.
+36. App descriptions for meaning search: the bundles carry only names, a category and a few keywords, so
+    "komunikator" does not find Discord; a better source would have to stay local (no App Store lookups).
