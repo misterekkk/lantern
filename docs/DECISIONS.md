@@ -865,7 +865,8 @@ Measured on the test index (local queries vs web-like ones):
   Without it, "koń" shows the web row, then the horse photos (their summed z is in the 5–7 band, below the web row).
 - **Folding the scope icons.** A long query ran under the icons. When the typed text reaches them they fold into one
   button (`line.3.horizontal.decrease`, the filter symbol of Finder and Mail); a click unfolds them, each sliding
-  out from the button, nearest first (0.28 s, 30 ms apart); typing on folds them again; ⌘1–⌘9 always work. They
+  out from the button, nearest first (0.28 s, 30 ms apart); typing on folds them again, and so does doing nothing (4 s, or 1.2 s after the pointer leaves them); ⌘1–⌘9 always
+  work. They
   unfold by themselves only when all fit with 40 pt to spare (no flicker at the edge).
 - **Haptics:** the magnets use `.levelChange`, the firmest of the three system patterns (`.alignment` felt too light).
   The strength also follows System Settings → Trackpad → Click.

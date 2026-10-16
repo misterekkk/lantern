@@ -647,8 +647,21 @@ struct SearchView: View {
     @State private var fieldWidth: CGFloat = 0
     @State private var iconsFolded = false
     @State private var iconsOpened = false
+    @State private var foldBack: Task<Void, Never>?
+    private static var unfoldedOnce = false  // `--unfold-scopes` unfolds them once
     private var visibleIcons: [ResultCategory] { model.iconCategories.filter { $0 != model.category } }
     private var showsFoldedButton: Bool { iconsFolded && !iconsOpened && visibleIcons.count > 1 }
+
+    /// Unfolded icons fold again by themselves when none is chosen: after a while, or soon after the pointer leaves.
+    private func scheduleFoldBack(after seconds: Double) {
+        foldBack?.cancel()
+        foldBack = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled, iconsOpened else { return }
+            withAnimation(.smooth(duration: 0.3)) { iconsOpened = false }
+            updateFolding()
+        }
+    }
 
     private func fieldResized(_ width: CGFloat) {
         fieldWidth = width
@@ -702,6 +715,7 @@ struct SearchView: View {
                             .transition(.scale(scale: 0.6, anchor: .trailing).combined(with: .opacity))
                         } else {
                             let icons = visibleIcons
+                            HStack(spacing: 10) {
                             ForEach(Array(icons.enumerated()), id: \.element) { index, category in
                                 ScopeIcon(category: category, title: model.title(category), space: scopeSpace) {
                                     model.category = category
@@ -714,6 +728,14 @@ struct SearchView: View {
                                         .animation(.smooth(duration: 0.28).delay(0.03 * Double(icons.count - 1 - index))),
                                     removal: .scale(scale: 0.6).combined(with: .opacity)))
                             }
+                            }
+                            .onHover { inside in
+                                if inside {
+                                    foldBack?.cancel()
+                                } else if iconsOpened {
+                                    scheduleFoldBack(after: 1.2)
+                                }
+                            }
                         }
                     }
                 }
@@ -724,9 +746,13 @@ struct SearchView: View {
             .animation(.smooth(duration: 0.3), value: model.category)  // quiet, no bounce (app/CLAUDE.md)
             .animation(.smooth(duration: 0.3), value: model.iconCategories)
             .animation(.smooth(duration: 0.3), value: showsFoldedButton)
+            .onChange(of: iconsOpened) { _, open in
+                if open { scheduleFoldBack(after: 4) } else { foldBack?.cancel() }
+            }
             .onChange(of: showsFoldedButton) { _, folded in
                 // `--unfold-scopes`: development screenshots of the unfolding, 1.5 s after the icons fold
-                guard folded, CommandLine.arguments.contains("--unfold-scopes") else { return }
+                guard folded, !Self.unfoldedOnce, CommandLine.arguments.contains("--unfold-scopes") else { return }
+                Self.unfoldedOnce = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                     withAnimation(.smooth(duration: 0.3)) { iconsOpened = true }
                 }
