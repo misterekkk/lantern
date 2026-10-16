@@ -9,3 +9,4 @@ spikes/*/data/
 *.db-shm
 .DS_Store
 .venv-*/
+.vscode/
