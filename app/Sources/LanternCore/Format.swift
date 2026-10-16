@@ -44,6 +44,11 @@ public enum Format {
         case "answer", "web", "clipboard", "menu", "window": return r.preview
         case "dictionary": return String(localized: "Dictionary")
         case "shortcut": return String(localized: "Shortcut")
+        case "song":
+            let about = [r.musicArtist, r.musicAlbum].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            guard let list = r.musicPlaylist else { return about }
+            return about + "  ·  " + String(localized: "from playlist “\(list)”")
+        case "playlist": return String(localized: "Playlist · \(r.musicCount ?? 0) songs")
         default: break
         }
         let folder = shortPath((r.path as NSString).deletingLastPathComponent)

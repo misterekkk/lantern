@@ -34,6 +34,10 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
   `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).
+- **Apple Music** (off by default; Settings → Privacy): your library's songs and playlists by title, artist or album
+  (`skeletons`, `travisa scotta`, `playlista`); ↩ plays a song in Music in the context of its playlist, a playlist
+  opens without playing (⌥↩ plays it). Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
+  (Apple keeps those on its servers).
 - **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,
   `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
   dictionaries of macOS for a single word; your shortcuts (Shortcuts app); and a last row that opens the web search
@@ -155,7 +159,7 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
     Shortcuts… → Spotlight); Lantern says so and opens that page, but never changes system settings itself.
 - **Filter icons** beside the query field, like Spotlight's mode buttons (round glass buttons; hover shows the name,
   choosing one puts it in the field with its ⌘ shortcut). Kinds: Applications, System Settings, Shortcuts, Clipboard,
-  Code, Documents, PDFs, Photos, Recordings and videos — all before typing, then only the kinds that match. Tab / ⇧Tab
+  Code, Documents, PDFs, Photos, Recordings and videos, Music — folded into one filter button that unfolds when you point at it; once you type, up to three matching kinds show directly. Tab / ⇧Tab
   move between them, ⌘1…⌘9 pick one, a click works too; a long query folds them into one filter button (pointing
   at it unfolds them); ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
 - **Spelling:** after a short pause in typing, words that none of your languages knows get the spelling guesses of

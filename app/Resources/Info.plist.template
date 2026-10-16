@@ -18,7 +18,8 @@
     <key>NSDocumentsFolderUsageDescription</key><string>Lantern indexes your Documents locally so you can search them by meaning. Files are only read.</string>
     <key>NSDownloadsFolderUsageDescription</key><string>Lantern indexes your Downloads locally so you can search them by meaning. Files are only read.</string>
     <key>NSRemovableVolumesUsageDescription</key><string>Lantern can index folders on external drives that you choose.</string>
-    <key>NSAppleEventsUsageDescription</key><string>Lantern opens a recording in QuickTime Player at the moment where the words you searched for are spoken.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Lantern opens a recording in QuickTime Player at the moment where the words you searched for are spoken, and plays the songs and playlists you choose in Music.</string>
+    <key>NSAppleMusicUsageDescription</key><string>Lantern reads the names of your songs and playlists so you can find and play them from search. Nothing leaves your Mac.</string>
     <key>NSNetworkVolumesUsageDescription</key><string>Lantern can index folders on network drives that you choose.</string>
     <key>LanternPython</key><string>__PYTHON__</string>
 </dict>

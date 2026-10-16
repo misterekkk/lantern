@@ -383,6 +383,15 @@ final class SearchModel: ObservableObject {
                 return
             } else if hit.isApp {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+            } else if let music = MusicResult.parse(hit.path) {
+                // A song plays at once, in the context of its playlist; ⌥↩ shows it in Music. A playlist opens
+                // without playing; ⌥↩ plays it from the start.
+                switch (music.kind, action) {
+                case ("song", .atLocation): MusicPlayer.run(.playSong, song: music.id, playlist: music.playlist)
+                case ("song", _): MusicPlayer.run(.revealSong, song: music.id)
+                case (_, .atLocation): MusicPlayer.run(.revealPlaylist, playlist: music.id)
+                default: MusicPlayer.run(.playPlaylist, playlist: music.id)
+                }
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
@@ -488,7 +497,8 @@ private struct RowHint: View {
                 }
             }
             HStack(spacing: 4) {
-                Text(result.isMedia ? "play" : result.isAnswer || result.kind == "clipboard" ? "copy" : "open")
+                Text(result.isMedia || result.kind == "song" ? "play"
+                     : result.isAnswer || result.kind == "clipboard" ? "copy" : "open")
                     .foregroundStyle(.secondary)
                 KeyCap(keys: "↩")
             }
@@ -617,6 +627,7 @@ private struct SectionHeader: View {
         case .clipboard: Text("Clipboard")
         case .menu: Text("Menu Items")
         case .windows: Text("Windows")
+        case .music: Text("Music")
         case .web: Text("Web")
         }
     }
@@ -650,7 +661,11 @@ struct SearchView: View {
     @State private var foldBack: Task<Void, Never>?
     private static var unfoldedOnce = false  // `--unfold-scopes` unfolds them once
     private var visibleIcons: [ResultCategory] { model.iconCategories.filter { $0 != model.category } }
-    private var showsFoldedButton: Bool { iconsFolded && !iconsOpened && visibleIcons.count > 1 }
+    /// More kinds than fit calmly beside the field fold into one button by default (pointing at it unfolds them).
+    private static let maxUnfolded = 3
+    private var showsFoldedButton: Bool {
+        (iconsFolded || visibleIcons.count > Self.maxUnfolded) && !iconsOpened && visibleIcons.count > 1
+    }
 
     /// Unfolded icons fold again by themselves when none is chosen: after a while, or soon after the pointer leaves.
     private func scheduleFoldBack(after seconds: Double) {
@@ -881,12 +896,12 @@ struct SearchView: View {
             model.cycleCategory(back ? -1 : 1)
             return .handled
         }
-        .onKeyPress(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], phases: .down) { press in
+        .onKeyPress(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], phases: .down) { press in
             guard press.modifiers.contains(.command), scopeStyle == .icons || model.showsPills,
                   let n = Int(String(press.characters)) else {
                 return .ignored
             }
-            model.selectCategory(number: n)
+            model.selectCategory(number: n == 0 ? 10 : n)
             return .handled
         }
         .onKeyPress(.rightArrow, phases: .down) { _ in model.acceptCompletion() ? .handled : .ignored }
@@ -1081,6 +1096,7 @@ extension ResultCategory {
         case .pdf: "doc.richtext"
         case .photos: "photo"
         case .media: "play.rectangle"
+        case .music: "music.note"
         }
     }
 
@@ -1095,11 +1111,14 @@ extension ResultCategory {
         case .pdf: "PDFs"
         case .photos: "Photos"
         case .media: "Recordings and videos"
+        case .music: "Music"
         }
     }
 
     /// ⌘N: fixed per kind, so the shortcut never changes with the results.
     var number: Int { (Self.allCases.firstIndex(of: self) ?? 0) + 1 }
+    /// The key after ⌘: 1…9, then 0 for the tenth kind.
+    var key: String { number == 10 ? "0" : "\(number)" }
 }
 
 /// A round glass button for one kind. On hover it widens into a capsule with the name; choosing it moves it into
@@ -1141,7 +1160,7 @@ private struct ScopeIcon: View {
                 hovering = true
             }
         }
-        .help(title + Text(verbatim: "  ⌘\(category.number)"))
+        .help(title + Text(verbatim: "  ⌘\(category.key)"))
     }
 }
 
@@ -1188,7 +1207,7 @@ private struct ScopeChip: View {
                 title
                     .font(.system(size: 13, weight: .semibold))
                     .fixedSize()
-                Text(verbatim: "⌘\(category.number)")
+                Text(verbatim: "⌘\(category.key)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .fixedSize()

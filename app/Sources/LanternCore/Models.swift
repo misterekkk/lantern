@@ -70,6 +70,10 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var settingColor: String?
     public var settingsAppName: String?  // macOS's own name for System Settings ("Ustawienia systemowe")
     public var iconPath: String?  // answers, dictionary, shortcuts, web: the icon of the app that handles them
+    public var musicArtist: String?  // songs: artist and album; a song or a playlist: the playlist it plays from
+    public var musicAlbum: String?
+    public var musicPlaylist: String?
+    public var musicCount: Int?  // playlists: number of songs
 
     public init(
         path: String, chunkId: Int, startLine: Int? = nil, endLine: Int? = nil, symbol: String? = nil,
@@ -94,7 +98,8 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isAnswer: Bool { kind == "answer" }
     /// Rows that are not files: nothing to preview, ↩ opens or copies them.
     public var isAction: Bool {
-        ["app", "setting", "answer", "dictionary", "shortcut", "web", "clipboard", "menu", "window"].contains(kind)
+        ["app", "setting", "answer", "dictionary", "shortcut", "web", "clipboard", "menu", "window", "song", "playlist"]
+            .contains(kind)
     }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
@@ -180,6 +185,41 @@ public struct ShortcutResult: Decodable, Equatable, Sendable {
     }
 }
 
+/// A song or playlist of the user's Apple Music library (`search/music.py`). Path: `music:song:<id>[:<playlist id>]`
+/// or `music:playlist:<id>`, the persistent IDs Music's AppleScript takes.
+public struct MusicResult: Decodable, Equatable, Sendable {
+    public var id: String
+    public var kind: String  // song | playlist
+    public var title: String
+    public var artist: String
+    public var album: String
+    public var track: Int
+    public var downloaded: Bool
+    public var playlistId: String?
+    public var playlistName: String?
+    public var count: Int
+    public var match: String
+
+    public var asResult: SearchResult {
+        let path = kind == "playlist" ? "music:playlist:\(id)"
+            : "music:song:\(id)" + (playlistId.map { ":\($0)" } ?? "")
+        var row = SearchResult(path: path, chunkId: 0, symbol: title, kind: kind == "playlist" ? "playlist" : "song")
+        row.iconPath = "/System/Applications/Music.app"
+        row.musicArtist = artist
+        row.musicAlbum = album
+        row.musicPlaylist = playlistName
+        row.musicCount = count
+        return row
+    }
+
+    /// The parts of a music row's path: (kind, item id, playlist id).
+    public static func parse(_ path: String) -> (kind: String, id: String, playlist: String?)? {
+        let parts = path.split(separator: ":").map(String.init)
+        guard parts.count >= 3, parts[0] == "music" else { return nil }
+        return (parts[1], parts[2], parts.count > 3 ? parts[3] : (parts[1] == "playlist" ? parts[2] : nil))
+    }
+}
+
 /// A code definition from the symbols table: `def add_two(x, y)` in skrypt.py, line 200.
 public struct Definition: Decodable, Equatable, Sendable {
     public var path: String
@@ -222,6 +262,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     /// Each section's confidence on one 0..1 scale (`hybrid._section_scores`); sections are ordered by it, and the
     /// app adds its own (clipboard, web) on the same scale.
     public var sectionScores: [String: Double]
+    public var music: [MusicResult]
     /// The query the daemon searched instead, when a spelling guess replaced an unknown word (`search/spelling.py`).
     public var correctedQuery: String?
     public var eventId: Int?
@@ -231,7 +272,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
         case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst, sectionScores
-        case vectorMs, keywordMs, correctedQuery
+        case vectorMs, keywordMs, correctedQuery, music
     }
 
     public init(from decoder: Decoder) throws {
@@ -255,6 +296,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         definitionFirst = try c.decodeIfPresent(Bool.self, forKey: .definitionFirst) ?? false
         sectionScores = try c.decodeIfPresent([String: Double].self, forKey: .sectionScores) ?? [:]
         correctedQuery = try c.decodeIfPresent(String.self, forKey: .correctedQuery)
+        music = try c.decodeIfPresent([MusicResult].self, forKey: .music) ?? []
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -273,9 +315,11 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let answerSection = ResultSection(kind: .answer, results: answer.map { [$0.asResult] } ?? [])
         let shortcutSection = ResultSection(kind: .shortcuts, results: shortcuts.map(\.asResult))
         let dictionary = ResultSection(kind: .dictionary, results: definition.map { [$0.asResult] } ?? [])
+        let musicSection = ResultSection(kind: .music, results: music.map(\.asResult))
         // Same order as the daemon logs: answer, then name matches, then the rest, then hints.
         if !sectionScores.isEmpty {  // one scale for every kind: highest first, ties keep this order
-            let all = [answerSection, apps, shortcutSection, settings, definitions, photos, files, dictionary]
+            let all = [answerSection, apps, shortcutSection, settings, definitions, photos, files, dictionary,
+                       musicSection]
             return all.filter { !$0.results.isEmpty && sectionScores[$0.kind.daemonName] != nil }
                 .enumerated().sorted { a, b in
                     let (sa, sb) = (sectionScores[a.element.kind.daemonName]!, sectionScores[b.element.kind.daemonName]!)
@@ -285,13 +329,13 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let first = [answerSection] + (appsFirst ? [apps] : []) + [shortcutSection]
             + (definitionFirst ? [dictionary] : []) + (settingsFirst ? [settings] : [])
         let last = (settingsFirst ? [] : [settings]) + (appsFirst ? [] : [apps]) + (definitionFirst ? [] : [dictionary])
-        return (first + rest + last).filter { !$0.results.isEmpty }
+        return (first + rest + last + [musicSection]).filter { !$0.results.isEmpty }
     }
 }
 
-/// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
+/// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘9 and ⌘0 stay the same.
 public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
-    case apps, settings, shortcuts, clipboard, code, docs, pdf, photos, media
+    case apps, settings, shortcuts, clipboard, code, docs, pdf, photos, media, music
     public var id: String { rawValue }
 }
 
@@ -309,6 +353,7 @@ public enum QueryCompletion {
 public struct ResultSection: Equatable, Sendable, Identifiable {
     public enum Kind: String, Sendable {
         case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, clipboard, web, menu, windows
+        case music
 
         /// The section's name in `section_scores`.
         public var daemonName: String { self == .dictionary ? "definition" : rawValue }

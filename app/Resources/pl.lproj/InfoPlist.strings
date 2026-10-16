@@ -5,4 +5,5 @@
 "NSRemovableVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach zewnętrznych, które wskażesz.";
 "NSNetworkVolumesUsageDescription" = "Lantern może indeksować foldery na dyskach sieciowych, które wskażesz.";
 "NSHumanReadableCopyright" = "Lantern — lokalne wyszukiwanie, bez wysyłania danych.";
-"NSAppleEventsUsageDescription" = "Lantern otwiera nagranie w QuickTime Player w momencie, w którym padają wyszukane słowa.";
+"NSAppleEventsUsageDescription" = "Lantern otwiera nagranie w QuickTime Player w momencie, w którym padają wyszukane słowa, i odtwarza w Muzyce wybrane utwory i playlisty.";
+"NSAppleMusicUsageDescription" = "Lantern odczytuje nazwy Twoich utworów i playlist, aby można je było znaleźć i odtworzyć z wyszukiwania. Nic nie opuszcza Twojego Maca.";

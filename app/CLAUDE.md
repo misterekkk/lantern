@@ -44,6 +44,9 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   `SpellingWords` (LanternCore) picks the words; the daemon decides (`search/spelling.py`, `corrected_query`). Text
   in the panel that should not size it goes in an overlay (`CorrectionLine`): a wide child made SwiftUI resize the
   window and `SearchPanel.setFrame` re-centre it in a loop that hung the app.
+- Apple Music: `MusicLibrary.swift` reads the library with iTunesLibrary (`MusicLibrary.read`, dev flag `--music-dump`),
+  `MusicSync` sends it to the daemon (`music` API) while `appleMusicLibrary` is on (launch with
+  `-appleMusicLibrary YES` to test without touching the shared defaults), `MusicPlayer` plays via osascript.
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),

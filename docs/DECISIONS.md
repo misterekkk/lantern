@@ -894,6 +894,28 @@ Measured on the test index (local queries vs web-like ones):
 - **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
   appear over a full-screen app; confirmed by the user (Discord in full screen).
 
+## Apple Music (2026-10-17)
+
+- **What is on disk.** Apple Music downloads are `.m4p` files: FairPlay-encrypted audio (codec `drms`, ffmpeg cannot
+  decode it, and Lantern must not try), readable tags (title, album, artist sort names, and the account's e-mail in
+  `account_id`) and no lyrics (checked on 40 files; Apple serves lyrics from its servers, MusicKit only says whether
+  there are any). Spotify downloads are an encrypted cache with no local catalogue; its only listing is the web API,
+  which the privacy rules exclude, so Spotify is not supported (a "search in Spotify" row was rejected: Lantern could
+  not tell whether the text is a song at all).
+- **Source.** Apple's iTunesLibrary framework (read-only, does not start Music): 643 songs (325 downloaded) and 4
+  playlists with persistent IDs on the user's library. Read by the app (the Media & Apple Music permission belongs
+  to it), sent to the daemon (`api_music`), stored with one vector each (schema 11), resent when the library file
+  changes (date checked each minute) and on daemon restarts. Off by default, like the clipboard.
+- **Search.** Every content word must start a word of the title, artist or album, either way round, so Polish
+  endings work ("travisa scotta"); "(feat. …)" counts as a guest spot, after the artist's own songs; an album lists
+  in track order; "playlista" lists playlists; meaning only when no word matches. Scores: exact title 0.95, playlist
+  0.8, title with 2+ words 0.8, one word that only starts a title 0.6 (below sure files), artist/album 0.7.
+- **Playing.** AppleScript through osascript with persistent IDs only: a song plays from its playlist (the smallest
+  one holding it, so the next songs follow; else the library), ⌥↩ reveals it; a playlist opens without playing,
+  ⌥↩ plays it.
+- **Ten kinds.** Music is the tenth filter (⌘0). With more than three kinds the icons fold into the filter button by
+  default and unfold when pointed at; after typing, up to three matching kinds show directly.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

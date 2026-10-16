@@ -87,6 +87,26 @@ import Testing
         #expect(resp.correctedQuery == "faktura za prąd")
     }
 
+    @Test func musicRowsPlayFromTheirPlaylist() throws {
+        let json = #"""
+        {"results": [], "vector_ms": 1, "keyword_ms": 1, "section_scores": {"music": 0.95},
+         "music": [{"id": "17AFDBA96AC7754E", "kind": "song", "title": "SKELETONS", "artist": "Travis Scott",
+                    "album": "ASTROWORLD", "track": 5, "downloaded": true, "playlist_id": "105C4C31744622C1",
+                    "playlist_name": "Gym", "count": 0, "match": "title_exact", "score": 0.95},
+                   {"id": "105C4C31744622C1", "kind": "playlist", "title": "Gym", "artist": "", "album": "",
+                    "track": 0, "downloaded": false, "playlist_id": "105C4C31744622C1", "playlist_name": "Gym",
+                    "count": 34, "match": "playlist", "score": 0.8}]}
+        """#
+        let resp = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        let rows = resp.sections.first { $0.kind == .music }?.results ?? []
+        #expect(rows.count == 2 && rows[0].isAction && rows[0].kind == "song")
+        let song = try #require(MusicResult.parse(rows[0].path))
+        #expect(song.kind == "song" && song.id == "17AFDBA96AC7754E" && song.playlist == "105C4C31744622C1")
+        #expect(MusicResult.parse(rows[1].path)?.playlist == "105C4C31744622C1")
+        #expect(Format.subtitle(rows[0]).hasPrefix("Travis Scott · ASTROWORLD"))
+        #expect(ResultCategory.music.rawValue == "music" && ResultCategory.allCases.count == 10)
+    }
+
     @Test func onlyPlainWordsAreSpellChecked() {
         #expect(SpellingWords.candidates(in: "faktrua za prad") == ["faktrua", "prad"])
         #expect(SpellingWords.candidates(in: "IrisDatabase backoff_wrapper v2 config.toml ORA-01555 USB") == [])

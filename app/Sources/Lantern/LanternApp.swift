@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             AppState.shared.start()
             AppState.shared.registerShortcut()
             ClipboardHistory.shared.start()
+            MusicSync.shared.start()
             NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                    object: nil, queue: .main) { _ in
                 Task { @MainActor in SearchPanelController.shared.screensChanged() }
@@ -53,6 +54,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 SettingsWindowController.shared.show()
             }
+        }
+        if args.contains("--music-dump") {  // development: what iTunesLibrary returns (asks for Media & Apple Music)
+            if let (songs, playlists) = MusicLibrary.read() {
+                let downloaded = songs.filter(\.downloaded).count
+                print("music: \(songs.count) songs (\(downloaded) downloaded), \(playlists.count) playlists")
+                for p in playlists.prefix(10) { print("  playlist \(p.name): \(p.songs.count) songs") }
+                for s in songs.prefix(5) { print("  song \(s.title) — \(s.artist) · \(s.album) #\(s.track) \(s.id)") }
+            } else {
+                print("music: no access")
+            }
+            fflush(stdout)
         }
         if args.contains("--show-menu") {
             Task { @MainActor in

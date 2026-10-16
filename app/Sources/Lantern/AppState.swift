@@ -76,7 +76,10 @@ final class AppState: ObservableObject {
             // The open Settings window holds back new indexing (the daemon releases it when we stop saying so).
             let s = try await client.call("status", ["settings_open": SettingsWindowController.shared.isOpen],
                                           as: DaemonStatus.self, timeout: 5)
-            if status == nil { SearchPanelController.shared.daemonCameUp() }  // a search made too early: again
+            if status == nil {
+                SearchPanelController.shared.daemonCameUp()  // a search made too early: again
+                MusicSync.shared.syncIfChanged(force: true)  // a new daemon may have an older copy of the library
+            }
             status = s
             connectionError = nil
             if settings == nil { await loadSettings() }  // the daemon was still starting when the app asked

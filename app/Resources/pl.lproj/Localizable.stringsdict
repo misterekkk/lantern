@@ -42,5 +42,25 @@
 			<string>Znaleziono %lld nowych lub zmienionych plików. Zaindeksować je teraz?</string>
 		</dict>
 	</dict>
+	<key>Playlist · %lld songs</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Playlista · %lld utwór</string>
+			<key>few</key>
+			<string>Playlista · %lld utwory</string>
+			<key>many</key>
+			<string>Playlista · %lld utworów</string>
+			<key>other</key>
+			<string>Playlista · %lld utworu</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

@@ -34,5 +34,21 @@
 			<string>Found %lld new or changed files. Index them now?</string>
 		</dict>
 	</dict>
+	<key>Playlist · %lld songs</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Playlist · %lld song</string>
+			<key>other</key>
+			<string>Playlist · %lld songs</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

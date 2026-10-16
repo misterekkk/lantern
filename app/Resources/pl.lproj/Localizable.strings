@@ -245,7 +245,6 @@
 "Documents" = "Dokumenty";
 "PDFs" = "PDF-y";
 "Recordings and videos" = "Nagrania i filmy";
-"play" = "odtwórz";
 "open" = "otwórz";
 "filter" = "filtr";
 "On the selected result" = "Przy wybranym wyniku";
@@ -329,3 +328,10 @@
 "Showing results for %@" = "Pokazuję wyniki dla %@";
 "Search for “%@” instead" = "Zamiast tego szukaj „%@”";
 "Filters" = "Filtry";
+
+/* Apple Music */
+"from playlist “%@”" = "z playlisty „%@”";
+"Songs and playlists" = "Utwory i playlisty";
+"Apple Music" = "Apple Music";
+"play" = "odtwórz";
+"Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song in Music, in the context of its playlist. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose." = "Wyszukiwanie znajduje utwory i playlisty z biblioteki Muzyki po tytule, wykonawcy i albumie; ↩ odtwarza utwór w Muzyce, w kontekście jego playlisty. macOS poprosi o dostęp do Multimediów i Apple Music; Lantern tylko odczytuje nazwy i odtwarza to, co wybierzesz.";

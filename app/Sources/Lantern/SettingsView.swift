@@ -593,6 +593,7 @@ private struct PrivacyPane: View {
     @State private var compactResult: String?
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
     @AppStorage(MenuCommands.key) private var menuCommands = false
+    @AppStorage(MusicSync.key) private var appleMusic = false
     @State private var accessibilityOK = MenuCommands.trusted
 
     var body: some View {
@@ -663,6 +664,19 @@ private struct PrivacyPane: View {
                 Text("Menu Items and Windows")
             } footer: {
                 Text("Search finds commands in the menus of the app in front (“new private window” in a browser) and your open windows by their titles. macOS asks for the Accessibility permission; Lantern only reads menu and window titles and presses what you choose.")
+                    .font(.caption)
+            }
+            Section {
+                Toggle(isOn: $appleMusic) {
+                    IconLabel(title: "Songs and playlists", symbol: "music.note", color: .pink)
+                }
+                .onChange(of: appleMusic) { _, on in
+                    if on { MusicSync.shared.syncIfChanged(force: true) } else { MusicSync.shared.clear() }
+                }
+            } header: {
+                Text("Apple Music")
+            } footer: {
+                Text("Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song in Music, in the context of its playlist. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose.")
                     .font(.caption)
             }
             Section {
