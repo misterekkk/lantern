@@ -177,9 +177,9 @@ def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_
         for r in rows:
             if match == "partial" and not fragment_at_word_start(r["name"], q.key):
                 continue
-            score = base
-            if q.kind and r["kind"] in _HINT_KINDS.get(q.kind, ()):
-                score += 0.5
+            if q.kind and r["kind"] not in _HINT_KINDS.get(q.kind, ()):
+                continue  # "def …" is a function or method, never a struct named like what is typed so far
+            score = base + (0.5 if q.kind else 0.0)
             if q.arity is not None and arity(r["signature"]) == q.arity:
                 score += 0.5
             if q.parent and r["parent"] and name_key(r["parent"]) == name_key(q.parent):

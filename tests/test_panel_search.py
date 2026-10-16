@@ -61,3 +61,27 @@ def test_video_frames_keep_their_moment_in_the_photos_section():
                 kind="image")  # fmt: skip
     results = photo_results([frame, photo], [])
     assert (results[0].kind, results[0].start_ms) == ("frame", 125_000) and results[1].kind == "image"
+
+
+def test_completion_follows_the_filter_pill(conn, tmp_path, embedder):
+    root = project(tmp_path)
+    (root / "hats_simulation.gif").write_bytes(b"GIF89a")
+    write(root, "hats/solver.py", "def hats_solver(n):\n    return n\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    assert completion(conn, "hats_s") == "hats_solver"  # no filter: definitions before file names
+    assert completion(conn, "hats_s", "code") == "hats_solver"  # Code: only definitions and code files
+    assert completion(conn, "hats_s", "photos") == "hats_simulation.gif"  # Photos: only image files
+    assert completion(conn, "hats_s", "docs") is None
+
+
+def test_a_keyword_filters_definitions_by_kind(conn, tmp_path, embedder):
+    from lantern.search.symbols import symbol_search
+
+    root = tmp_path / "kinds"
+    write(root, "doc.h", "struct I {\n  int x;\n};\n")
+    write(root, "mod.py", "def i(x):\n    return x\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    assert [d.kind for d in symbol_search(conn, "def __i")] in ([], ["function"])  # never the struct I
+    assert symbol_search(conn, "struct I")[0].kind == "struct"

@@ -305,7 +305,7 @@ def search(
     resp = SearchResponse(
         results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,
         photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,
-        categories=present, category=category, completion=completion(conn, query),
+        categories=present, category=category, completion=completion(conn, query, category),
         apps=apps, apps_first=bool(apps) and apps[0].match != "meaning",
         settings=settings, settings_first=bool(settings) and settings[0].match != "meaning",
         settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,

@@ -22,22 +22,33 @@ def _starts(candidate: str, typed: str) -> bool:
     return len(candidate) > len(typed) and candidate.casefold().startswith(typed.casefold())
 
 
-def completion(conn: sqlite3.Connection, typed: str) -> str | None:
-    """The typed text plus a suggested ending (keeping what the user typed), or None."""
+# What a filter pill allows to be suggested: names of apps / settings, code definitions, and file kinds.
+_FILE_KINDS = {"code": ("code",), "docs": ("text",), "pdf": ("pdf",), "photos": ("image",), "media": ("audio", "video")}
+
+
+def completion(conn: sqlite3.Connection, typed: str, category: str | None = None) -> str | None:
+    """The typed text plus a suggested ending (keeping what the user typed), or None. With a filter pill chosen,
+    only names of that kind are suggested ("hats" under Code never completes to hats_simulation.gif)."""
     if len(typed.strip()) < MIN_PREFIX or typed != typed.lstrip():
         return None
     # 1. Earlier queries that led to an opened result, most recent first: the user's own wording (searches made
     #    while typing, never followed by an open, are not suggestions).
-    for (query,) in conn.execute(
-        "SELECT query FROM search_events WHERE opened_chunk_id IS NOT NULL AND query LIKE ? ESCAPE '\\' "
-        "ORDER BY id DESC LIMIT 50",
-        (_like_prefix(typed),),
+    for (query,) in (
+        []
+        if category
+        else conn.execute(
+            "SELECT query FROM search_events WHERE opened_chunk_id IS NOT NULL AND query LIKE ? ESCAPE '\\' "
+            "ORDER BY id DESC LIMIT 50",
+            (_like_prefix(typed),),
+        )
     ):
         if _starts(query, typed):
             return typed + query[len(typed) :]
     # 2. An application or a System Settings pane by any of its names (what Spotlight completes: the top hit).
     names = []
-    for table, columns in (("apps", "name, names"), ("system_settings", "title, names")):
+    tables = [t for t in (("apps", "name, names"), ("system_settings", "title, names"))
+              if category is None or category == {"apps": "apps", "system_settings": "settings"}[t[0]]]  # fmt: skip
+    for table, columns in tables:
         query = f"SELECT {columns} FROM {table}" + (" WHERE key NOT LIKE '%/%'" if table == "system_settings" else "")
         for first, others in conn.execute(query):
             names += [first, *json.loads(others)]
@@ -48,7 +59,7 @@ def completion(conn: sqlite3.Connection, typed: str) -> str | None:
     if " " in typed.strip():
         return None
     # 3. A code definition (the shortest name that starts with the typed text).
-    key = name_key(typed)
+    key = name_key(typed) if category in (None, "code") else ""
     if key:
         rows = conn.execute("SELECT name FROM symbols WHERE name_key >= ? AND name_key < ? LIMIT 200",
                             (key, key + "\U0010ffff"))  # fmt: skip
@@ -58,9 +69,12 @@ def completion(conn: sqlite3.Connection, typed: str) -> str | None:
             best = min(names, key=len)
             return typed + best[len(typed) :]
     # 4. A file name.
-    if len(typed) >= 3:
+    kinds = _FILE_KINDS.get(category) if category else None
+    if len(typed) >= 3 and (category is None or kinds):
+        where = f" AND kind IN ({','.join('?' * len(kinds))})" if kinds else ""
         rows = conn.execute(
-            "SELECT path FROM files WHERE path LIKE ? ESCAPE '\\' LIMIT 200", ("%/" + _like_prefix(typed),)
+            f"SELECT path FROM files WHERE path LIKE ? ESCAPE '\\'{where} LIMIT 200",
+            ("%/" + _like_prefix(typed), *(kinds or ())),
         )
         names = [r[0].rsplit("/", 1)[-1] for r in rows]
         names = [n for n in names if _starts(n, typed)]

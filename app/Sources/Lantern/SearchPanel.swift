@@ -85,7 +85,10 @@ final class SearchPanelController {
             context.duration = 0.12
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            Task { @MainActor in self?.panel.orderOut(nil) }
+            Task { @MainActor in
+                self?.panel.orderOut(nil)
+                self?.model.reset()  // the next opening starts empty, like Spotlight
+            }
         })
     }
 
@@ -131,13 +134,11 @@ final class SearchModel: ObservableObject {
     @Published var category: ResultCategory? { didSet { if category != oldValue { search() } } }
     /// Inline completion from the daemon (earlier queries, definitions, file names); → accepts it.
     @Published private(set) var completion: String?
-    /// macOS's name for System Settings, in the system's language (from the daemon).
-    @Published private(set) var settingsAppName: String?
 
-    /// A kind's name: Lantern's word for it, except System Settings, which keeps the name macOS gives it.
+    /// A kind's name on the pills, icons and section headers: Lantern's own words, in Lantern's language. Only the
+    /// results themselves carry names from macOS ("Ustawienia systemowe › Bateria").
     func title(_ category: ResultCategory?) -> Text {
-        if category == .settings, let settingsAppName { return Text(verbatim: settingsAppName) }
-        return category.map { Text($0.titleKey) } ?? Text("All")
+        category.map { Text($0.titleKey) } ?? Text("All")
     }
     var completionRemainder: String? { QueryCompletion.remainder(query: query, completion: completion) }
     /// Pills to show: the categories with matches, plus the chosen one even if it has none now.
@@ -185,7 +186,6 @@ final class SearchModel: ObservableObject {
                 sections = resp.sections
                 categories = resp.categories
                 completion = resp.completion
-                if let name = resp.settingsAppName { settingsAppName = name }
                 eventId = resp.eventId
                 selection = 0
                 preview = nil
@@ -195,6 +195,19 @@ final class SearchModel: ObservableObject {
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
         }
+    }
+
+    /// A fresh panel: no query, no filter, no preview.
+    func reset() {
+        pending?.cancel()
+        query = ""
+        category = nil
+        preview = nil
+        sections = []
+        categories = []
+        completion = nil
+        message = nil
+        selection = 0
     }
 
     /// → at the end of the field: take the suggested ending.
@@ -428,11 +441,9 @@ private func numbered(_ sections: [ResultSection]) -> [(section: ResultSection, 
 private struct SectionHeader: View {
     let kind: ResultSection.Kind
     let first: Bool
-    var settingsAppName: String?
 
     private var label: Text {
-        if kind == .settings, let settingsAppName { return Text(verbatim: settingsAppName) }
-        return Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications"
+        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications"
                     : kind == .settings ? "System Settings" : "Files")
     }
 
@@ -513,8 +524,7 @@ struct SearchView: View {
                         LazyVStack(spacing: 2) {
                             ForEach(Array(numbered(model.sections).enumerated()), id: \.element.section.id) { i, group in
                                 if model.sections.count > 1 {
-                                    SectionHeader(kind: group.section.kind, first: i == 0,
-                                                  settingsAppName: model.settingsAppName)
+                                    SectionHeader(kind: group.section.kind, first: i == 0)
                                 }
                                 ForEach(group.rows, id: \.result.id) { index, result in
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
@@ -562,8 +572,14 @@ struct SearchView: View {
         }
         .onKeyPress(.upArrow) { model.preview = nil; model.move(-1); return .handled }
         .onKeyPress(.downArrow) { model.preview = nil; model.move(1); return .handled }
-        .onKeyPress(.escape) {
-            if model.preview != nil { model.preview = nil } else { close() }
+        .onKeyPress(.escape) {  // like Spotlight: a preview closes first, then the filter goes, then the panel
+            if model.preview != nil {
+                model.preview = nil
+            } else if model.category != nil {
+                model.category = nil
+            } else {
+                close()
+            }
             return .handled
         }
         .onKeyPress(.return, phases: .down) { press in
@@ -813,12 +829,15 @@ private struct ScopeIcon: View {
                     title
                         .font(.system(size: 12, weight: .medium))
                         .fixedSize()
-                        .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+                        // In with the widening capsule, out at once: the name never lingers over the next icon.
+                        .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.05)),
+                                                removal: .opacity.animation(.easeIn(duration: 0.06))))
                 }
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, hovering ? 12 : 0)
             .frame(minWidth: 34, minHeight: 34)
+            .clipShape(Capsule())  // nothing is drawn outside the capsule while it narrows
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
