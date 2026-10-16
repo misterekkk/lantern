@@ -155,6 +155,14 @@ def test_low_power_mode_pauses_indexing_unless_switched_off(start_daemon, projec
     assert wait_until(lambda: files_by_status().get("indexed") == 3)
 
 
+def test_status_with_the_fake_photo_model(start_daemon):
+    from lantern.embedding.fake import FakeImageEmbedder
+
+    d = start_daemon()
+    d.query_embedder = FakeImageEmbedder()  # what LANTERN_EMBEDDER=fake gives; it has no `loaded` flag
+    assert protocol.call("status")["photo_model_loaded"] is False
+
+
 def test_remove_and_shutdown(start_daemon, project, sock):
     d = start_daemon(mode="auto")
     protocol.call("index", {"path": str(project)})

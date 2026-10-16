@@ -338,7 +338,7 @@ class Daemon:
                 "paused": self._paused(), "power": asdict(self.power_state),
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
-                "photo_model_loaded": bool(self.query_embedder and self.query_embedder.loaded),
+                "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
                 "warnings": self.warnings[-5:],
             }  # fmt: skip
 
