@@ -5,7 +5,8 @@
   others (checked one by one, see tests/test_queue_and_store.py). We fold those ourselves, at index and query time,
   after NFKC (ligatures like "ﬁ" become "fi"). The Swift app mirrors the table (LanternCore/TextFold.swift).
 - Stopwords are dropped from queries ("jak połączyć się z bazą" -> "połączyć", "bazą").
-- Polish inflection: longer words match by stem prefix ("decyzyjnego" -> decyzyjn*), a cheap stand-in for a stemmer.
+- Polish inflection: longer words match by stem prefix ("decyzyjnego" -> decyzyjn*), a cheap stand-in for a stemmer;
+  stems keep at least 5 letters for words of 6+, so they stay specific.
 """
 
 import re
@@ -58,8 +59,12 @@ def query_terms(query: str) -> list[tuple[str, bool]]:
     terms = [(phrase, False) for phrase in dict.fromkeys(phrases)]
     for token in dict.fromkeys(content):
         if token.isalpha() and len(token) >= 5:
-            keep = len(token) - (3 if len(token) >= 7 else 2)
-            terms.append((token[: max(4, keep)], True))
+            # Drop the likely ending, keeping a stem long enough to stay specific: "przepis" -> przep* (not prze*,
+            # which also matched przez, przepływ…), "drzewa" -> drzew* (not drze*: drzwi), "kolejka" -> kolej*
+            # (so "kolejce" still matches), "decyzyjnego" -> decyzyjn*.
+            n = len(token)
+            keep = n - 1 if n <= 6 else n - 2 if n <= 9 else n - 3
+            terms.append((token[: max(keep, 5 if n >= 6 else 4)], True))
         else:
             terms.append((token, False))
     return terms

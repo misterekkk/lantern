@@ -17,8 +17,9 @@ def test_fts_query_escapes_syntax():
 
 
 def test_fts_query_drops_stopwords_and_uses_stems():
-    assert fts_query("jak połączyć się z bazą danych") == '"poląc"* OR "bazą" OR "dany"*'
-    assert fts_query("optymalizacja drzewa decyzyjnego") == '"optymaliza"* OR "drze"* OR "decyzyjn"*'
+    assert fts_query("jak połączyć się z bazą danych") == '"polącz"* OR "bazą" OR "danyc"*'
+    # stems keep 5+ letters for words of 6+: "drzew"* (not "drze"*, which also matched "drzwi")
+    assert fts_query("optymalizacja drzewa decyzyjnego") == '"optymaliza"* OR "drzew"* OR "decyzyjn"*'
     assert fts_query("backoff_wrapper") == '"backoff_wrapper"'
     assert fts_query("jak to") == '"jak" OR "to"'  # stopword-only query still searches
 

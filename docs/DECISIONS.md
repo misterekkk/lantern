@@ -822,8 +822,11 @@ Measured on the test index (local queries vs web-like ones):
   ("pogoda w warszawie" → Pogoda) 0.76, meaning-only 0.42. Definitions: exact 0.9. Answers 1.0. A dictionary entry
   0.64 when no file contains the word, else 0.3.
 - Result: local queries keep files, definitions, apps and photos above the web row; web-like queries put it first.
-  Known miss: "przepis na pierogi" has full coverage through prefix stems (stem false positives, open question 8), so
-  files stay above the web row there.
+  "przepis na pierogi" keeps files above the web row on the test index because two Phase 0 spike scripts really
+  contain that sentence (sample texts).
+- Stems were too short for keyword precision ("przepis" → prze*, matching przez / przepływ; "drzewa" → drze*,
+  matching drzwi; "faktura" → fakt*). Words of 6+ letters now keep a stem of at least 5 letters (przep*, drzew*,
+  faktu*, kolej* — so "kolejce" still matches); a 6-letter word drops one letter, 7–9 two, 10+ three.
 
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
