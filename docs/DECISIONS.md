@@ -857,6 +857,21 @@ Measured on the test index (local queries vs web-like ones):
   display fits a small one; when screens change, a visible panel is placed again on the screen with the mouse.
   Magnets catch at 15 pt and release at 20 pt (hysteresis), so the panel does not flicker at the edge. ⌘1–⌘9 cover
   all nine kinds.
+- **Previews where the words are.** A result showed the first 160 characters of its passage, so "jakiej pogody
+  możemy spodziewać się" found the right slide (the sixth bullet) but looked unrelated. `textnorm.excerpt` starts the
+  preview at the window with the most query terms, from the start of its sentence or bullet, with "…".
+- **Short words in settings.** "koń" folds to "kon", the start of "kończenie", so a Desk & Dock setting topped the
+  horse photos. Letters-only words under 4 letters now match only whole words of a setting ("24", "godz" still work).
+  Without it, "koń" shows the web row, then the horse photos (their summed z is in the 5–7 band, below the web row).
+- **Folding the scope icons.** A long query ran under the icons. When the typed text reaches them they fold into one
+  button (`line.3.horizontal.decrease`, the filter symbol of Finder and Mail); a click unfolds them, each sliding
+  out from the button, nearest first (0.28 s, 30 ms apart); typing on folds them again; ⌘1–⌘9 always work. They
+  unfold by themselves only when all fit with 40 pt to spare (no flicker at the edge).
+- **Haptics:** the magnets use `.levelChange`, the firmest of the three system patterns (`.alignment` felt too light).
+  The strength also follows System Settings → Trackpad → Click.
+- **Whisper and quiet speech:** the file-name prompt fixes names spoken clearly, but at a quiet, unclear start it can
+  blend them ("Jones" → "Smones"). Later in the same recording names come out right, so the limit is the audio;
+  louder normalisation before Whisper is untested (it needs a second model process, see the 16 GB rule).
 - **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
   appear over a full-screen app; confirmed by the user (Discord in full screen).
 
