@@ -694,6 +694,56 @@ Decisions:
 - Verified with key events sent only to Lantern (`CGEvent.postToPid`): → accepts and moves the caret to the end,
   Tab / ⇧Tab move between pills (⇧Tab arrives as U+0019 and first selected the field's text — fixed).
 
+## Power and QoS (2026-10-16)
+
+Questions: is `pmset` parsing the right source, does the background priority really apply, which QoS should each part
+run at, and should Low Power Mode pause indexing. Measured on the M4 (16 GB, macOS 26.6):
+
+| Reading | Cost per call | Notes |
+|---|---|---|
+| `pmset -g batt` (subprocess) | 5.7 ms | text parsing; the old source |
+| IOKit `IOPSGetProvidingPowerSourceType` (ctypes) | 0.07 ms | "AC Power" / "Battery Power"; public IOPowerSources API |
+| `NSProcessInfo.isLowPowerModeEnabled`, `thermalState` via the Objective-C runtime (ctypes) | < 0.01 ms, +0 MB | Foundation is already loaded in every macOS process |
+| the same through PyObjC | +36 ms import, +22 MB | rejected for the daemon |
+
+| Priority | Query embedding (median) | 16 passages (batch) | CPU loop |
+|---|---|---|---|
+| normal process / default thread QoS | 9.2 ms | 963 ms | 71 ms |
+| user-initiated / utility thread QoS | 9.1 / 9.3 ms | – | 75 / 76 ms |
+| background (`PRIO_DARWIN_BG` process, or background thread QoS) | 21–28 ms | 980 ms | 493 ms |
+
+- `setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)` does apply: `ps` shows priority 4 instead of 31. The GPU-bound
+  batches of indexing are as fast as at normal priority, while CPU-bound work yields to the user. **The worker stays
+  background.** (The old comment claimed a GPU priority change; that is not what was measured and was removed.)
+- **The daemon must not be background**: it embeds queries. The LaunchAgent had `ProcessType = Background`, `Nice 5`
+  and `LowPriorityIO`, which would make every search ~2.5× slower in the embedding step and slow FTS reads under disk
+  load. Now `ProcessType = Interactive` (launchd's documented choice when responsiveness depends on a job that cannot
+  be `Adaptive`, and `Adaptive` only follows XPC, not our Unix socket), and the background work is demoted inside:
+  the model thread runs at user-initiated QoS, scans and the control loop at utility, indexing in the background
+  worker. New threads do not inherit the creator's QoS (measured: a thread started from a user-interactive main
+  thread runs at default), so each thread sets its own (`service/qos.py`).
+- **Low Power Mode pauses indexing** (`pause_on_low_power`, default on, Settings → Battery and Heat): the user asked the
+  Mac to save energy, and indexing is deferrable. It is read from NSProcessInfo and, as a cross-check, `pmset -g`
+  (`lowpowermode 1`).
+- **Heat:** pause from NSProcessInfo thermal state "serious" (macOS is already throttling) or when `pmset -g therm`
+  reports a warning level or a CPU speed limit. `lantern status` and `api_status.power` show the source, Low Power Mode
+  and the thermal state.
+- Not verified: toggling Low Power Mode needs `sudo pmset` or System Settings, and heat cannot be produced on demand;
+  whether NSProcessInfo refreshes in a long-running process without a run loop is therefore unverified, hence the
+  pmset cross-check (open question 33). The LaunchAgent's effect on QoS can only be checked after installing it
+  (open question 34).
+
+## Letters without a decomposition (2026-10-16)
+
+FTS5's `remove_diacritics 2` and Foundation's `.diacriticInsensitive` only remove combining marks. Letters that are
+their own characters in Unicode were checked one by one in both: ł, ø, đ, ð, ħ, ŧ, ŋ, ı, ß, æ, œ, þ (and ligatures
+such as ﬁ, ĳ) are **not** folded, so "lodz" did not find "Łódź" and "soren" did not find "Søren"; ą, ü, ř, ș, ő, ç,
+ñ, å, ơ are. Decision: one fold table (`textnorm._FOLD`, after NFKC for ligatures) applied at index and query time,
+mirrored in the app (`LanternCore/TextFold.swift`) for the PDF highlight. A transliteration library (Unidecode,
+AnyAscii) was not added: it would also rewrite scripts the models handle natively (Cyrillic, Greek, CJK) and the
+table covers the Latin letters that matter. Existing indexes are re-folded by schema migration 4 → 5 (FTS rows only,
+no re-embedding). A test fails if a future SQLite starts folding these letters itself.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -808,3 +858,7 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     gate (two words of 3+ letters) if it lets through noise such as shirt numbers or shop signs.
 32. Scoping with Tab to a folder (Spotlight's "search in app" equivalent), e.g. Tab on a result from ~/Studia/Projekt
     searches only there.
+33. Low Power Mode and thermal state through NSProcessInfo in a long-running daemon: confirm they refresh without a run
+    loop (toggle Low Power Mode, watch `lantern status`); until then `pmset` is checked too.
+34. After `lantern daemon install`: check the daemon's priority (`ps -o pri`) and search latency under the
+    `Interactive` LaunchAgent.

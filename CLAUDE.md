@@ -46,6 +46,7 @@ tests/            pytest; tests needing the real model are marked `@pytest.mark.
 
 ```bash
 eval "$(/opt/homebrew/bin/brew shellenv)"   # brew/uv/ffmpeg are not on PATH by default on this machine
+./install.sh                 # one-command setup for users (idempotent; --all / --minimal / --no-app / --test)
 uv sync                      # install deps (add --group spike for spikes/phase0)
 uv run pytest                # fast tests (excludes -m model)
 uv run pytest -m model       # tests with the real embedding model
@@ -63,5 +64,6 @@ uv run lantern daemon run    # daemon in the foreground (LANTERN_HOME / LANTERN_
   per-thread: load and call a model on the same thread (the daemon uses one dedicated model thread).
 - Never install the LaunchAgent or touch `~/Library/LaunchAgents` without the user's explicit approval.
 - Always set the audio `max_length` explicitly (the default processor silently truncates at 30 s). Never use float16.
-- Normalise Polish text (ł→l) before FTS insert and in queries.
+- Fold letters FTS5 cannot (`textnorm.fold`: ł, ø, ß, æ, …) before FTS insert and in queries; the app mirrors the
+  table in `LanternCore/TextFold.swift`. Changing the table needs a migration that re-folds `chunks_fts`.
 - Tests must not need the network or the real model unless marked `model`; use a deterministic fake embedder.

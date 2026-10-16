@@ -96,8 +96,10 @@ with their video. Every search is logged to `search_events` (features only, neve
   (indexed text/code files only).
 - Scanner filters: `walk.Filters` (ignored extensions, photos, audio/video) from `settings.walk_options()`; pass
   them everywhere `scan_root` / `iter_files` is called. The mass-deletion guard counts only files gone from disk.
-- `watcher.py` (FSEvents via watchdog, debounce), `power.py` (`pmset` parsers), `settings.py` (`config.toml`),
-  `notify.py` (osascript), `launchagent.py` (plist via plistlib, `launchctl bootstrap gui/<uid>`).
+- `watcher.py` (FSEvents via watchdog, debounce), `power.py` (IOKit power source, NSProcessInfo Low Power Mode and
+  thermal state via ctypes, `pmset` as cross-check), `qos.py` (per-thread QoS: model thread user-initiated, scans and
+  the control loop utility; never background in the daemon, it embeds queries), `settings.py` (`config.toml`),
+  `notify.py` (osascript), `launchagent.py` (plist via plistlib, `launchctl bootstrap gui/<uid>`, `Interactive`).
 - Adding an API method: `def api_<name>(self, **params) -> dict` in `Daemon` + CLI client code + a test in
   `tests/test_daemon.py` (real socket in `/tmp`; macOS limits socket paths to 104 bytes).
 - `embedding/mlx_loader.py` loads EmbeddingGemma 2 without importing torch (package stubs). If a new mlx-vlm version
