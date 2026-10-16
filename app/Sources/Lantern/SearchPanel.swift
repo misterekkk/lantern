@@ -152,7 +152,10 @@ final class SearchModel: ObservableObject {
     var scopeStyle: ScopeStyle = .pills
     /// Icons beside the field: every kind before typing (choose a scope first, like Spotlight's modes), then only
     /// the kinds with matches, plus the chosen one.
-    var iconCategories: [ResultCategory] { query.trimmingCharacters(in: .whitespaces).isEmpty ? ResultCategory.allCases : pillCategories }
+    var iconCategories: [ResultCategory] {
+        let all = ResultCategory.allCases.filter { $0 != .clipboard || ClipboardHistory.shared.retention != nil }
+        return query.trimmingCharacters(in: .whitespaces).isEmpty ? all : pillCategories
+    }
     private var eventId: Int?
     private var pending: Task<Void, Never>?
 
@@ -167,6 +170,12 @@ final class SearchModel: ObservableObject {
 
     func search() {
         let q = query.trimmingCharacters(in: .whitespaces)
+        if category == .clipboard {  // kept by the app, not the daemon: no request
+            sections = ClipboardHistory.shared.section(for: q, limit: 20).map { [$0] } ?? []
+            message = sections.isEmpty ? String(localized: "Nothing copied matches.") : nil
+            selection = 0
+            return
+        }
         guard !q.isEmpty else {
             sections = []
             message = nil
@@ -183,8 +192,10 @@ final class SearchModel: ObservableObject {
                 if let category { params["category"] = category.rawValue }
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
-                sections = resp.sections + WebSearch.section(for: q, filtered: category != nil)
-                categories = resp.categories
+                let clipboard = category == nil ? ClipboardHistory.shared.section(for: q, limit: 3) : nil
+                sections = ResultLayout.withWeb(resp.sections + (clipboard.map { [$0] } ?? []),
+                                                web: WebSearch.section(for: q, filtered: category != nil))
+                categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
                 completion = resp.completion
                 eventId = resp.eventId
                 selection = 0
@@ -253,7 +264,9 @@ final class SearchModel: ObservableObject {
                 if action == .reveal && hit.isApp { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                 return
             }
-            if hit.isApp {
+            if hit.kind == "clipboard" {
+                ClipboardHistory.shared.copy(hit.path)
+            } else if hit.isApp {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()
@@ -261,7 +274,7 @@ final class SearchModel: ObservableObject {
             } else if let link = URL(string: hit.path) {
                 NSWorkspace.shared.open(link)
             }
-            if hit.kind != "web" { recordOpened(hit) }
+            if hit.kind != "web" && hit.kind != "clipboard" { recordOpened(hit) }  // copied text is never logged
             SearchPanelController.shared.hide()
             return
         }
@@ -360,7 +373,8 @@ private struct RowHint: View {
                 }
             }
             HStack(spacing: 4) {
-                Text(result.isMedia ? "play" : result.isAnswer ? "copy" : "open").foregroundStyle(.secondary)
+                Text(result.isMedia ? "play" : result.isAnswer || result.kind == "clipboard" ? "copy" : "open")
+                    .foregroundStyle(.secondary)
                 KeyCap(keys: "↩")
             }
         }
@@ -455,6 +469,7 @@ private struct SectionHeader: View {
         case .photos: Text("Photos")
         case .files: Text("Files")
         case .dictionary: Text("Dictionary")
+        case .clipboard: Text("Clipboard")
         case .web: Text("Web")
         }
     }
@@ -560,6 +575,10 @@ struct SearchView: View {
                         .padding(8)
                     }
                     .frame(maxHeight: 340)
+                    // Keep the scroller inside the rounded panel, clear of its corners (as AppKit insets it in
+                    // rounded windows): a margin at both ends and a little from the right edge.
+                    .contentMargins(.vertical, 14, for: .scrollIndicators)
+                    .contentMargins(.trailing, 4, for: .scrollIndicators)
                     // Rows are identified by their result (ForEach), never by position: a positional `.id(index)`
                     // let a row from the previous search-as-you-type response stay on screen in the new one.
                     .onChange(of: model.selection) { _, new in
@@ -576,6 +595,7 @@ struct SearchView: View {
         }
         .frame(width: 720)
         .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))  // nothing drawn past the rounded edge
         .modifier(PanelBackground())
         .scaleEffect(shown ? 1 : 0.97, anchor: .top)
         .onChange(of: model.appearToken) { _, _ in
@@ -718,7 +738,7 @@ private struct ResultRow: View {
         HStack(alignment: .top, spacing: 12) {
             if result.isVisual {
                 ResultThumbnail(path: result.path, atMs: result.kind == "frame" ? result.startMs : nil, size: 52)
-            } else if result.isSetting {
+            } else if result.isSetting || result.kind == "clipboard" {
                 SettingIcon(symbol: result.settingSymbol, color: result.settingColor)
             } else if let iconPath = result.iconPath {  // the app that handles it: Calculator, Dictionary, browser…
                 Image(nsImage: NSWorkspace.shared.icon(forFile: iconPath))
@@ -748,7 +768,7 @@ private struct ResultRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if !result.preview.isEmpty && result.kind != "answer" && result.kind != "web" {
+                if !result.preview.isEmpty && !["answer", "web", "clipboard"].contains(result.kind) {
                     Text(preview)
                         .font(result.isDefinition ? .system(size: 12, design: .monospaced) : .system(size: 12))
                         .foregroundStyle(.secondary)
@@ -804,6 +824,7 @@ extension ResultCategory {
         case .apps: "square.grid.2x2"
         case .settings: "gearshape"
         case .shortcuts: "square.3.layers.3d"
+        case .clipboard: "doc.on.clipboard"
         case .code: "chevron.left.forwardslash.chevron.right"
         case .docs: "doc.text"
         case .pdf: "doc.richtext"
@@ -817,6 +838,7 @@ extension ResultCategory {
         case .apps: "Applications"
         case .settings: "System Settings"
         case .shortcuts: "Shortcuts"
+        case .clipboard: "Clipboard"
         case .code: "Code"
         case .docs: "Documents"
         case .pdf: "PDFs"

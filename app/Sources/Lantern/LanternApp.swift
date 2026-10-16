@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         MainActor.assumeIsolated {
             AppState.shared.start()
             AppState.shared.registerShortcut()
+            ClipboardHistory.shared.start()
             handleLaunchArguments()
         }
     }

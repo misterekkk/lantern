@@ -587,6 +587,7 @@ private struct PrivacyPane: View {
     @State private var confirmCompact = false
     @State private var compacting = false
     @State private var compactResult: String?
+    @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
 
     var body: some View {
         SettingsPage {
@@ -616,6 +617,27 @@ private struct PrivacyPane: View {
                 Text("Data")
             } footer: {
                 if let compactResult { Text(compactResult).font(.caption) }
+            }
+            Section {
+                Picker(selection: $clipboardHistory) {
+                    Text("Off").tag("off")
+                    Text("30 minutes").tag("30m")
+                    Text("8 hours").tag("8h")
+                } label: {
+                    IconLabel(title: "Clipboard history", symbol: "doc.on.clipboard", color: .gray)
+                }
+                .onChange(of: clipboardHistory) { _, new in if new == "off" { ClipboardHistory.shared.clear() } }
+                if clipboardHistory != "off" {
+                    Button { ClipboardHistory.shared.clear() } label: {
+                        IconLabel(title: "Clear Clipboard History", symbol: "trash", color: .red)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Clipboard")
+            } footer: {
+                Text("Search finds text you copied recently. It is kept in Lantern's memory only, never on disk or in the index, skips passwords that apps mark as private, and is forgotten after this time or when Lantern quits.")
+                    .font(.caption)
             }
             Section {
                 Button {

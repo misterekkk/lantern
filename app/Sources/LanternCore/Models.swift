@@ -93,7 +93,7 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isSetting: Bool { kind == "setting" }
     public var isAnswer: Bool { kind == "answer" }
     /// Rows that are not files: nothing to preview, ↩ opens or copies them.
-    public var isAction: Bool { ["app", "setting", "answer", "dictionary", "shortcut", "web"].contains(kind) }
+    public var isAction: Bool { ["app", "setting", "answer", "dictionary", "shortcut", "web", "clipboard"].contains(kind) }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
 }
@@ -274,7 +274,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
 
 /// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
 public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
-    case apps, settings, shortcuts, code, docs, pdf, photos, media
+    case apps, settings, shortcuts, clipboard, code, docs, pdf, photos, media
     public var id: String { rawValue }
 }
 
@@ -291,7 +291,7 @@ public enum QueryCompletion {
 
 public struct ResultSection: Equatable, Sendable, Identifiable {
     public enum Kind: String, Sendable {
-        case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, web
+        case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, clipboard, web
     }
     public var kind: Kind
     public var results: [SearchResult]
@@ -435,4 +435,22 @@ public struct ScanSummary: Decodable, Equatable, Sendable {
     public var changed: Int?
     public var removed: Int?
     public var error: String?
+}
+
+public enum ResultLayout {
+    /// Where the "search the web" row goes: near the top when nothing local really matches (no file, photo or
+    /// definition contains the query's words, no answer or definition): "cena dolara" is a web question. Otherwise
+    /// last, as a fallback. Apps, shortcuts and settings matched by name stay above it.
+    public static func withWeb(_ sections: [ResultSection], web: [ResultSection]) -> [ResultSection] {
+        guard !web.isEmpty else { return sections }
+        let local: Set<ResultSection.Kind> = [.files, .photos, .definitions]
+        let wordMatch = sections.contains { section in
+            local.contains(section.kind)
+                && section.results.contains { $0.keywordRank != nil || $0.textRank != nil || $0.isDefinition }
+        }
+        let answered = sections.contains { $0.kind == .answer || $0.kind == .dictionary }
+        if wordMatch || answered { return sections + web }
+        let lead = sections.prefix { !local.contains($0.kind) }
+        return Array(lead) + web + sections.dropFirst(lead.count)
+    }
 }

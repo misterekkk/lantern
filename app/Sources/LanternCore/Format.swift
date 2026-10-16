@@ -41,7 +41,7 @@ public enum Format {
             return r.settingPane.map { "\(settings) › \($0)" } ?? settings
         }
         switch r.kind {
-        case "answer", "web": return r.preview
+        case "answer", "web", "clipboard": return r.preview
         case "dictionary": return String(localized: "Dictionary")
         case "shortcut": return String(localized: "Shortcut")
         default: break

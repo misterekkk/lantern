@@ -35,7 +35,11 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     keywords, the search terms of System Settings); nothing is launched, and opening a pane uses macOS's
     x-apple.systempreferences links. The ⌘Space option reads whether Spotlight's shortcut is on; it never writes
     system settings.
-12. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+12. **Clipboard history** (off by default; Settings → Privacy: 30 minutes or 8 hours): copied text is kept in the
+    app's memory only, never on disk, in the index or in the search history; items that apps mark as private
+    (nspasteboard.org concealed / transient types, used by password managers) are skipped; it is forgotten after
+    the chosen time, when switched off, or when Lantern quits.
+13. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

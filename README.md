@@ -37,7 +37,10 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,
   `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
   dictionaries of macOS for a single word; your shortcuts (Shortcuts app); and a last row that opens the web search
-  in your default browser (Google, DuckDuckGo, Bing or Ecosia, or off). Lantern itself makes no network request.
+  in your default browser (Google, DuckDuckGo, Bing or Ecosia, or off); it moves to the top when nothing on the Mac
+  contains the query's words. Lantern itself makes no network request.
+- **Clipboard history** (off by default, Settings → Privacy): text you copied in the last 30 minutes or 8 hours,
+  kept in memory only; ↩ copies it again.
 - **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
 - **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
   a definition.

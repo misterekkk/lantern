@@ -260,3 +260,19 @@ import Testing
         #expect(Format.title(row) == "Używaj formatu 24‑godzinnego" && Format.subtitle(row).hasSuffix("Data i czas"))
     }
 }
+
+@Suite struct WebRowTests {
+    private let web = [ResultSection(kind: .web, results: [SearchResult(path: "https://x", chunkId: 0, kind: "web")])]
+
+    private func file(keyword: Int?) -> ResultSection {
+        ResultSection(kind: .files, results: [SearchResult(path: "/a.md", chunkId: 1, keywordRank: keyword, kind: "text")])
+    }
+
+    @Test func comesFirstWhenNothingLocalContainsTheWords() {
+        #expect(ResultLayout.withWeb([file(keyword: nil)], web: web).map(\.kind) == [.web, .files])
+    }
+
+    @Test func staysLastWhenAFileMatchesByWords() {
+        #expect(ResultLayout.withWeb([file(keyword: 1)], web: web).map(\.kind) == [.files, .web])
+    }
+}
