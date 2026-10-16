@@ -122,6 +122,19 @@ def test_fragments_start_at_word_boundaries():
     assert not fragment_at_word_start("test_solver_star3_center_only_red", "enter")  # "enter" inside "center"
 
 
+def test_language_keyword_and_unfinished_parentheses(conn, tmp_path, embedder):
+    from lantern.chunking.symbols import arity
+
+    assert arity("def __init__(") is None and arity("init()") == 0 and arity("f(a, b)") == 2
+    root = tmp_path / "mixed"
+    write(root, "a_rapidxml.hpp", "class Doc {\n  public:\n    void init() { }\n};\n")
+    write(root, "model.py", "class Model:\n    def __init__(self, depth):\n        self.depth = depth\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    top = symbol_search(conn, "def __init__(")[0]  # typed so far; "def" means Python, not the C++ init()
+    assert top.path.endswith("model.py") and top.line == 2
+
+
 def test_definition_search_pinpoints_file_and_line(conn, code_project, embedder):
     scan_root(conn, code_project)
     run_queue(conn, embedder)

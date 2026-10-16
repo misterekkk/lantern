@@ -291,7 +291,7 @@ def name_key(name: str) -> str:
 
 
 def arity(signature: str) -> int | None:
-    """Number of parameters in the first (...) of a signature or query; None without parentheses."""
+    """Number of parameters in the first (...) of a signature or query; None without (closed) parentheses."""
     start = signature.find("(")
     if start < 0:
         return None
@@ -310,4 +310,6 @@ def arity(signature: str) -> int | None:
                 count += 1
             elif not ch.isspace():
                 seen = True
+    else:
+        return None  # "(" never closed (a query being typed): the count is unknown, not zero
     return count + 1 if seen else 0

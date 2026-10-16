@@ -9,6 +9,7 @@ definitions that merely contain those letters.
 import re
 import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 
 from lantern.chunking.symbols import arity, name_key
 
@@ -29,6 +30,20 @@ _KIND_HINTS = {
     "interface": "interface", "protocol": "interface", "trait": "interface",
     "enum": "enum", "type": "type", "module": "module", "namespace": "module", "mod": "module",
     "table": "table", "view": "table",
+}  # fmt: skip
+# Keywords that also say which language is meant ("def" is Python, Ruby or Elixir, never C++): definitions in files
+# of those languages rank higher.
+_LANGUAGE_HINTS = {
+    "def": {".py", ".pyi", ".rb", ".ex", ".exs"}, "defp": {".ex", ".exs"}, "func": {".go", ".swift"},
+    "fn": {".rs"}, "impl": {".rs"}, "mod": {".rs"}, "fun": {".kt", ".kts"}, "protocol": {".swift"},
+    "function": {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".php", ".lua", ".r"}, "sub": {".pl", ".pm", ".vb"},
+}  # fmt: skip
+# Keywords that also say which language is meant ("def" is Python, Ruby or Elixir, never C++): definitions in files
+# of those languages rank higher.
+_LANGUAGE_HINTS = {
+    "def": {".py", ".pyi", ".rb", ".ex", ".exs"}, "defp": {".ex", ".exs"}, "func": {".go", ".swift"},
+    "fn": {".rs"}, "impl": {".rs"}, "mod": {".rs"}, "fun": {".kt", ".kts"}, "protocol": {".swift"},
+    "function": {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".php", ".lua", ".r"}, "sub": {".pl", ".pm", ".vb"},
 }  # fmt: skip
 _HINT_KINDS = {
     "function": {"function", "method"},
@@ -58,6 +73,7 @@ class SymbolQuery:
     parent: str | None  # Foo in Foo::bar / Foo.bar
     arity: int | None
     exact_only: bool  # plain single word: no prefix/fragment matches
+    extensions: frozenset[str] = frozenset()  # file types of the language the keyword implies (empty: any)
 
 
 @dataclass(frozen=True)
@@ -98,6 +114,7 @@ def parse_symbol_query(query: str) -> SymbolQuery | None:
     query = query.strip()
     idents = _depth0_identifiers(query)
     kind = next((_KIND_HINTS[w.lower()] for w, _ in idents if w.lower() in _KIND_HINTS), None)
+    language = next((_LANGUAGE_HINTS[w.lower()] for w, _ in idents if w.lower() in _LANGUAGE_HINTS), set())
     names = [(w, end) for w, end in idents if w.lower() not in _KIND_HINTS and w.lower() not in _NOISE]
     if not names:
         return None
@@ -112,7 +129,7 @@ def parse_symbol_query(query: str) -> SymbolQuery | None:
     key = name_key(name)
     if not key:
         return None
-    return SymbolQuery(name, key, kind, parent, arity(query), exact_only=not code_like)
+    return SymbolQuery(name, key, kind, parent, arity(query), exact_only=not code_like, extensions=frozenset(language))
 
 
 def _chunk_at(conn: sqlite3.Connection, file_id: int, line: int) -> int | None:
@@ -166,6 +183,8 @@ def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_
             if q.arity is not None and arity(r["signature"]) == q.arity:
                 score += 0.5
             if q.parent and r["parent"] and name_key(r["parent"]) == name_key(q.parent):
+                score += 0.5
+            if q.extensions and Path(r["path"]).suffix.lower() in q.extensions:
                 score += 0.5
             if r["name"] == q.name:  # same spelling, not just the same style-insensitive key
                 score += 0.25
