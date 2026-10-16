@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 from conftest import write
 
@@ -101,3 +103,47 @@ def test_indexed_files_are_never_modified(conn, project, embedder):
     run_queue(conn, embedder)
     after = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()}
     assert before == after
+
+
+# Letters FTS5 (`remove_diacritics 2`) does not fold by itself, each with the plain spelling a user types.
+UNFOLDED = {"Łódź": "lodz", "Søren": "soren", "Đorđe": "djordje", "Ħamrun": "hamrun", "Straße": "strasse",
+            "Ærø": "aero", "Œuvre": "oeuvre", "Þór": "thor", "Gaðar": "gadar", "Ŋaŋ": "nan", "Kırık": "kirik",
+            "ﬁle": "file"}  # fmt: skip
+
+
+def test_fts5_alone_leaves_these_letters_unfolded():
+    import sqlite3
+
+    raw = sqlite3.connect(":memory:")
+    raw.execute("CREATE VIRTUAL TABLE t USING fts5(x, tokenize = 'unicode61 remove_diacritics 2')")
+    raw.executemany("INSERT INTO t VALUES (?)", [(word,) for word in UNFOLDED])
+    folded_by_fts = [q for q in UNFOLDED.values() if raw.execute("SELECT 1 FROM t WHERE t MATCH ?", (q,)).fetchone()]
+    assert folded_by_fts == [], "FTS5 learnt to fold some of these: the table in textnorm may shrink"
+
+
+def test_keyword_search_folds_letters_without_a_decomposition(conn, tmp_path, embedder):
+    from lantern.search.basic import keyword_search
+    from lantern.textnorm import fold
+
+    assert fold("Đorđe") == "Dorde" and fold("ﬁle") == "file" and fold("plain ascii") == "plain ascii"
+    root = tmp_path / "names"
+    for i, word in enumerate(UNFOLDED):
+        write(root, f"n{i}.txt", f"Notatka o {word} z podróży.\n")
+    scan_root(conn, root)
+    run_queue(conn, embedder)
+    for word, typed in UNFOLDED.items():
+        typed = {"djordje": "dorde"}.get(typed, typed)  # đ is d; "dj" is a transliteration, not a fold
+        for query in (typed, word):
+            hits = keyword_search(conn, query, limit=5)
+            assert hits and word in Path(hits[0].path).read_text(), (word, query)
+
+
+def test_migration_refolds_existing_fts_rows(lantern_home):
+    path = lantern_home / "old.db"
+    conn = db.connect(path)
+    conn.execute("INSERT INTO chunks_fts(rowid, text, path, symbol) VALUES (1, 'Søren w Lodzi', 'a/Straße.md', '')")
+    conn.execute("PRAGMA user_version = 4")
+    conn.close()
+    conn = db.connect(path)
+    assert tuple(conn.execute("SELECT text, path FROM chunks_fts").fetchone()) == ("Soren w Lodzi", "a/Strasse.md")
+    assert conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH 'soren'").fetchone()[0] == 1

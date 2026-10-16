@@ -145,13 +145,14 @@ private struct PDFPageView: NSViewRepresentable {
         return view
     }
 
-    /// Occurrences of the query's words (4+ letters, matched by their start so Polish endings may differ) on the page.
+    /// Occurrences of the query's words (4+ letters, matched by their start so Polish endings may differ) on the page,
+    /// compared folded (`TextFold`: "lodz" finds "Łódź", which PDFKit's diacritic-insensitive search does not).
     static func queryWords(_ query: String, on page: PDFPage, in doc: PDFDocument) -> [PDFSelection] {
         let words = query.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" }).map(String.init)
             .filter { $0.count >= 4 }
         return words.flatMap { word -> [PDFSelection] in
             let stem = word.count >= 7 ? String(word.prefix(word.count - 2)) : word
-            return doc.findString(stem, withOptions: [.caseInsensitive, .diacriticInsensitive]).filter { $0.pages.contains(page) }
+            return TextFold.ranges(of: stem, in: page.string ?? "").compactMap { page.selection(for: $0) }
         }
     }
 

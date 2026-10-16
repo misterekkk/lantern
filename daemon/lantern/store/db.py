@@ -2,7 +2,7 @@
 
 import sqlite3
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,11 +11,22 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
+
+def _refold_fts(conn: sqlite3.Connection) -> None:
+    """Re-fold stored FTS values with the wider fold table (it extends the old ł -> l, so folding again is enough):
+    keyword search works for ø, ß, æ ... without re-embedding anything."""
+    conn.create_function("lantern_fold", 1, fold, deterministic=True)
+    conn.execute(
+        "UPDATE chunks_fts SET text = lantern_fold(text), path = lantern_fold(path), symbol = lantern_fold(symbol) "
+        "WHERE lantern_fold(text) != text OR lantern_fold(path) != path OR lantern_fold(symbol) != symbol"
+    )
+
+
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
-_MIGRATIONS: dict[int, list[str]] = {
+_MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     1: [
         "ALTER TABLE files ADD COLUMN pipeline_version INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE files ADD COLUMN model_id INTEGER",
@@ -29,6 +40,7 @@ _MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS symbols_file ON symbols(file_id)",
     ],
     3: ["ALTER TABLE chunks ADD COLUMN page INTEGER"],
+    4: [_refold_fts],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.
@@ -79,7 +91,7 @@ def connect(path: Path) -> sqlite3.Connection:
         with transaction(conn):
             while version < SCHEMA_VERSION:
                 for statement in _MIGRATIONS[version]:
-                    conn.execute(statement)
+                    statement(conn) if callable(statement) else conn.execute(statement)
                 version += 1
                 conn.execute(f"PRAGMA user_version = {version}")
     return conn

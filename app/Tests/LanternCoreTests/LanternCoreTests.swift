@@ -188,3 +188,17 @@ import Testing
         #expect(Format.shortPath("/Volumes/Dysk/a.md", home: "/Users/x") == "/Volumes/Dysk/a.md")
     }
 }
+
+@Suite struct TextFoldTests {
+    @Test func foldsLettersFoundationLeavesAlone() {
+        #expect(TextFold.fold("Łódź Søren Straße Ærø ﬁle") == "lodz soren strasse aero file")
+    }
+
+    @Test func rangesPointIntoTheOriginalText() {
+        let text = "Spotkanie w Łodzi, potem Straße 5"
+        let ns = text as NSString
+        #expect(TextFold.ranges(of: "lodzi", in: text).map { ns.substring(with: $0) } == ["Łodzi"])
+        #expect(TextFold.ranges(of: "strasse", in: text).map { ns.substring(with: $0) } == ["Straße"])
+        #expect(TextFold.ranges(of: "nic", in: text).isEmpty)
+    }
+}

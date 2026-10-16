@@ -1,7 +1,9 @@
 """Text normalisation and query building for keyword search (FTS5).
 
-- FTS5's `remove_diacritics 2` folds most Polish letters but not "ł" (a separate letter in Unicode, not a base letter
-  plus a combining mark), so "lodz" would not match "łódź". We fold it ourselves, at index and query time.
+- FTS5's `remove_diacritics 2` folds letters that decompose into a base letter plus a combining mark (ą, ü, ř, ș), but
+  not letters that are separate characters in Unicode: "ł" (so "lodz" would not match "łódź"), ø, đ, ħ, ß, æ, þ and
+  others (checked one by one, see tests/test_queue_and_store.py). We fold those ourselves, at index and query time,
+  after NFKC (ligatures like "ﬁ" become "fi"). The Swift app mirrors the table (LanternCore/TextFold.swift).
 - Stopwords are dropped from queries ("jak połączyć się z bazą" -> "połączyć", "bazą").
 - Polish inflection: longer words match by stem prefix ("decyzyjnego" -> decyzyjn*), a cheap stand-in for a stemmer.
 """
@@ -9,7 +11,15 @@
 import re
 import unicodedata
 
-_FOLD = str.maketrans({"ł": "l", "Ł": "L"})
+# Letters that NFKD + FTS5 leave alone (stroke letters, ligature letters, thorn, eth, eng, dotless i, sharp s).
+_FOLD = str.maketrans(
+    {
+        "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ð": "d", "Ð": "D", "ħ": "h", "Ħ": "H",
+        "ŧ": "t", "Ŧ": "T", "ŋ": "n", "Ŋ": "N", "ı": "i", "ĸ": "k", "ƀ": "b", "Ƀ": "B", "ǥ": "g", "Ǥ": "G",
+        "ƚ": "l", "Ƚ": "L", "ɨ": "i", "Ɨ": "I", "ʉ": "u", "Ʉ": "U", "ß": "ss", "ẞ": "SS", "æ": "ae", "Æ": "AE",
+        "œ": "oe", "Œ": "OE", "þ": "th", "Þ": "TH",
+    }
+)  # fmt: skip
 _TOKEN = re.compile(r"\w+", re.UNICODE)
 # Numbers and codes with separators ("187,15", "FV/2025/09/0932", "2025-10-14", "config.toml"): FTS splits them at the
 # punctuation, so they are searched as phrases (the parts next to each other), not as loose words.
@@ -30,7 +40,10 @@ STOPWORDS = frozenset(
 
 
 def fold(text: str) -> str:
-    return text.translate(_FOLD)
+    """Spell letters FTS5 cannot fold as their plain Latin equivalent ("Łódź" -> "Lódź", "Straße" -> "Strasse")."""
+    if text.isascii():
+        return text
+    return unicodedata.normalize("NFKC", text).translate(_FOLD)
 
 
 def query_terms(query: str) -> list[tuple[str, bool]]:
@@ -66,7 +79,7 @@ def fts_query(query: str) -> str | None:
 
 
 def _plain(text: str) -> str:
-    """Lowercase, ł folded, diacritics removed (what FTS5 compares)."""
+    """Lowercase, folded, diacritics removed (what FTS5 compares)."""
     decomposed = unicodedata.normalize("NFKD", fold(text).lower())
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
