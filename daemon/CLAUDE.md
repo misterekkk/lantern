@@ -49,9 +49,20 @@ its chunking rules or prompt formats change**: files store `pipeline_version` an
 
 `basic.py` builds file-level candidate lists: vector KNN, FTS5 BM25 with column weights, and photos
 (`image_search`: KNN pool from both photo models, exact similarities, per-model z-scores summed, only z ≥ 1 per model).
-`hybrid.py` fuses vector + keyword with RRF (k = 60) into the files section; photos (image kind, plus photos matched by
+`hybrid.py` puts code definitions (`search/symbols.py`) first, fuses vector + keyword with RRF (k = 60) into the files section; photos (image kind, plus photos matched by
 name) form a separate section, and `photos_first` compares list confidences. Video frames stay in the files list
 with their video. Every search is logged to `search_events` (features only, never file content).
+
+## Code symbols (Phase 8)
+
+- `chunking/symbols.py` extracts every definition (functions, methods, classes, types, SQL tables) with its exact
+  line, kind, signature and parent. Grammar quirks live in `definition_name` / `_extra_definition` (C/C++ declarators
+  — only a real `function_declarator` counts, macros parse as fake functions —, Go type specs, R assignments, Elixir
+  `def` calls, JS arrow functions). The chunker reuses the same name rules.
+- Stored in the `symbols` table (regular table, CASCADE with the file; `name_key` = style-insensitive name), written
+  in the same transaction as the code chunks. Changing extraction rules = bump `PIPELINE_VERSIONS["code"]`.
+- `search/symbols.py` parses the query (name, kind hint, parent, arity) and matches exact > prefix > fragment.
+  New language: add a sample to `SAMPLES` in `tests/test_symbols.py` first, then fix the rules until it passes.
 
 ## Photos and video frames (Phase 7)
 

@@ -17,7 +17,8 @@ Demon (LaunchAgent; model tekstowy w pamięci do wyszukiwania, ~490 MB)
         ▼
   SQLite (jeden plik): metadane + FTS5 (słowa) + sqlite-vec (wektory: osobne tabele na model i na tekst/zdjęcia)
         ▲
-  Wyszukiwanie: pliki (wektory + BM25 → RRF) | zdjęcia (EG2 + SigLIP, z-score) → dwie sekcje → search_events
+  Wyszukiwanie: definicje (tabela symboli) | pliki (wektory + BM25 → RRF) | zdjęcia (EG2 + SigLIP, z-score)
+                → sekcje → search_events
 ```
 
 Cała logika jest w demonie. Klienci tylko wywołują API.
@@ -51,6 +52,30 @@ Cała logika jest w demonie. Klienci tylko wywołują API.
 | 5b | cały komputer: polityka katalogu domowego, iCloud tylko lokalnie, ochrona folderów bez uprawnień, własne wykluczenia, `--dry-run`, test skali | zrobione |
 | 6 | aplikacja Swift, tylko za zgodą: pasek menu (włącz/wyłącz, status, kolejka, „znaleziono N nowych plików, zaindeksować?”), panel wyszukiwania w stylu Spotlight pod globalnym skrótem, design zgodny z Apple HIG (SwiftUI, materiały Liquid Glass, SF Symbols) | zrobione |
 | 7 | wyszukiwanie w zdjęciach i klatkach filmów (ffmpeg → klatki → wieża wizyjna EG2 + SigLIP 2), poprzedzone testem jakości i szybkości; sekcja zdjęć w panelu | zrobione |
+| 8 | precyzyjne wyszukiwanie kodu: tabela symboli z tree-sittera (nazwa, rodzaj, sygnatura, linia), poprawne nazwy w C/C++/Go i metodach małych klas, sekcja „Definicje”, otwieranie na linii w domyślnym edytorze | zrobione |
+| 9 | ustawienia i media (plan niżej) | – |
+
+### Plan Fazy 9 (uzgodniony z użytkownikiem 2026-10-16)
+
+- **Pasek menu zostaje minimalny.** Szczegóły są w oknie ustawień (koło zębate).
+- **Drzewko folderów z polami wyboru:** rozwijanie aż do pojedynczych plików, trzy stany (zaznaczony, odznaczony,
+  częściowo), wczytywanie po rozwinięciu, liczba plików w indeksie, podgląd skutków przed zapisem („z indeksu
+  zniknie N plików”). Elementy pomijane zawsze są wyszarzone, z wyjaśnieniem. Pod spodem: istniejące wykluczenia ścieżek.
+- **Ignorowane rozszerzenia:** pigułki z ✕, dodawanie przyciskiem ＋ z podpowiedziami filtrowanymi w trakcie pisania
+  (znane typy + rozszerzenia obecne w folderach), dowolne nietypowe rozszerzenie. Wpisanie `csv`, `.csv` albo
+  `*.csv` i przecinka (także spacji lub Entera) od razu tworzy pigułkę. Domyślnie `.ipynb`, `.csv`, `.tsv`;
+  `.json` jako podpowiedź.
+- **Zakładka Wydajność:** wykres RAM na żywo (co 1 s przy otwartym oknie): demon i proces indeksujący osobno,
+  footprint jak w Monitorze aktywności. Do tego załadowane modele, bieżące zadanie i tempo, szczyt sesji oraz lista
+  modeli (nazwa, rewizja, rozmiar, stan).
+- **Przełącznik audio i filmów** (obok zdjęć, klatek i transkrypcji).
+- **Filmy i nagrania od znacznika czasu:**
+  - Spacja: plan A, szybki podgląd w oknie z systemowym `AVPlayerView`, start ~3 s przed wypowiedzią, tekst wypowiedzi
+    i przycisk „Otwórz w QuickTime Player”. Systemowy Quick Look nie ma API do ustawienia momentu startu (sprawdzone w SDK).
+  - ↩: plan B, QuickTime Player od momentu. Słownik skryptowy QuickTime ma zapisywalną właściwość `current time`;
+    wymaga jednorazowej zgody na sterowanie (Automation). Do sprawdzenia na żywo, także dla mkv/webm. Gdy plan B
+    zawiedzie, otwiera się plan A.
+  - ⌥↩: cały film od początku w domyślnej aplikacji; ⌘↩: Finder. To samo dla nagrań audio i klatek filmów.
 
 Poza zakresem na razie: reranker LightGBM (najpierw zbieramy `search_events`), podsumowania folderów przez LLM,
 synchronizacja, chmura, wielu użytkowników.

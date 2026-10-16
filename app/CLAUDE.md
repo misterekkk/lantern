@@ -11,6 +11,10 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   uses an already running daemon instead), `SearchPanel` (borderless NSPanel, ⌥Space via Carbon `HotKey`),
   `MenuView`, `SettingsView` (own window: SwiftUI's Settings scene is unreliable in LSUIElement apps),
   `Thumbnails` (Quick Look / AVFoundation thumbnails for photo and video-frame results, cached in memory only).
+- Opening a result: `EditorOpener` asks macOS for the default app of the file and uses `LineJump` (LanternCore,
+  unit-tested) to jump to the line: `vscode://` / `cursor://` URLs, `xed -l` with `DEVELOPER_DIR` set to that
+  Xcode (xcode-select may point at the Command Line Tools), JetBrains launchers with `--line`; anything else opens
+  the file normally. Never switch to a different app than the user's default.
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),

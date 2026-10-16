@@ -4,10 +4,10 @@ Lokalna aplikacja na macOS do przeszukiwania plików **po znaczeniu**, a nie tyl
 nagrania audio, filmy i zdjęcia. Silnikiem jest otwarty model embeddingowy **EmbeddingGemma 2** (Google DeepMind, Apache 2.0),
 uruchamiany natywnie na Apple Silicon przez MLX.
 
-> **Stan projektu: Faza 7 (zdjęcia i klatki filmów).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
-> (dźwięk i klatki) oraz zdjęć, wyszukiwanie łączące znaczenie i słowa, demon w tle oraz aplikacja macOS: ikona
-> w pasku menu (stan, zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod **⌥Space**,
-> z osobną sekcją zdjęć.
+> **Stan projektu: Faza 8 (precyzyjne wyszukiwanie kodu).** Działa indeksowanie tekstu, kodu, nagrań audio, filmów
+> (dźwięk i klatki) oraz zdjęć, wyszukiwanie łączące znaczenie i słowa, wyszukiwanie definicji w kodzie co do linii
+> („def add_two(x, y):” → `skrypt.py`, linia 200), demon w tle oraz aplikacja macOS: ikona w pasku menu (stan,
+> zgoda na indeksowanie, pauza, foldery) i panel wyszukiwania w stylu Spotlight pod **⌥Space**.
 
 ## Aplikacja (pasek menu i panel ⌥Space)
 
@@ -21,7 +21,11 @@ open app/build/Lantern.app   # albo przenieś Lantern.app do /Applications
 - **⌥Space** otwiera panel wyszukiwania (jak Spotlight): ↑↓ wybór, ↩ otwórz, ⌘↩ pokaż w Finderze, Esc zamknij.
   Nagrania i filmy pokazują moment wypowiedzi (np. `vlog.mp4 · 1:48`). Wyniki są w dwóch sekcjach, jak
   w Spotlight: **Zdjęcia** (z miniaturami) i **Pliki**; wyżej jest ta, która lepiej pasuje do zapytania („pies”:
-  najpierw zdjęcia, „postgres”: najpierw pliki).
+  najpierw zdjęcia, „postgres”: najpierw pliki). Zapytanie o funkcję lub klasę pokazuje na górze sekcję
+  **Definicje** z plikiem, linią i sygnaturą.
+- **↩ przy kodzie** otwiera plik w aplikacji, którą macOS ma ustawioną dla tego typu pliku, od razu na właściwej
+  linii, jeśli ta aplikacja to umożliwia: VS Code (sprawdzone), Cursor, Xcode, edytory JetBrains (IntelliJ, PyCharm,
+  CLion…). Inne aplikacje otwierają plik od początku; Lantern nigdy nie przełącza na inną aplikację niż domyślna.
 - **Powiadomienie** z przyciskami „Zaindeksuj” / „Później”, gdy demon znajdzie nowe pliki (tryb „pytaj”).
 - **Język** aplikacji jest zgodny z językiem macOS (polski lub angielski).
 - **Ustawienia:** uruchamianie przy logowaniu, tryb indeksowania, transkrypcja, wyszukiwanie zdjęć i klatek filmów,
@@ -62,6 +66,21 @@ uv run lantern clear-history               # usuń lokalną historię wyszukiwa�
   funkcje i klasy), tekst (Markdown, txt, JSON, YAML, HTML, notebooki itd.; pliki tekstowe ponad 2 MB i binarne są
   pomijane), audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), wideo (mp4, mov, mkv, webm, avi…: dźwięk i klatki)
   oraz zdjęcia (jpg, png, heic, gif, webp, tiff, bmp).
+
+### Definicje w kodzie (funkcje, klasy, metody)
+
+- Wklej linię z kodu albo samą nazwę: `def add_two(x, y):`, `add_two`, `addTwo`, `class Client`,
+  `Client::connect`, `BinMapper.transform`, `public void testReplaceIndex()`. Wynik: plik, **dokładna linia**
+  definicji i sygnatura, np. `skrypt.py:200   def add_two(x, y)`.
+- Nazwy są porównywane bez względu na styl (`add_two` = `addTwo` = `AddTwo`), najpierw dokładnie, potem po
+  początku nazwy (`add_two` → `add_two_numbers`) i po fragmencie (`UserToken` → `parseUserToken`). Liczba
+  argumentów, rodzaj (`def`, `class`…) i klasa nadrzędna pomagają wybrać właściwą definicję.
+- Zwykłe zdania („optymalizacja drzewa”) nie dają definicji; pojedyncze słowo daje tylko dokładnie tak nazwane.
+- Języki: Python, JavaScript, TypeScript, Go, Rust, Java, Kotlin, Swift, C, C++, Objective-C, C#, Scala, Ruby, PHP,
+  Lua, R, Dart, Elixir, Haskell, SQL, Bash (test dla każdego). Każda funkcja i metoda ma własny wpis, także
+  w małych klasach. Wywołania funkcji (użycia) nie są jeszcze wyszukiwane, tylko definicje.
+- `lantern open <n> --print` wypisuje `ścieżka:linia`; `lantern open <n>` otwiera plik w domyślnej aplikacji
+  (bez skoku do linii; skok robi aplikacja Lantern).
 
 ### Zdjęcia i klatki filmów
 

@@ -490,6 +490,46 @@ ekranu nie jest wyszukiwany po słowach); próg z ≥ 1 zakłada pulę kilkudzie
 w indeksie odcina prawie wszystko (zostają dopasowania po nazwie). Wyłączenie klatek nie usuwa klatek już
 zaindeksowanych filmów.
 
+## Faza 8: wyniki (2026-10-16)
+
+Wdrożone: tabela `symbols` (schemat v3) z tree-sittera, poprawione nazwy fragmentów kodu, sekcja „Definicje”
+w API, CLI i panelu, otwieranie wyniku na linii w domyślnym edytorze.
+
+Decyzje:
+- **Osobna tabela symboli zamiast samej kolumny `symbol` w FTS.** Fragment miał jedną nazwę, więc metody małych klas
+  i funkcje sklejone w jeden fragment ginęły. FTS5 dzielił też `add_two` na „add” + „two”. Teraz każda definicja ma
+  wiersz: nazwę, klucz bez stylu (`add_two` = `addTwo` → `addtwo`), rodzaj, sygnaturę, klasę nadrzędną i dokładną linię.
+- **Bez indeksu trigramowego FTS5:** zwykła tabela z indeksem na kluczu wystarcza. Pomiar przy 300 tys. symboli:
+  dokładnie < 0,01 ms, prefiks (zakres po indeksie) < 1 ms, fragment (skan) ~14 ms. To też prostsze usuwanie:
+  wiersze idą kaskadowo z plikiem (secure_delete), bez osobnej tabeli wirtualnej.
+- **Rozpoznanie zapytania:** identyfikator przed „(”, inaczej ostatni poza nawiasami; słowa kluczowe (`def`, `class`,
+  `fn`, `public`, `void`…) dają podpowiedź rodzaju albo są pomijane; `A::b` / `A.b` → klasa nadrzędna; liczba
+  argumentów z nawiasów. Zdania w języku naturalnym nie szukają definicji, pojedyncze słowo tylko dokładnych nazw.
+- **Kolejność:** definicje zawsze na górze (to dokładne odpowiedzi), potem zdjęcia/pliki według reguły z Fazy 7.
+  Historia wyszukiwań zapisuje wyniki w kolejności wyświetlania (naprawiony błąd z Fazy 7: przy zdjęciach na górze
+  `lantern open 1` otwierał pierwszy plik, a nie pierwsze zdjęcie). Do historii nie trafiają sygnatury (treść kodu).
+- **Błędy nazw znalezione testem języków i naprawione:** C/C++ dawało typ zwracany jako nazwę („int”), Go nie
+  nazywało `type P struct`, makra C++ (`NAMESPACE_BEGIN namespace x {`) parsowały się jako funkcje. Funkcja C/C++
+  liczy się tylko z prawdziwym deklaratorem funkcji. Sygnatura kończy się na pierwszym `{` poza nawiasami.
+- **Otwieranie na linii** w aplikacji domyślnej dla typu pliku (jak podwójne kliknięcie w Finderze):
+  - VS Code `vscode://file/…:linia` — sprawdzone na żywo (kursor w linii 5),
+  - Cursor `cursor://file/…:linia` — schemat zarejestrowany w aplikacji, format jak VS Code; nie uruchamiałem,
+  - Xcode `xed -l` — wymaga `DEVELOPER_DIR` wskazującego Xcode (na tym Macu `xcode-select` wskazuje Command Line Tools
+    i `xed` sam z siebie zwraca błąd); flaga `-l` sprawdzona w `xed --help`,
+  - JetBrains: launcher aplikacji z `--line` (udokumentowane przez JetBrains); nie uruchamiałem (RAM),
+  - pozostałe (np. IDLE, ustawione na tym Macu dla `.py`): zwykłe otwarcie, bez zmiany aplikacji.
+
+Wyniki:
+- Wszystkie 22 języki w teście (`tests/test_symbols.py`) dają oczekiwane definicje i linie.
+- Prawdziwe projekty użytkownika: 4394 symbole z 438 plików kodu (funkcje 2162, metody 1525, klasy 312…).
+  12 zapytań w różnych stylach (wklejona linia `def …:`, sama nazwa, inny styl, fragment, `Klasa.metoda`,
+  `Klasa::metoda`, Java, C++): **12/12 z właściwą definicją**. W 8/12 dokładnie ten plik jest pierwszy; pozostałe 4
+  to remisy identycznych kopii (np. `HistogramBasedDecisionTree` w 9 kopiach w 3 projektach). Czas < 1 ms na zapytanie.
+- Ponowny indeks kodu po zmianie potoku: 570 plików w ~4 min (wektory liczone od nowa, bo zmieniły się nazwy w tytułach).
+
+Ograniczenia: tylko definicje, bez użyć (wywołań); deklaracje bez ciała (prototypy w nagłówkach C) są pomijane;
+przy wielu kopiach tej samej definicji sekcja (5 pozycji) może ich nie zmieścić wszystkich.
+
 ## ADR-001: Backend embeddingów, MLX 8-bit (mlx-vlm), z fallbackiem sentence-transformers
 
 **Status:** zaakceptowana kierunkowo (2026-10-15), szczegóły do potwierdzenia w Fazie 2
@@ -591,3 +631,7 @@ nigdy równocześnie z wieżą audio EmbeddingGemma.
 24. OCR zdjęć i zrzutów ekranu (Vision framework, lokalnie) do wyszukiwania tekstu na obrazach po słowach.
 25. Próg zdjęć (z ≥ 1) przy bardzo małych bibliotekach (kilka zdjęć) i dostrojenie reguły kolejności sekcji na
     prawdziwych danych użytkownika; sekcja zdjęć jako siatka miniatur zamiast wierszy.
+26. Wyszukiwanie użyć symbolu (wywołania, importy) oraz deklaracji bez ciała (prototypy w nagłówkach C/C++).
+27. Skok do linii w Cursorze i edytorach JetBrains do sprawdzenia na żywo (VS Code sprawdzony); inne edytory
+    (Zed, Sublime Text, BBEdit, Nova) do dodania po sprawdzeniu ich mechanizmu.
+28. Sekcja definicji przy wielu identycznych kopiach (np. „+4 kopie”) zamiast zajmowania wszystkich miejsc.

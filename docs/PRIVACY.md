@@ -33,7 +33,8 @@ Lantern ma działać także na kodzie firmowym, dlatego prywatność jest wymaga
 | Logi demona | `~/Library/Application Support/Lantern/logs/` | ścieżki plików i komunikaty błędów; bez treści plików i zapytań |
 | Modele | `~/.cache/huggingface/hub/` | publiczne wagi, bez danych użytkownika |
 
-Indeks zawiera **dane pochodne**: fragmenty tekstu oraz wektory, z których da się częściowo odtworzyć treść.
+Indeks zawiera **dane pochodne**: fragmenty tekstu, nazwy i sygnatury definicji z kodu oraz wektory, z których
+da się częściowo odtworzyć treść.
 `search_events` zawiera historię zapytań. Traktuj plik indeksu jak kopię indeksowanych danych.
 
 ## Co robią biblioteki (zmierzone w Fazie 0)
