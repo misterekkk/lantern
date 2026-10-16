@@ -392,8 +392,6 @@ class Daemon:
             settings_mod.save(self.settings)
             if key in ("pause_on_battery", "pause_on_thermal"):
                 self._last_power_check = 0.0
-        # Started by the menu bar app: exit if the app goes away (crash, force quit) instead of staying orphaned.
-        self.parent_pid = os.getppid() if os.environ.get("LANTERN_EXIT_WITH_PARENT") == "1" else None
         return asdict(self.settings)
 
     def api_exclude(self, action: str, pattern: str) -> dict:
