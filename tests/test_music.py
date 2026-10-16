@@ -17,6 +17,13 @@ SONGS = [
         "track": 17,
     },
     {"id": "C1", "title": "Heartbeat", "artist": "Childish Gambino", "album": "Camp", "track": 6},
+    {
+        "id": "D1",
+        "title": "Fair Trade (feat. Travis Scott)",
+        "artist": "Drake",
+        "album": "Certified Lover Boy",
+        "track": 5,
+    },
 ]
 PLAYLISTS = [
     {"id": "P1", "name": "🔥🔥🔥", "songs": ["A1", "A2", "A3", "B1", "C1"]},
@@ -32,7 +39,7 @@ def stored(conn, embedder=None):
 
 
 def test_vectors_only_for_new_or_changed_songs(conn):
-    assert stored(conn) == 7
+    assert stored(conn) == 8
     assert stored(conn) == 0
 
 
@@ -47,7 +54,8 @@ def test_a_title_finds_the_song_in_the_context_of_its_playlist(conn):
 
 def test_artist_and_album_words_with_polish_endings(conn):
     stored(conn)
-    assert {h.id for h in music_search(conn, "piosenki travisa scotta", limit=10)} == {"A1", "A2", "A3"}
+    found = [h.id for h in music_search(conn, "piosenki travisa scotta", limit=10)]
+    assert set(found[:3]) == {"A1", "A2", "A3"} and found[3:] == ["D1"]  # his own songs first, guest spots after
     album = music_search(conn, "astroworld", limit=10)
     assert [h.id for h in album] == ["A2", "A1"]  # the album in its track order
     assert music_search(conn, "swimming pools")[0].id == "B1"  # "(Drank)" does not stop an exact title
@@ -69,7 +77,7 @@ def test_one_word_that_only_starts_a_title_stays_below_sure_files(conn):
 def test_the_music_filter_and_clearing(conn):
     stored(conn)
     only = search(conn, FakeEmbedder(), "travis", log=False, category="music")
-    assert only.category == "music" and len(only.music) == 3 and only.results == [] and only.apps == []
+    assert only.category == "music" and len(only.music) == 4 and only.results == [] and only.apps == []
     model_id = db.ensure_model(conn, FakeEmbedder().model_info())
     music_mod.store_music(conn, [], lambda docs: [], model_id)
     assert music_search(conn, "skeletons") == []

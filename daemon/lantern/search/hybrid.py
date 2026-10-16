@@ -253,7 +253,7 @@ def _music_score(top: MusicHit, query: str) -> float:
         return 0.8
     if top.match == "title":
         return 0.8 if words >= 2 else 0.6
-    if top.match in ("artist", "album"):
+    if top.match in ("artist", "album", "featured"):
         return 0.7
     return 0.42  # meaning only
 

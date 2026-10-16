@@ -37,7 +37,7 @@ class MusicHit:
     playlist_id: str | None  # a song: a playlist holding it (play in its context); a playlist: itself
     playlist_name: str | None
     count: int  # a playlist: its number of songs
-    match: str  # title_exact | title | artist | album | playlist | kind | meaning
+    match: str  # title_exact | title | artist | album | featured | playlist | kind | meaning
     score: float
 
 
@@ -94,17 +94,19 @@ def music_search(
         title, people, album = _words(r["title"]), _words(r["artist"]), _words(r["album"])
         if not all(_fits(t, title + people + album) for t in content):
             continue
-        plain_title = " ".join(_words(re.sub(r"\s*[(\[].*?[)\]]", "", r["title"])))  # without "(feat. …)"
-        if plain_title == q:
+        main = _words(re.sub(r"\s*[(\[].*?[)\]]", "", r["title"]))  # without "(feat. Travis Scott)", "[Remix]"
+        if " ".join(main) == q:
             hits.append(hit(r, "title_exact", 0.95))
-        elif all(_fits(t, title) for t in content):
+        elif all(_fits(t, main) for t in content):
             hits.append(hit(r, "title", 0.85))
         elif all(_fits(t, people) for t in content):
             hits.append(hit(r, "artist", 0.7))
+        elif all(_fits(t, title) for t in content):  # only in the brackets: a guest ("feat. Travis Scott")
+            hits.append(hit(r, "featured", 0.65))
         else:
             hits.append(hit(r, "album", 0.7))
     if hits:
-        rank = {"title_exact": 0, "playlist": 1, "title": 2, "artist": 3, "album": 3}
+        rank = {"title_exact": 0, "playlist": 1, "title": 2, "artist": 3, "album": 3, "featured": 4}
         hits.sort(key=lambda h: (rank.get(h.match, 4), h.album, h.track, h.title))
         return hits[:limit]
     # No words matched: perhaps a description ("smutna piosenka po angielsku" will not, "rap travisa" may).
