@@ -8,8 +8,9 @@ technical reference; the README has the short tour.
 lantern [-h] [--version] <command> [options]
 ```
 
-Run it from the repository with `uv run lantern …`, or call `.venv/bin/lantern` directly (for example from an alias:
-`alias lantern="$HOME/path/to/lantern/.venv/bin/lantern"`). Every command has `--help`.
+`./install.sh` links the command to `~/.local/bin/lantern` and this manual's short form to `man lantern`
+(`docs/lantern.1`); without it, run `uv run lantern …` from the repository folder or call `.venv/bin/lantern`
+directly. Every command has `--help`.
 
 ## How commands run
 

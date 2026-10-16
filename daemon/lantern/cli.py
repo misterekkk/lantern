@@ -498,7 +498,11 @@ def cmd_ignore(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lantern", description="Local, offline semantic file search.")
+    parser = argparse.ArgumentParser(
+        prog="lantern",
+        description="Local, offline semantic file search.",
+        epilog="Manual: man lantern (after ./install.sh). Full reference: docs/CLI.md in the repository.",
+    )
     parser.add_argument("--version", action="version", version=f"lantern {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 

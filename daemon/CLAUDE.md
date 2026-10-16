@@ -100,6 +100,8 @@ with their video. Every search is logged to `search_events` (features only, neve
   thermal state via ctypes, `pmset` as cross-check), `qos.py` (per-thread QoS: model thread user-initiated, scans and
   the control loop utility; never background in the daemon, it embeds queries), `settings.py` (`config.toml`),
   `notify.py` (osascript), `launchagent.py` (plist via plistlib, `launchctl bootstrap gui/<uid>`, `Interactive`).
+- Changing the CLI (commands, options, output, exit codes): update `docs/CLI.md` and the man page `docs/lantern.1`
+  (`tests/test_smoke.py` fails when the man page misses a command or option; lint with `mandoc -T lint`).
 - Adding an API method: `def api_<name>(self, **params) -> dict` in `Daemon` + CLI client code + a test in
   `tests/test_daemon.py` (real socket in `/tmp`; macOS limits socket paths to 104 bytes).
 - `embedding/mlx_loader.py` loads EmbeddingGemma 2 without importing torch (package stubs). If a new mlx-vlm version

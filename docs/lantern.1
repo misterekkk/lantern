@@ -1,0 +1,299 @@
+.\" Manual page for lantern(1). Keep in sync with daemon/lantern/cli.py and docs/CLI.md;
+.\" tests/test_smoke.py checks that every command and option of the parser is described here.
+.\" Preview: man ./docs/lantern.1    Lint: mandoc -T lint docs/lantern.1
+.TH LANTERN 1 2026-10-16 "Lantern 0.0.1" "User Commands"
+.SH NAME
+lantern \- local, offline semantic search for files, code, PDFs, photos and recordings
+.SH SYNOPSIS
+.B lantern
+.RB [ \-h ]
+.RB [ \-\-version ]
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+.B lantern
+indexes folders on this Mac and finds files by meaning and by exact words:
+text, code (down to the line of a definition), PDFs (page), photos (what they show and the text in them) and
+recordings (the moment something is said).
+Everything runs locally with EmbeddingGemma 2 on Apple silicon; after the one-time model download nothing leaves
+the Mac and indexed files are only ever read.
+.PP
+Most commands talk to the Lantern daemon over its Unix socket when it is running (started by the menu bar app,
+.BR "lantern daemon run" ,
+or the LaunchAgent): searches then take milliseconds and indexing continues in the background.
+Without a daemon,
+.BR index ,
+.BR search ,
+.BR remove ,
+.BR compact ,
+.BR clear\-history ,
+.BR exclude ,
+.BR ignore ,
+.BR config ,
+.B open
+and
+.B status
+work on the index directly
+.RB ( search
+loads the model first, which takes a few seconds);
+.BR pending ,
+.BR approve ,
+.BR decline ,
+.B pause
+and
+.B resume
+need the daemon.
+.SH COMMANDS
+.SS Indexing
+.TP
+.BI "index " path " \fR[\fB\-\-force\fR] [\fB\-\-no\-transcribe\fR] [\fB\-\-dry\-run\fR]"
+Add a folder or bring it up to date: new and changed files are indexed, moved files keep their vectors, deleted
+files are removed with all their data.
+An unavailable folder (unplugged disk, network share) is never purged.
+.RS
+.TP
+.B \-\-force
+allow the update when more than half of the folder's indexed files are gone from the disk (refused otherwise).
+.TP
+.B \-\-no\-transcribe
+without a daemon: index audio and video by sound only, without Whisper transcripts.
+.TP
+.B \-\-dry\-run
+read only names and sizes: counts per kind, folders without access and a rough time estimate; nothing is read or
+written.
+.RE
+.TP
+.BI "remove " path
+Remove an indexed folder and everything derived from it, then compact the database so the data is erased from the
+file.
+.TP
+.B compact
+Physically erase deleted data from the index file (VACUUM, FTS optimize, WAL checkpoint).
+.SS Searching
+.TP
+.BI "search " query " \fR[\fB\-n\fR \fIN\fR] [\fB\-\-only\fR \fIkind\fR] [\fB\-\-no\-log\fR]"
+Search by meaning and keywords in one ranking.
+Results come in sections (Definitions, Photos, Files) with their location:
+.IR path : start \- end
+for text and code,
+.I path
+(page
+.IR N )
+for PDFs,
+.I path
+@
+.IR m : ss
+for recordings.
+The sources in brackets
+.RI ( "meaning #k" ,
+.IR "keywords #k" ,
+.IR "image #k" )
+show why each result matched.
+Case, accents and letters such as \(/l, \(/o and \(ss are ignored; numbers and codes with separators must match
+as a whole.
+.RS
+.TP
+.BR \-n ", " \-\-limit " \fIN\fR"
+number of results in the files section (default 10).
+.TP
+.BI \-\-only " kind"
+only one kind of result:
+.BR code ,
+.BR docs ,
+.BR pdf ,
+.B photos
+or
+.B media
+(recordings and videos).
+.TP
+.B \-\-no\-log
+do not record this search in the local history.
+.RE
+.TP
+.BI "open " n " \fR[\fB\-\-reveal\fR | \fB\-\-print\fR]"
+Open result
+.I n
+of the last search with its default app and record the choice in the local history.
+.RS
+.TP
+.B \-\-reveal
+show it in Finder instead.
+.TP
+.B \-\-print
+only print
+\fIpath\fR[:\fIline\fR][ @ \fIm\fR:\fIss\fR],
+for scripts and editors.
+.RE
+.TP
+.B clear\-history
+Delete the local search history and compact the database.
+.SS Daemon
+.TP
+.BR "daemon run" | install | uninstall | stop " [\fB\-\-print\fR]"
+.B run
+starts the daemon in the foreground;
+.B install
+writes and starts the LaunchAgent
+.RI ( ~/Library/LaunchAgents/com.lantern.daemon.plist ,
+started at every login);
+.B "install \-\-print"
+only prints that plist;
+.B uninstall
+removes it;
+.B stop
+asks a running daemon to stop after the current file.
+The menu bar app starts its own daemon, so the LaunchAgent is optional.
+.TP
+.B status
+Daemon, power (battery, Low Power Mode, thermal state), queue, files and folders; without a daemon a shorter report
+of the index itself.
+.TP
+.B pending
+Files the daemon found that wait for approval (in
+.B ask
+mode).
+.TP
+.B approve
+Index the waiting files.
+.TP
+.B decline
+Leave them until the next change.
+.TP
+.B pause
+Pause background indexing (search keeps working).
+.TP
+.B resume
+Resume background indexing.
+.SS Settings
+.TP
+.BR config " [\fIkey\fR [\fIvalue\fR]]"
+List the settings, or change one (booleans accept true/false, 1/0, yes/no).
+Keys:
+.BR index_mode " (" ask | auto ),
+.BR pause_on_battery ,
+.BR pause_on_low_power ,
+.BR pause_on_thermal ,
+.BR index_photos ,
+.BR index_image_text ,
+.BR index_audio_video ,
+.BR transcribe ,
+.BR index_video_frames ,
+.BR notify ,
+.BR debounce_s .
+.TP
+.BR exclude " " add | remove | list " [\fIpattern\fR]"
+Extra exclusions on top of the defaults (.git, node_modules, build and cache folders, secrets such as .env*,
+*.pem, id_*) and .gitignore: an absolute path (~ allowed) or a .gitignore-style pattern.
+.TP
+.BR ignore " " add | remove | list " [\fIextension\fR ...]"
+File extensions never indexed (default .ipynb .csv .tsv);
+.BR csv ,
+.B .csv
+and
+.B *.csv
+mean the same.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show help (also after any command).
+.TP
+.B \-\-version
+Print the version.
+.SH ENVIRONMENT
+.TP
+.B LANTERN_HOME
+Data folder instead of
+.IR "~/Library/Application Support/Lantern" .
+.TP
+.B LANTERN_SOCKET
+Socket path instead of
+.IR $LANTERN_HOME/lantern.sock
+(at most 104 bytes).
+.TP
+.B LANTERN_FFMPEG
+Path to ffmpeg (otherwise PATH, then the Homebrew locations).
+.TP
+.B LANTERN_NOTIFY
+.B 0
+turns notifications off.
+.TP
+.B LANTERN_WORKER_PRIORITY
+.B background
+(default) runs the indexing process with the background policy; any other value keeps normal priority.
+.TP
+.B LANTERN_EMBEDDER
+.B fake
+uses deterministic fake models, for tests and for trying the commands without models.
+.PP
+The model libraries always run offline; Lantern sets
+.BR HF_HUB_OFFLINE ,
+.B TRANSFORMERS_OFFLINE
+and the telemetry opt-outs itself.
+.SH FILES
+.TP
+.I ~/Library/Application Support/Lantern/index.db
+The index (SQLite with FTS5 and sqlite-vec). It holds text passages and vectors of the indexed files: treat it like
+a copy of them.
+.TP
+.I ~/Library/Application Support/Lantern/config.toml
+Settings.
+.TP
+.I ~/Library/Application Support/Lantern/lantern.sock
+The daemon's API socket (mode 0600), present while it runs: newline-delimited JSON, one request per connection.
+.TP
+.I ~/Library/Application Support/Lantern/logs/
+Daemon logs: paths and errors, never file contents or queries.
+.TP
+.I ~/.cache/huggingface/hub/
+Downloaded models.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error: the daemon is needed but not running, the folder is unavailable, the deletion guard refused, an unknown
+setting, no such result.
+.TP
+.B 2
+Invalid arguments.
+.TP
+.B 3
+.B index
+finished, but some files failed (they are retried next time).
+.SH EXAMPLES
+Index a folder, then search it:
+.PP
+.RS
+.nf
+lantern index ~/Projects
+lantern search "retry with exponential backoff"
+lantern search "def add_two(x, y):" \-n 5
+lantern search "invoice october" \-\-only pdf
+.fi
+.RE
+.PP
+Open the first result in VS Code at its line:
+.PP
+.RS
+.nf
+code \-g "$(lantern open 1 \-\-print)"
+.fi
+.RE
+.PP
+Try the commands on an isolated instance, without models and without touching the real index:
+.PP
+.RS
+.nf
+export LANTERN_HOME=/tmp/lantern\-try LANTERN_SOCKET=/tmp/lantern\-try.sock
+export LANTERN_EMBEDDER=fake
+lantern daemon run &
+lantern index ~/some/folder && lantern search "anything"
+lantern daemon stop
+.fi
+.RE
+.SH SEE ALSO
+.BR mdfind (1)
+.PP
+The full reference with output formats and the socket API: docs/CLI.md in the repository,
+https://github.com/misterekkk/lantern
