@@ -456,6 +456,8 @@ Decyzje:
   - pewność listy zdjęć: z najlepszego zdjęcia na model, rampa 1–4 → 0,25–1,
   - porównanie względne, bo progu bezwzględnego dla zdjęć nie ma: zakresy pewności zapytań tekstowych i wizualnych
     nachodzą na siebie (np. „gitara”: zdjęcia 0,66, „postgres”: 0,75).
+  - Zapytanie wyglądające na kod (`_`, nawiasy, `camelCase`, `a.b`, ścieżki), np. „def backoff_wrapper(”, zawsze daje
+    pliki na górze: wektory kodu mają płaskie wyniki, więc samo porównanie pewności dawało tu zdjęcia na górze.
   - Zdjęcia dopasowane po nazwie pliku też trafiają do sekcji zdjęć (po dopasowanych treścią). Klatki filmów zostają
     w sekcji plików razem z dźwiękiem filmu.
 
