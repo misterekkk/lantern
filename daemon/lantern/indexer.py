@@ -32,7 +32,7 @@ from lantern.extractors.text import SkipFile, extract_text
 from lantern.queue import jobs
 from lantern.queue.jobs import Job
 from lantern.store import db
-from lantern.transcription.whisper import Transcriber
+from lantern.transcription.whisper import Transcriber, vocabulary_hint
 
 FILES_PER_ROUND = 32
 AUDIO_BATCH = 8  # windows per embed_audio call; only one batch of samples is held in memory
@@ -42,7 +42,7 @@ IMAGE_BATCH = 8
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
-PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 1, "audio": 2, "video": 3, "image": 3}
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 3, "video": 4, "image": 3}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -374,7 +374,8 @@ def run_queue(
                     progress("transcribe", done, total, row["path"])
                 try:
                     samples = decode_all(Path(row["path"]), MAX_TRANSCRIBE_S)
-                    pieces = group_segments(transcriber.transcribe(samples))
+                    hint = vocabulary_hint(Path(row["path"]))
+                    pieces = group_segments(transcriber.transcribe(samples, hint=hint))
                     rel = _rel(row)
                     records = [
                         db.ChunkRecord(ord=i, kind="transcript", text=p.text, start_ms=p.start_ms, end_ms=p.end_ms)

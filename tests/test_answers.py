@@ -50,3 +50,14 @@ def test_answer_is_the_top_line_and_shortcuts_follow_apps(conn):
     resp = search(conn, FakeEmbedder(), "battery st", log=False)
     assert resp.shortcuts[0].name == "Battery Stats" and "shortcuts" in resp.categories
     assert search(conn, FakeEmbedder(), "2+2", log=False, category="code").answer is None  # a filter: no answer
+
+
+def test_transcripts_get_names_from_the_file_name_as_a_hint():
+    from pathlib import Path
+
+    from lantern.transcription.whisper import vocabulary_hint
+
+    assert vocabulary_hint(Path("/x/team-project-2/Smith_Jones_Brown.mp4")) == (
+        "Smith, Jones, Brown, team, project"
+    )
+    assert vocabulary_hint(Path("/x/DCIM/IMG_2041.MOV")) == ""  # camera names say nothing

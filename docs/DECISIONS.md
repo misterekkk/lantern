@@ -822,6 +822,14 @@ Measured on the test index (local queries vs web-like ones):
   ("pogoda w warszawie" → Pogoda) 0.76, meaning-only 0.42. Definitions: exact 0.9. Answers 1.0. A dictionary entry
   0.64 when no file contains the word, else 0.3.
 - Result: local queries keep files, definitions, apps and photos above the web row; web-like queries put it first.
+- Correction after real use: a horse photo (a 300×193 web thumbnail) scored below 7 and was hidden even under the
+  Photos filter. Now photos are hidden only below z 5 ("co tam": 3.7), z 5–7 are shown below the web row, and the
+  Photos filter never hides them.
+- PDFs whose fonts lack a Unicode map gave text like "cz#$%" / "spe!nia" (Polish letters as symbols). Pages where 5%+
+  of the words have symbols inside them are read with OCR, which got the lecture slides right ("Jakiej pogody
+  możemy spodziewać się…"); pipeline pdf v2 re-reads PDFs.
+- Whisper gets the words of the file and folder name as its initial prompt ("Smith, Jones, Brown"), to
+  spell names right; language detection is unchanged. Pipeline audio v3 / video v4 re-transcribe recordings.
   "przepis na pierogi" keeps files above the web row on the test index because two Phase 0 spike scripts really
   contain that sentence (sample texts).
 - Stems were too short for keyword precision ("przepis" → prze*, matching przez / przepływ; "drzewa" → drze*,

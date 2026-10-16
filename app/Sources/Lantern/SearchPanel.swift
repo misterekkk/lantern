@@ -570,6 +570,7 @@ struct SearchView: View {
                         }
                     }
                     QueryField(model: model, focused: $focused)
+                        .layoutPriority(-1)  // gives way to a widened scope icon (its name is never cut)
                     if model.searching {
                         ProgressView().controlSize(.small)
                     }
@@ -609,6 +610,7 @@ struct SearchView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 2) {
+                            Color.clear.frame(height: 0).id(ListEdge.top)
                             ForEach(Array(numbered(model.sections).enumerated()), id: \.element.section.id) { i, group in
                                 if model.sections.count > 1 {
                                     SectionHeader(kind: group.section.kind, first: i == 0)
@@ -631,6 +633,7 @@ struct SearchView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(16)
                             }
+                            Color.clear.frame(height: 0).id(ListEdge.bottom)
                         }
                         .padding(8)
                     }
@@ -642,7 +645,15 @@ struct SearchView: View {
                     // Rows are identified by their result (ForEach), never by position: a positional `.id(index)`
                     // let a row from the previous search-as-you-type response stay on screen in the new one.
                     .onChange(of: model.selection) { _, new in
-                        if model.results.indices.contains(new) { proxy.scrollTo(model.results[new].id) }
+                        // The first and last rows scroll all the way to the edge (section header included, no
+                        // leftover gap), like list views in macOS; the rest just come into view.
+                        if new == 0 {
+                            proxy.scrollTo(ListEdge.top, anchor: .top)
+                        } else if new == model.results.count - 1 {
+                            proxy.scrollTo(ListEdge.bottom, anchor: .bottom)
+                        } else if model.results.indices.contains(new) {
+                            proxy.scrollTo(model.results[new].id)
+                        }
                     }
                     .animation(.snappy(duration: 0.18), value: model.selection)
                     .animation(.smooth(duration: 0.22), value: model.results.map(\.id))
@@ -941,6 +952,7 @@ private struct ScopeIcon: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .fixedSize()  // a widened icon keeps its full name ("Recordings and videos")
         .modifier(ScopeGlass(selected: false))
         .onHover { inside in withAnimation(.snappy(duration: 0.22)) { hovering = inside } }
         .onAppear {  // `--hover-scope docs`: development screenshots of the hover state
@@ -1105,3 +1117,6 @@ enum PanelDrag {
             .onEnded { _ in SearchPanelController.shared.dragEnded() }
     }
 }
+
+/// Invisible markers at both ends of the results list (scroll targets for the first and last rows).
+private enum ListEdge: Hashable { case top, bottom }

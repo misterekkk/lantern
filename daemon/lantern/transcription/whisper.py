@@ -5,6 +5,8 @@ EmbeddingGemma audio tower.
 """
 
 import gc
+import re
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -17,7 +19,7 @@ REVISION = "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
 
 
 class Transcriber(Protocol):
-    def transcribe(self, samples: np.ndarray) -> list[Segment]: ...
+    def transcribe(self, samples: np.ndarray, hint: str | None = None) -> list[Segment]: ...
 
     def unload(self) -> None: ...
 
@@ -45,13 +47,16 @@ class WhisperTranscriber:
                 ) from exc
         return self._path
 
-    def transcribe(self, samples: np.ndarray) -> list[Segment]:
+    def transcribe(self, samples: np.ndarray, hint: str | None = None) -> list[Segment]:
+        """hint: words the recording probably contains (names from its file name), as Whisper's initial prompt:
+        it biases spelling ("Smith" instead of "Smyth") without changing the language detection."""
         import mlx_whisper
 
         result = mlx_whisper.transcribe(
             samples,
             path_or_hf_repo=self._model_path(),
             language=None,  # auto-detect (Polish, English, ...)
+            initial_prompt=hint or None,
             condition_on_previous_text=False,  # fewer repetition loops on long recordings
             verbose=None,
         )
@@ -76,12 +81,35 @@ class FakeTranscriber:
         self.text = text
         self.calls = 0
         self.unloaded = 0
+        self.hint: str | None = None
 
-    def transcribe(self, samples: np.ndarray) -> list[Segment]:
+    def transcribe(self, samples: np.ndarray, hint: str | None = None) -> list[Segment]:
         self.calls += 1
+        self.hint = hint
         duration = len(samples) / 16000
         n = max(1, int(duration // 10))
         return [Segment(i * 10.0, min((i + 1) * 10.0, duration), self.text) for i in range(n)]
 
     def unload(self) -> None:
         self.unloaded += 1
+
+
+def vocabulary_hint(path: Path) -> str:
+    """Names a recording probably mentions, from its file and folder names: "Smith_Jones_Brown.mp4" in
+    "team-project-2" -> "Smith, Jones, Brown, team, project". Generic camera names (IMG_1234) give nothing."""
+    words = re.findall(r"[^\W\d_]{3,}", f"{path.stem} {path.parent.name}")
+    generic = {
+        "img",
+        "mov",
+        "vid",
+        "video",
+        "audio",
+        "recording",
+        "nagranie",
+        "screen",
+        "untitled",
+        "new",
+        "copy",
+        "dcim",
+    }
+    return ", ".join(dict.fromkeys(w for w in words if w.lower() not in generic))

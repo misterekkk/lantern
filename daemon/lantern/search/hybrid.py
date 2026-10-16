@@ -52,7 +52,8 @@ PHOTO_Z_LOW, PHOTO_Z_HIGH = 1.0, 4.0  # per-model z of the top photo against the
 # One scale for every section (DECISIONS.md, "Ordering sections"): answers and name matches first, then files that
 # contain every word of the query, then the web row (0.5, added by the app), then guesses by meaning.
 WEB_ROW_SCORE = 0.5
-PHOTO_SHOW_Z = 7.0  # summed z of both photo models: below it, photos that match only by look are not shown
+PHOTO_SURE_Z = 7.0  # summed z of both photo models: a confident visual match (real photo queries: 7.6–8.5)
+PHOTO_SHOW_Z = 5.0  # below it, photos that only look a bit like the query are hidden ("co tam": 3.7); 5–7 sit low
 FILE_MEANING_STRONG = 0.78  # top text vector score that counts as a clear meaning match (with a clear gap)
 _NAME_SCORES = {"exact": 0.97, "prefix": 0.93, "word": 0.85, "initials": 0.85, "typo": 0.8, "keyword": 0.75,
                 "leading": 0.76,
@@ -257,6 +258,8 @@ def _section_scores(
     for name, hits in (("apps", apps), ("settings", settings), ("shortcuts", shortcuts)):
         if hits:
             scores[name] = _NAME_SCORES.get(hits[0].match, 0.5)
+    if settings and settings[0].match == "words" and len(query.split()) == 1 and len(query.strip()) < 6:
+        scores["settings"] = 0.55  # one short word ("disc") starts words in many settings: weak evidence
     if definitions:
         scores["definitions"] = {"exact": 0.9, "prefix": 0.8}.get(definitions[0].match, 0.6)
     terms = query_terms(query)
@@ -276,8 +279,10 @@ def _section_scores(
             scores["photos"] = 0.85
         elif by_text:
             scores["photos"] = 0.7
-        elif top_z >= PHOTO_SHOW_Z:  # the surer the photo models, the higher (z 7 -> 0.66, z 9 -> 0.82)
-            scores["photos"] = 0.66 + 0.16 * min(1.0, (top_z - PHOTO_SHOW_Z) / 2.0)
+        elif top_z >= PHOTO_SURE_Z:  # the surer the photo models, the higher (z 7 -> 0.66, z 9 -> 0.82)
+            scores["photos"] = 0.66 + 0.16 * min(1.0, (top_z - PHOTO_SURE_Z) / 2.0)
+        elif top_z >= PHOTO_SHOW_Z:  # plausible (a small thumbnail, a busy photo): shown, below the web row
+            scores["photos"] = 0.45
     if word_definition:
         scores["definition"] = 0.64 if not any(r.keyword_rank for r in results) else 0.3
     return scores
@@ -390,6 +395,8 @@ def search(
     )
     scores = _section_scores(query, results, file_vector, keyword, image, photos, exact_text, apps, settings,
                              shortcuts, definitions, answer, word_definition)  # fmt: skip
+    if category == "photos" and photos:
+        scores.setdefault("photos", 0.5)  # the Photos filter shows them all, however weak
     if "photos" not in scores:
         photos = []  # photos that only look a bit like the query: noise, not shown
     resp = SearchResponse(

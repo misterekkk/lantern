@@ -160,6 +160,8 @@ def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_
     q = parse_symbol_query(query)
     if q is None:
         return []
+    if len(q.key) < 3 and "(" not in query and (q.kind is None or q.name.startswith("_")):
+        return []  # "def __i" is __init__ being typed; one- or two-letter names need a keyword ("struct I") or "("
     # (match, condition, parameters, base score). Prefix as a range so the name_key index is used (LIKE is
     # case-insensitive in SQLite and skips it); a fragment needs a scan (~14 ms at 300k symbols).
     levels = [("exact", "s.name_key = ?", (q.key,), 3.0)]

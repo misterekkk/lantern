@@ -4,6 +4,7 @@ Only the index worker imports this module (PyObjC); the daemon never loads it. R
 saved.
 """
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +15,10 @@ MAX_PAGES = 1000
 MAX_OCR_PAGES = 100  # scanned books: ~0.25 s per page
 MAX_CHARS = 2_000_000
 MIN_PAGE_CHARS = 25  # less than this on a page: treat it as scanned
+# Fonts without a Unicode map give garbage like "cz#$%" or "spe!nia" for "część", "spełnia" (Polish letters become
+# symbols inside words); such pages are read with OCR instead, which gets them right.
+GARBLED_SHARE = 0.05
+_GARBLED_WORD = re.compile(r"[^\W\d_][#$%&!\"*@]+(?:[^\W\d_]|$)")
 OCR_DPI = 200
 OCR_MAX_SIDE = 3000
 
@@ -44,6 +49,13 @@ def _render(page):
         return flatten(im)
 
 
+def garbled(text: str) -> bool:
+    """True when the text layer is mostly right but letters came out as symbols inside words."""
+    words = text.split()
+    bad = sum(1 for w in words if _GARBLED_WORD.search(w.rstrip(".,;:?!)")))
+    return bad >= 3 and bad / max(1, len(words)) >= GARBLED_SHARE
+
+
 def extract_pdf(path: Path, ocr: bool = True) -> list[PdfPage]:
     import os
 
@@ -62,7 +74,7 @@ def extract_pdf(path: Path, ocr: bool = True) -> list[PdfPage]:
         page = doc.pageAtIndex_(index)
         text = str(page.string() or "").strip()
         scanned = False
-        if len(text) < MIN_PAGE_CHARS and ocr and ocr_pages < MAX_OCR_PAGES:
+        if (len(text) < MIN_PAGE_CHARS or garbled(text)) and ocr and ocr_pages < MAX_OCR_PAGES:
             from lantern.extractors import vision
 
             recognised = vision.clean(vision.recognize(_render(page), accurate=True))
