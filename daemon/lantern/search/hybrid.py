@@ -18,6 +18,7 @@ from lantern.embedding.base import Embedder
 from lantern.search.apps import AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.settings import SettingHit, settings_search
+from lantern.search.spelling import correct
 from lantern.search.suggest import completion
 from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
@@ -127,6 +128,7 @@ class SearchResponse:
     definition: WordDefinition | None = None  # dictionary entry for a single word: near the end
     definition_first: bool = False  # no file contains the word: the definition is the better answer
     section_scores: dict[str, float] = field(default_factory=dict)  # 0..1 per section, on one scale (see top)
+    corrected_query: str | None = None  # the query actually searched, when a spelling guess replaced a word
 
     def sections(self) -> list[tuple[str, list]]:
         """Non-empty sections in display order: by section_scores when set (one scale for every kind), otherwise
@@ -353,9 +355,13 @@ def search(
     lang: str = "en",
     query_embedder=None,
     category: str | None = None,
+    spelling: dict[str, list[str]] | None = None,
 ) -> SearchResponse:
     """query_embedder: text side of the second photo model (SigLIP 2), when loaded; lang: system language, used to
-    give short photo queries a language cue; category: only results of one CATEGORIES entry (filter pill)."""
+    give short photo queries a language cue; category: only results of one CATEGORIES entry (filter pill);
+    spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
+    corrected = correct(conn, query, spelling) if spelling else None
+    query = corrected or query
     t0 = time.perf_counter()
     vector = vector_search(conn, embedder, query, CANDIDATES)
     t1 = time.perf_counter()
@@ -418,7 +424,7 @@ def search(
         settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,
         shortcuts=shortcuts, answer=answer, definition=word_definition,
         definition_first=bool(word_definition) and not any(r.keyword_rank for r in results),
-        section_scores=scores,
+        section_scores=scores, corrected_query=corrected,
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))

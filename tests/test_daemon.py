@@ -125,6 +125,9 @@ def test_search_through_the_api(start_daemon, project):
     assert wait_until(lambda: files_by_status().get("indexed") == 3)
     r = protocol.call("search", {"query": "backoff_wrapper", "limit": 3})
     assert r["results"][0]["path"].endswith("net.py") and r["event_id"]
+    assert r["corrected_query"] is None
+    r = protocol.call("search", {"query": "przycinanie drzwa", "spelling": {"drzwa": ["drzwi", "drzewa"]}})
+    assert r["corrected_query"] == "przycinanie drzewa" and r["results"][0]["path"].endswith("README.md")
 
 
 def test_manual_pause_blocks_the_worker(start_daemon, project):

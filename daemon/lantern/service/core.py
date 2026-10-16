@@ -383,12 +383,13 @@ class Daemon:
         self.query_embedder_used = time.monotonic()
         return self.query_embedder
 
-    def _search(self, query: str, limit: int, log: bool, lang: str, category: str | None = None):
+    def _search(self, query: str, limit: int, log: bool, lang: str, category: str | None = None,
+                spelling: dict | None = None):  # fmt: skip
         conn = self._conn()
         try:
             self._refresh_has_images(conn)
             return search(conn, self.embedder, query, limit, log=log, lang=lang, query_embedder=self._photo_model(),
-                          category=category)  # fmt: skip
+                          category=category, spelling=spelling)  # fmt: skip
         finally:
             conn.close()
 
@@ -406,11 +407,22 @@ class Daemon:
         return {"photo_model": self.model_thread.submit(warm).result()}
 
     def api_search(
-        self, query: str, limit: int = 10, log: bool = True, lang: str | None = None, category: str | None = None
+        self,
+        query: str,
+        limit: int = 10,
+        log: bool = True,
+        lang: str | None = None,
+        category: str | None = None,
+        spelling: dict | None = None,
     ) -> dict:
+        """spelling: {word: [guesses]} from the app's spell checker; the response's corrected_query says whether one
+        was used (search/spelling.py)."""
         from lantern.syslang import system_language
 
-        resp = self.model_thread.submit(self._search, query, limit, log, lang or system_language(), category).result()
+        spelling = {str(w): [str(g) for g in gs][:8] for w, gs in (spelling or {}).items() if isinstance(gs, list)}
+        resp = self.model_thread.submit(
+            self._search, query, limit, log, lang or system_language(), category, spelling or None
+        ).result()
         return {
             "results": [asdict(r) for r in resp.results], "event_id": resp.event_id,
             "vector_ms": resp.vector_ms, "keyword_ms": resp.keyword_ms, "image_ms": resp.image_ms,
@@ -425,6 +437,7 @@ class Daemon:
             "definition": asdict(resp.definition) if resp.definition else None,
             "definition_first": resp.definition_first,
             "section_scores": resp.section_scores, "order": [name for name, _ in resp.sections()],
+            "corrected_query": resp.corrected_query,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
