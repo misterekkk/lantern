@@ -35,7 +35,11 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder. Recordings: `MediaOpener` runs
   osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs
   `NSAppleEventsUsageDescription`.
-- Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`.
+- Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,
+  `--hover-scope <kind>`, `--unfold-scopes` (unfolds the folded scope icons 1.5 s after they fold). Clicks posted
+  with `CGEvent.postToPid` do not reach SwiftUI buttons in the panel; use a dev flag instead.
+- Scope icons fold into `FoldedScopes` when the query text reaches them (field width measured with a
+  `GeometryReader` + `onChange`: preferences do not pass through `GlassEffectContainer`).
 - Spelling: `Spelling.swift` (NSSpellChecker guesses in the user's macOS languages, not the app's) after a pause;
   `SpellingWords` (LanternCore) picks the words; the daemon decides (`search/spelling.py`, `corrected_query`). Text
   in the panel that should not size it goes in an overlay (`CorrectionLine`): a wide child made SwiftUI resize the

@@ -156,7 +156,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 - **Filter icons** beside the query field, like Spotlight's mode buttons (round glass buttons; hover shows the name,
   choosing one puts it in the field with its ⌘ shortcut). Kinds: Applications, System Settings, Shortcuts, Clipboard,
   Code, Documents, PDFs, Photos, Recordings and videos — all before typing, then only the kinds that match. Tab / ⇧Tab
-  move between them, ⌘1…⌘9 pick one, a click works too; ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
+  move between them, ⌘1…⌘9 pick one, a click works too; a long query folds them into one filter button (a click
+  unfolds them); ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
 - **Spelling:** after a short pause in typing, words that none of your languages knows get the spelling guesses of
   macOS (on the Mac), and Lantern searches again with the first guess its index knows (a word in your files, an app
   or a setting): "faktrua za prad" shows "Showing results for faktura za prad · Search for “faktrua za prad”

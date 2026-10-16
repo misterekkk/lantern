@@ -139,7 +139,8 @@ final class SearchPanelController {
         let atHome = onCentre && abs(top - Self.homeTop(frame)) < yLimit
         if atHome { top = Self.homeTop(frame) }
         if (onCentre && !snapped.x) || (atHome && !snapped.home) {
-            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            // levelChange: the firmest of the three system patterns (alignment felt too light)
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         }
         snapped = (onCentre, atHome)
         place(midX: midX, top: top, in: frame)
@@ -642,6 +643,31 @@ struct SearchView: View {
     @Namespace private var selectionSpace
     @Namespace private var scopeSpace
     private var scopeStyle: ScopeStyle { ScopeStyle(rawValue: scopeStyleRaw) ?? .pills }
+    /// Long queries fold the scope icons into one button, so the text keeps its room; a click unfolds them.
+    @State private var fieldWidth: CGFloat = 0
+    @State private var iconsFolded = false
+    @State private var iconsOpened = false
+    private var visibleIcons: [ResultCategory] { model.iconCategories.filter { $0 != model.category } }
+    private var showsFoldedButton: Bool { iconsFolded && !iconsOpened && visibleIcons.count > 1 }
+
+    private func fieldResized(_ width: CGFloat) {
+        fieldWidth = width
+        updateFolding()
+    }
+
+    /// Fold when the typed text (with its grey completion) reaches the icons; unfold only when all of them fit again
+    /// with room to spare, so the row does not flicker at the edge.
+    private func updateFolding() {
+        guard scopeStyle == .icons, fieldWidth > 0 else { return }
+        let text = model.query + (model.completionRemainder ?? "")
+        let width = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 24)]).width
+        let iconsWidth = CGFloat(max(visibleIcons.count - 1, 0)) * 44  // every icon is 34 pt + 10 pt spacing
+        if !iconsFolded && !iconsOpened && width > fieldWidth - 8 {
+            iconsFolded = true
+        } else if iconsFolded && !iconsOpened && width + iconsWidth < fieldWidth - 40 {
+            iconsFolded = false
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -659,15 +685,35 @@ struct SearchView: View {
                     }
                     QueryField(model: model, focused: $focused)
                         .layoutPriority(-1)  // gives way to a widened scope icon (its name is never cut)
+                        .background(GeometryReader { g in
+                            // Measured here, not through a preference: the glass container does not pass those up.
+                            Color.clear
+                                .onAppear { fieldResized(g.size.width) }
+                                .onChange(of: g.size.width) { _, width in fieldResized(width) }
+                        })
                     if model.searching {
                         ProgressView().controlSize(.small)
                     }
                     if scopeStyle == .icons && model.preview == nil {
-                        ForEach(model.iconCategories.filter { $0 != model.category }) { category in
-                            ScopeIcon(category: category, title: model.title(category), space: scopeSpace) {
-                                model.category = category
+                        if showsFoldedButton {
+                            FoldedScopes {
+                                withAnimation(.smooth(duration: 0.3)) { iconsOpened = true }
                             }
-                                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                            .transition(.scale(scale: 0.6, anchor: .trailing).combined(with: .opacity))
+                        } else {
+                            let icons = visibleIcons
+                            ForEach(Array(icons.enumerated()), id: \.element) { index, category in
+                                ScopeIcon(category: category, title: model.title(category), space: scopeSpace) {
+                                    model.category = category
+                                }
+                                // Unfolding: each icon slides out from the folded button on the right, one after
+                                // another (the nearest first), quiet and without bounce.
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.4, anchor: .trailing).combined(with: .opacity)
+                                        .combined(with: .offset(x: 18))
+                                        .animation(.smooth(duration: 0.28).delay(0.03 * Double(icons.count - 1 - index))),
+                                    removal: .scale(scale: 0.6).combined(with: .opacity)))
+                            }
                         }
                     }
                 }
@@ -677,6 +723,23 @@ struct SearchView: View {
             .background(Color.clear.contentShape(Rectangle()).gesture(PanelDrag.gesture))  // drag by the header
             .animation(.smooth(duration: 0.3), value: model.category)  // quiet, no bounce (app/CLAUDE.md)
             .animation(.smooth(duration: 0.3), value: model.iconCategories)
+            .animation(.smooth(duration: 0.3), value: showsFoldedButton)
+            .onChange(of: showsFoldedButton) { _, folded in
+                // `--unfold-scopes`: development screenshots of the unfolding, 1.5 s after the icons fold
+                guard folded, CommandLine.arguments.contains("--unfold-scopes") else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.smooth(duration: 0.3)) { iconsOpened = true }
+                }
+            }
+            .onChange(of: model.query) { _, _ in
+                if iconsOpened { iconsOpened = false }  // typing on folds them again
+                updateFolding()
+            }
+            .onChange(of: model.completion) { _, _ in updateFolding() }
+            .onChange(of: model.category) { _, _ in
+                iconsOpened = false
+                updateFolding()
+            }
 
             if scopeStyle == .pills && model.showsPills && model.preview == nil {
                 ScopeBar(model: model)
@@ -1053,6 +1116,24 @@ private struct ScopeIcon: View {
             }
         }
         .help(title + Text(verbatim: "  ⌘\(category.number)"))
+    }
+}
+
+/// All the scope icons folded into one, while a long query needs the room; a click unfolds them (⌘1–⌘9 always work).
+private struct FoldedScopes: View {
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 34, height: 34)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .modifier(ScopeGlass(selected: false))
+        .help(Text("Filters") + Text(verbatim: "  ⌘1–⌘9"))
     }
 }
 
