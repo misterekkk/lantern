@@ -12,7 +12,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections.
 4. **API** only through a Unix socket with mode `0600`, in a data folder with mode `0700` (tested). No network port.
 5. **Secrets excluded by default:** `.env*`, `*.pem`, `*.p12`, `*.pfx`, `*.key`, SSH keys `id_*`, token and credential
-   files, plus `.git`, `node_modules`, build and cache folders. `.gitignore` files are respected.
+   files, plus `.git`, `node_modules`, build and cache folders. `.gitignore` files are respected (also those
+   above the indexed folder inside the same repository).
 6. **Deleted means deleted:** text, FTS rows and vectors are deleted in one transaction; `PRAGMA secure_delete`,
    FTS5 `secure-delete`, and after deletions `optimize` + `VACUUM` + a WAL checkpoint (`lantern compact`, automatic
    after large deletions and after `lantern remove`). A test checks that deleted text is absent from the raw bytes of

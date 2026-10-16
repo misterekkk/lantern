@@ -183,9 +183,25 @@ def iter_files(
         yield from _walk(icloud, home, report, user, filters)
 
 
+def _ancestor_gitignores(root: Path) -> list[tuple[Path, pathspec.GitIgnoreSpec]]:
+    """.gitignore files above `root` up to the top of its git repository (indexing repo/src still honours
+    repo/.gitignore). Outside a repository, nothing above the indexed folder applies."""
+    if (root / ".git").exists():
+        return []
+    chain = []
+    for directory in root.parents:
+        chain.append(directory)
+        if (directory / ".git").exists():
+            break
+    else:
+        return []  # not inside a repository
+    specs = [(d, spec) for d in reversed(chain) if (spec := _load_gitignore(d))]
+    return specs
+
+
 def _walk(root: Path, home: Path, report: WalkReport, user: UserExcludes, filters: Filters) -> Iterator[FileEntry]:
     # Stack of (directory the .gitignore lives in, spec), inherited by subdirectories.
-    specs: dict[Path, list[tuple[Path, pathspec.GitIgnoreSpec]]] = {root: []}
+    specs: dict[Path, list[tuple[Path, pathspec.GitIgnoreSpec]]] = {root: _ancestor_gitignores(root)}
 
     def ignored(base_specs, path: Path, is_dir: bool) -> bool:
         for spec_dir, spec in base_specs:

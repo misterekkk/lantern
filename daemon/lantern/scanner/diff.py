@@ -66,6 +66,13 @@ def root_available(root: Path) -> bool:
     return root.is_dir() and os.access(root, os.R_OK | os.X_OK)
 
 
+def _hash_or_none(path: Path) -> str | None:
+    try:
+        return file_hash(path)
+    except OSError:
+        return None
+
+
 def scan_root(
     conn: sqlite3.Connection,
     root: Path,
@@ -113,7 +120,10 @@ def scan_root(
                 if row["size"] == entry.size and row["mtime_ns"] == entry.mtime_ns:
                     result.unchanged += 1
                     continue
-                digest = file_hash(entry.path)
+                digest = _hash_or_none(entry.path)
+                if digest is None:  # unreadable now (permissions, removed mid-scan): keep what is indexed
+                    result.unreadable.append(path)
+                    continue
                 conn.execute(
                     "UPDATE files SET size = ?, mtime_ns = ?, content_hash = ? WHERE id = ?",
                     (entry.size, entry.mtime_ns, digest, row["id"]),
@@ -126,7 +136,10 @@ def scan_root(
                     result.changed.append(path)
                 continue
 
-            digest = file_hash(entry.path)
+            digest = _hash_or_none(entry.path)
+            if digest is None:  # a file we may not read: skipped, reported, the rest of the folder goes on
+                result.unreadable.append(path)
+                continue
             candidates = missing_by_hash.get(digest)
             if candidates:  # move / rename
                 old = candidates.pop()

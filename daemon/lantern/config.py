@@ -58,6 +58,12 @@ EXCLUDED_DIRS = frozenset(
         ".build",
         ".terraform",
         "coverage",
+        "vendor",  # Go modules / Composer dependencies
+        "bower_components",
+        ".dart_tool",
+        ".svelte-kit",
+        ".parcel-cache",
+        ".turbo",
     }
 )
 
@@ -88,6 +94,9 @@ SECRET_PATTERNS = (
     ".git-credentials",
     "credentials",
     "credentials.json",
+    "*credentials*.json",
+    "service-account*.json",
+    "*serviceaccount*.json",
     "secrets.*",
     "*.secrets",
     "*secret*.json",

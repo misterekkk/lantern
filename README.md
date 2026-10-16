@@ -271,9 +271,13 @@ uv run lantern clear-history               # delete the local search history
   are on the disk. A file already indexed that iCloud evicts stays in the index.
 - **Permissions:** Desktop, Documents, Downloads and iCloud Drive need macOS permission. A folder without access is
   skipped and its previously indexed files are **kept**; `lantern status` shows a warning.
-- **Always excluded:** `.git`, `node_modules`, virtual environments, build and cache folders; files with secrets
-  (`.env*`, `*.pem`, `*.key`, `*.p12`, SSH keys `id_*`, `.netrc`, credential and token files, `*.tfstate`…);
-  lockfiles; everything in `.gitignore` files; symbolic links (Lantern never leaves the folder you chose).
+- **Always excluded:** `.git`, `node_modules`, `vendor`, virtual environments, build and cache folders (`target`,
+  `dist`, `DerivedData`, `Pods`…); files with secrets (`.env*`, `*.pem`, `*.key`, `*.p12`, SSH keys `id_*`, `.netrc`,
+  credential, service-account and token files, `*.tfstate`…); lockfiles; everything in `.gitignore` files, including
+  those above the indexed folder in the same repository (indexing `repo/src` honours `repo/.gitignore`); symbolic
+  links (Lantern never leaves the folder you chose).
+- **Unreadable or broken files** (no permission, a recording cut off mid-write, a text file over 2 MB) are skipped
+  with a reason in `lantern status`; the rest of the folder is indexed as usual.
 - **Choose what to index:** in Settings → Folders → Choose What to Index, unchecking a file or folder excludes it;
   checking an item inside an excluded folder brings back only that item.
 - **Ignored extensions** (default: `.ipynb`, `.csv`, `.tsv` — notebooks and tables are mostly output and numbers):

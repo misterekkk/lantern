@@ -17,6 +17,7 @@ import pathspec
 from lantern.scanner.walk import (
     Filters,
     UserExcludes,
+    _ancestor_gitignores,
     _expand,
     _load_gitignore,
     dir_skip_reason,
@@ -50,9 +51,10 @@ def root_of(path: Path, roots: list[str]) -> Path | None:
 
 
 def _gitignore_chain(root: Path, folder: Path) -> list[tuple[Path, pathspec.GitIgnoreSpec]]:
-    """.gitignore files from the indexed root down to `folder` (inherited like in the scanner)."""
+    """.gitignore files from the indexed root down to `folder` (inherited like in the scanner), plus those above the
+    root inside the same repository."""
     parts = folder.relative_to(root).parts
-    chain = []
+    chain = _ancestor_gitignores(root)
     for d in [root.joinpath(*parts[:i]) for i in range(len(parts) + 1)]:
         spec = _load_gitignore(d)
         if spec is not None:
