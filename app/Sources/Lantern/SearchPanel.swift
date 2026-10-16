@@ -14,7 +14,7 @@ final class SearchPanel: NSPanel {
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isFloatingPanel = true
         level = .floating
-        isMovableByWindowBackground = false  // always centred, like Spotlight after a reset; never left where dragged
+        isMovableByWindowBackground = false  // moved by SearchPanelController.drag…, which adds the magnets
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         isOpaque = false
@@ -92,13 +92,61 @@ final class SearchPanelController {
         })
     }
 
-    /// Centred horizontally, top edge in the upper third of the screen with the mouse (where Spotlight appears).
+    /// The screen with the mouse; centred horizontally with the top edge in the upper third (where Spotlight
+    /// appears), or where the user dragged it last time (kept as an offset from that spot).
     private func position() {
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         guard let frame = screen?.visibleFrame else { return }
-        panel.anchorTop = frame.minY + frame.height * 0.78
-        panel.anchorMidX = frame.midX
-        panel.setFrame(panel.frame, display: false)  // applies both anchors
+        let offset = UserDefaults.standard.array(forKey: Self.offsetKey) as? [Double] ?? [0, 0]
+        place(midX: frame.midX + offset[0], top: Self.homeTop(frame) + offset[1], in: frame)
+    }
+
+    // MARK: Dragging, with magnets at the centre line and at the home spot
+
+    private static let offsetKey = "panelOffset"
+    private static let magnet: CGFloat = 26  // points: inside it the panel snaps; pulling past it lets go
+    private var dragStart: (mouse: NSPoint, midX: CGFloat, top: CGFloat)?
+    private var snapped = (x: false, home: false)
+
+    private static func homeTop(_ frame: NSRect) -> CGFloat { frame.minY + frame.height * 0.78 }
+
+    private func place(midX: CGFloat, top: CGFloat, in frame: NSRect) {
+        let half = panel.frame.width / 2
+        panel.anchorMidX = min(max(midX, frame.minX + half), frame.maxX - half)
+        panel.anchorTop = min(max(top, frame.minY + 120), frame.maxY)
+        panel.setFrame(panel.frame, display: true)  // applies both anchors
+    }
+
+    /// The header was dragged: follow the mouse, but stick to the vertical centre line of the screen and to the
+    /// home spot (a short haptic tap on the trackpad when it catches), so they are easy to find again.
+    func dragChanged() {
+        let mouse = NSEvent.mouseLocation
+        guard let frame = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let start = dragStart ?? (mouse, panel.anchorMidX ?? panel.frame.midX, panel.anchorTop ?? panel.frame.maxY)
+        dragStart = start
+        var midX = start.midX + mouse.x - start.mouse.x
+        var top = start.top + mouse.y - start.mouse.y
+        let onCentre = abs(midX - frame.midX) < Self.magnet
+        if onCentre { midX = frame.midX }
+        let atHome = onCentre && abs(top - Self.homeTop(frame)) < Self.magnet
+        if atHome { top = Self.homeTop(frame) }
+        if (onCentre && !snapped.x) || (atHome && !snapped.home) {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        snapped = (onCentre, atHome)
+        place(midX: midX, top: top, in: frame)
+    }
+
+    func dragEnded() {
+        dragStart = nil
+        guard let frame = (panel.screen ?? NSScreen.main)?.visibleFrame, let midX = panel.anchorMidX,
+              let top = panel.anchorTop else { return }
+        let offset = [Double(midX - frame.midX), Double(top - Self.homeTop(frame))]
+        if offset == [0, 0] {
+            UserDefaults.standard.removeObject(forKey: Self.offsetKey)  // back home
+        } else {
+            UserDefaults.standard.set(offset, forKey: Self.offsetKey)
+        }
     }
 
     var windowNumber: Int { panel.windowNumber }
@@ -507,6 +555,7 @@ struct SearchView: View {
                         .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(.trailing, 2)
+                        .gesture(PanelDrag.gesture)
                     if scopeStyle == .icons, let category = model.category {
                         ScopeChip(category: category, title: model.title(category), space: scopeSpace) {
                             model.category = nil
@@ -528,6 +577,7 @@ struct SearchView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
+            .background(Color.clear.contentShape(Rectangle()).gesture(PanelDrag.gesture))  // drag by the header
             .animation(.smooth(duration: 0.3), value: model.category)  // quiet, no bounce (app/CLAUDE.md)
             .animation(.smooth(duration: 0.3), value: model.iconCategories)
 
@@ -1035,5 +1085,15 @@ enum WebSearch: String, CaseIterable, Identifiable {
                                kind: "web")
         row.iconPath = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.path
         return [ResultSection(kind: .web, results: [row])]
+    }
+}
+
+/// Dragging the panel by its header (the icon and the empty space; the text field keeps its own selection drags).
+@MainActor
+enum PanelDrag {
+    static var gesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { _ in SearchPanelController.shared.dragChanged() }
+            .onEnded { _ in SearchPanelController.shared.dragEnded() }
     }
 }
