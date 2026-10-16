@@ -828,8 +828,8 @@ Measured on the test index (local queries vs web-like ones):
 - PDFs whose fonts lack a Unicode map gave text like "cz#$%" / "spe!nia" (Polish letters as symbols). Pages where 5%+
   of the words have symbols inside them are read with OCR, which got the lecture slides right ("Jakiej pogody
   możemy spodziewać się…"); pipeline pdf v2 re-reads PDFs.
-- Whisper gets the words of the file and folder name as its initial prompt ("Smith, Jones, Brown"), to
-  spell names right; language detection is unchanged. Pipeline audio v3 / video v4 re-transcribe recordings.
+- Whisper got the words of the file and folder name as its initial prompt (pipeline audio v3 / video v4); removed
+  again after a test on a real recording, see "Whisper without a prompt" below.
   "przepis na pierogi" keeps files above the web row on the test index because two Phase 0 spike scripts really
   contain that sentence (sample texts).
 - Stems were too short for keyword precision ("przepis" → prze*, matching przez / przepływ; "drzewa" → drze*,
@@ -870,9 +870,14 @@ Measured on the test index (local queries vs web-like ones):
   unfold by themselves only when all fit with 40 pt to spare (no flicker at the edge).
 - **Haptics:** the magnets use `.levelChange`, the firmest of the three system patterns (`.alignment` felt too light).
   The strength also follows System Settings → Trackpad → Click.
-- **Whisper and quiet speech:** the file-name prompt fixes names spoken clearly, but at a quiet, unclear start it can
-  blend them ("Jones" → "Smones"). Later in the same recording names come out right, so the limit is the audio;
-  louder normalisation before Whisper is untested (it needs a second model process, see the 16 GB rule).
+- **Whisper without a prompt, on the raw sound.** Tested on a real 214 s recording (Polish, names at a quiet,
+  unclear start; whisper-large-v3-turbo), five variants. The file-name prompt blended names ("Adama Jonesa" →
+  "Smones", "Average" → "Outreach"); loudness normalisation (`dynaudnorm`) added invented words ("Ashes", "Casses,
+  Rain"); denoising (`afftdn` + band-pass) distorted others ("daszbordzik" → "też portzik", "wybrać" → "brać");
+  `loudnorm` changed nothing that matters. The raw sound without a prompt was best; the unclear "Adama
+  Smitha" stays "Adwa Smytha" in every variant (the limit is the audio). File names also often have
+  nothing to do with the recording, and the file name is searchable anyway (FTS path column). Pipeline audio v4 /
+  video v5 re-transcribe without the prompt.
 - **Full-screen apps:** the panel is `.floating` with `fullScreenAuxiliary` and `canJoinAllSpaces`, so it should
   appear over a full-screen app; confirmed by the user (Discord in full screen).
 
