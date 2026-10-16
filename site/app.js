@@ -1,10 +1,11 @@
 /* Lantern demo: a scripted walkthrough on a simulated Mac desktop.
  * Steps: open Lantern in the menu bar → start it → index new files → close the menu → ⌥Space → type a suggested
- * phrase (the grey completion is accepted with →) → results with filter pills → ⌘Y preview → another search … →
- * the end card. The panel mirrors the app: placeholder, inline completion, pills, hints on the selected row, matched
- * words in bold (same folding as the app: "lodz" marks "Łódź").
+ * phrase (the grey completion is accepted with →) → results with filter icons → ⌘Y preview → another search … →
+ * the end card. The panel mirrors the app: "Search Lantern", inline completion, filter icons beside the field (a
+ * chosen one becomes a chip with its ⌘ number), hints on the selected row, matched words in bold (same folding as the
+ * app), apps, settings and quick answers, and the web row.
  * Development: ?step=menu|found|indexing|ready|shortcut|type|results|preview
- *   &scenario=photo|screenshot|video|code|pdf|song (&typed=N: the first N characters already typed)
+ *   &scenario=photo|screenshot|video|code|pdf|app|setting|answer (&typed=N: the first N characters already typed)
  */
 "use strict";
 
@@ -28,6 +29,9 @@ const ICON = {
   video: `<svg viewBox="0 0 56 64"><rect x="2" y="10" width="52" height="44" rx="6" fill="#26313f"/><g fill="#fff" fill-opacity=".85"><rect x="6" y="14" width="5" height="4" rx="1"/><rect x="6" y="46" width="5" height="4" rx="1"/><rect x="45" y="14" width="5" height="4" rx="1"/><rect x="45" y="46" width="5" height="4" rx="1"/></g><path d="M23 24v16l13-8z" fill="#fff"/></svg>`,
   audio: `<svg viewBox="0 0 56 64"><rect x="4" y="8" width="48" height="48" rx="11" fill="url(#ga)"/><defs><linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><path d="M33 19v19.5a5 5 0 1 1-3-4.6V23l-9 2.3V41a5 5 0 1 1-3-4.6V22.5z" fill="#fff"/></svg>`,
   folder: `<svg viewBox="0 0 56 64"><path d="M3 16a4 4 0 0 1 4-4h14l5 5h23a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#5aa9f8"/><path d="M3 24a4 4 0 0 1 4-4h42a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#79bdfb"/></svg>`,
+  calc: `<svg viewBox="0 0 56 64"><rect x="6" y="6" width="44" height="52" rx="10" fill="#3a3d44"/><rect x="12" y="12" width="32" height="12" rx="3" fill="#cfd3da"/><g fill="#8b9099">${[0, 1, 2].map((r) => [0, 1, 2].map((c) => `<circle cx="${17 + c * 11}" cy="${33 + r * 9}" r="3.4"/>`).join("")).join("")}</g><circle cx="39" cy="51" r="3.4" fill="#f59e0b"/></svg>`,
+  gear: `<svg viewBox="0 0 56 64"><rect x="6" y="9" width="44" height="44" rx="11" fill="#2563eb"/><g transform="translate(28 31)" fill="#fff"><circle r="9"/>${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="-2.6" y="-14.5" width="5.2" height="7" rx="1.4" transform="rotate(${r})"/>`).join("")}</g><circle cx="28" cy="31" r="4" fill="#2563eb"/></svg>`,
+  globe: `<svg viewBox="0 0 56 64"><circle cx="28" cy="32" r="21" fill="#0ea5e9"/><g fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2"><ellipse cx="28" cy="32" rx="9" ry="21"/><path d="M7 32h42M10 22h36M10 42h36"/></g></svg>`,
   play: `<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="#fff"/></svg>`,
   pause: `<svg viewBox="0 0 16 16" fill="#fff"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1"/></svg>`,
   menuSearch: `<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5" stroke-linecap="round"/></svg>`,
@@ -68,7 +72,7 @@ const ART = {
 
 /* ---------- scenarios ---------- */
 
-// Rows: cat = filter pill (code, docs, pdf, photos, media), preview = plain text (matched words are bolded at render
+// Rows: cat = filter icon (apps, settings, code, docs, pdf, photos, media), action = ↩ without preview, preview = plain text (matched words are bolded at render
 // time, like the app). complete = characters typed before the grey completion appears.
 const SCENARIOS = [
   {
@@ -170,24 +174,58 @@ const SCENARIOS = [
     ],
   },
   {
-    id: "song", label: "a song by its lyrics", phrase: "song about a summer night", complete: 7,
-    typeHint: "The title says nothing about it — Lantern listens to the lyrics.",
-    blurb: "Songs and podcasts are searchable by what is sung or said — even if the title says nothing about it.",
+    id: "app", label: "an app", phrase: "calcu", complete: 3,
+    typeHint: "Apps and System Settings by name — even misspelt or in another language.",
+    blurb: "Like Spotlight, Lantern finds apps by any of their names — and ↩ opens them.",
     sections: [
+      ["Applications", [
+        { icon: ICON.calc, title: "Calculator", sub: "Application", cat: "apps", source: "", action: "open",
+          enterHint: "In Lantern, ↩ opens <b>Calculator</b>." },
+      ]],
       ["Files", [
-        { thumb: ART.cover, badge: "0:42", title: "track_07.m4a · 0:42", sub: "~/Music/Demos — 0:42–1:07", cat: "media", media: true,
-          source: "words · meaning", preview: "“…we drove all night under the summer sky, windows down…”",
-          show: { kind: "audio", start: 39, length: 214,
-            transcript: "“…we drove all night under the summer sky, windows down, singing every word we knew…”" } },
-        { icon: ICON.md, title: "setlist.md", sub: "~/Documents — lines 3–6", cat: "docs", source: "meaning",
-          preview: "7. the slow one about July, capo on 2" },
+        { icon: ICON.py, title: "billing.py · calculate_total", sub: "~/Projects/shop — lines 12–30", code: true, cat: "code",
+          source: "words", preview: "def calculate_total(items, tax=0.23):" },
+      ]],
+    ],
+  },
+  {
+    id: "setting", label: "a setting", phrase: "24 hour", complete: 99,
+    typeHint: "Every pane and setting of System Settings, by its words.",
+    blurb: "Hundreds of settings inside System Settings, found by their words — ↩ opens the right pane.",
+    sections: [
+      ["System Settings", [
+        { icon: ICON.gear, title: "Use 24-hour time in the menu bar", sub: "System Settings › Date & Time", cat: "settings",
+          source: "", action: "open", enterHint: "In Lantern, ↩ opens <b>Date &amp; Time</b> in System Settings." },
+        { icon: ICON.gear, title: "Date & Time", sub: "System Settings", cat: "settings", source: "", action: "open",
+          enterHint: "In Lantern, ↩ opens <b>Date &amp; Time</b> in System Settings." },
+      ]],
+    ],
+  },
+  {
+    id: "answer", label: "a quick answer", phrase: "2+2*20", complete: 99,
+    typeHint: "Arithmetic, units and the time in other cities — computed on your Mac.",
+    blurb: "Quick answers come first: arithmetic, units (“5 km to mi”) and world time (“time in tokyo”), all offline.",
+    sections: [
+      ["Answer", [
+        { icon: ICON.calc, title: "42", sub: "2+2×20", cat: null, source: "", action: "copy",
+          enterHint: "In Lantern, ↩ copies <b>42</b>." },
       ]],
     ],
   },
 ];
 
-// Pills in the app's order (stable ⌘1…⌘6) and its labels.
-const CATEGORIES = [["code", "Code"], ["docs", "Documents"], ["pdf", "PDFs"], ["photos", "Photos"], ["media", "Recordings and videos"]];
+// Filter icons in the app's order (⌘1… never changes) with its labels; own line drawings (no Apple symbols).
+const GLYPH = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const CATEGORIES = [
+  ["apps", "Applications", GLYPH('<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>')],
+  ["settings", "System Settings", GLYPH('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>')],
+  ["code", "Code", GLYPH('<path d="M8.5 7 4 12l4.5 5M15.5 7 20 12l-4.5 5M13.5 5l-3 14"/>')],
+  ["docs", "Documents", GLYPH('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 15.5h5"/>')],
+  ["pdf", "PDFs", GLYPH('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><rect x="5" y="12" width="10" height="5" rx="1"/>')],
+  ["photos", "Photos", GLYPH('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 4 3.5 2.5-2 4.5 3.5"/>')],
+  ["media", "Recordings and videos", GLYPH('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="m10.5 9.2 4.3 2.8-4.3 2.8z" fill="currentColor"/>')],
+];
+const CATEGORY = Object.fromEntries(CATEGORIES.map(([id, label, glyph], k) => [id, { label, glyph, key: k + 1 }]));
 
 /* ---------- matched words (a port of the app's QueryHighlight + TextFold) ---------- */
 
@@ -236,7 +274,7 @@ const state = {
   step: "intro",
   scenario: null,
   typed: "",
-  category: null,  // the selected pill (null = All)
+  category: null,  // the chosen filter icon (null = everything)
   selection: 0,  // index into the visible rows
   done: new Set(),
   timers: [],
@@ -442,19 +480,28 @@ const STEPS = {
   results() {
     const sc = state.scenario;
     renderResults(sc);
-    const pills = categoriesOf(sc).length > 1
-      ? "<br><br>The pills narrow it to one kind — click one or press <b>Tab</b>." : "";
-    hint(`${sc.blurb}${pills}<br><br>Press <b>⌘Y</b> to preview it, right here.`, {
-      x: 40, y: 196, arrow: "none", actions: [{ label: "Preview (⌘Y)", onClick: () => go("preview") }],
+    const filters = categoriesOf(sc).length > 1
+      ? "<br><br>The icons beside the field narrow it to one kind — click one or press <b>Tab</b>." : "";
+    const action = visibleRows()[0]?.action;
+    const next = action ? `Press <b>↩</b> to ${action} it.` : "Press <b>⌘Y</b> to preview it, right here.";
+    hint(`${sc.blurb}${filters}<br><br>${next}`, {
+      x: 40, y: 196, arrow: "none",
+      actions: [{ label: action ? `${action[0].toUpperCase()}${action.slice(1)} (↩)` : "Preview (⌘Y)", onClick: () => go("preview") }],
     });
   },
 
   preview() {
     const sc = state.scenario;
-    renderPreview(visibleRows()[state.selection]);
+    const row = visibleRows()[state.selection];
     state.done.add(sc.id);
     const left = SCENARIOS.filter((s) => !state.done.has(s.id));
     const actions = nextSearchActions();
+    if (row.action) {  // apps, settings, answers, the web row: nothing to preview, ↩ acts at once (as in the app)
+      state.step = "results";
+      hint(`${row.enterHint}<br><br>${left.length ? "Try another search:" : "That’s all of them."}`, { x: 40, y: 196, actions });
+      return;
+    }
+    renderPreview(row);
     hint(left.length
       ? "In Lantern, <b>↩</b> opens it at this exact spot — the line in your editor, the moment in QuickTime.<br><br>Try another search:"
       : "That’s all of them. <b>↩</b> would open each one at the exact spot.", { x: 40, y: 196, actions });
@@ -465,7 +512,7 @@ const STEPS = {
     $("#panel").hidden = true;
     closeMenu();
     hint(`<span class="app-icon"></span><h2>That’s Lantern.</h2>
-      <p>Search your files, code, photos and recordings by meaning — <b>100% on your Mac</b>, no cloud, no
+      <p>Search your files, code, photos and recordings by meaning — and apps, settings and quick answers, like Spotlight. <b>100% on your Mac</b>, no cloud, no
       telemetry. Open source under the Apache 2.0 license.</p>`, {
       x: 510, y: 250, cls: "finale",
       actions: [
@@ -520,8 +567,8 @@ function pickScenario(sc) {
   state.category = null;
   state.selection = 0;
   $("#panelContent").hidden = true;
-  $("#scopeBar").hidden = true;
   renderQuery();
+  renderScope();
   $("#queryField").focus({ preventScroll: true });
   typeHintFor(sc);
 }
@@ -623,39 +670,55 @@ function categoriesOf(sc) {
 
 function visibleSections() {
   const sc = state.scenario;
-  return sc.sections
+  const web = ["Web", [{ icon: ICON.globe, title: `Search the web for “${sc.phrase}”`, sub: "Google", cat: null, source: "",
+    action: "open", enterHint: "In Lantern this opens your default browser with the search — Lantern itself sends nothing." }]];
+  return [...sc.sections, web]
     .map(([title, rows]) => [title, rows.filter((r) => !state.category || r.cat === state.category)])
     .filter(([, rows]) => rows.length);
 }
 const visibleRows = () => visibleSections().flatMap(([, rows]) => rows);
 
-function renderPills(sc) {
-  const cats = categoriesOf(sc);
-  const bar = $("#scopeBar");
-  bar.hidden = cats.length < 2;  // like the app: only when there is something to choose between
-  bar.innerHTML = [[null, "All"], ...cats].map(([id, label]) =>
-    `<button type="button" class="scope-pill${state.category === id ? " selected" : ""}" data-cat="${id ?? ""}">${label}</button>`).join("");
-  bar.querySelectorAll(".scope-pill").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat || null)));
+/** The filter icons beside the field, as in the app: every kind before results, then only the kinds with matches;
+ * the chosen one sits in the field as a chip with its ⌘ number. Hidden while previewing. */
+function shownCategories() {
+  const sc = state.scenario;
+  const results = sc && (state.step === "results" || state.step === "preview");
+  return results ? categoriesOf(sc) : CATEGORIES;
+}
+
+function renderScope() {
+  const icons = $("#scopeIcons");
+  const chip = $("#scopeChip");
+  icons.hidden = state.step === "preview";
+  icons.innerHTML = shownCategories().filter(([id]) => id !== state.category).map(([id, label, glyph]) =>
+    `<button type="button" class="scope-icon" data-cat="${id}" title="${label}  ⌘${CATEGORY[id].key}">${glyph}<span class="label">${label}</span></button>`).join("");
+  icons.querySelectorAll(".scope-icon").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
+  const c = state.category && CATEGORY[state.category];
+  chip.hidden = !c;
+  chip.innerHTML = c ? `${c.glyph}<span>${c.label}</span><span class="key">⌘${c.key}</span>` : "";
 }
 
 function setCategory(cat) {
   if (state.step === "preview") state.step = "results";
-  state.category = cat;
+  state.category = cat === state.category ? null : cat;
   state.selection = 0;
-  renderResults(state.scenario, false);
+  if (state.step === "results") renderResults(state.scenario, false);
+  else renderScope();  // chosen before typing, like a Spotlight mode
 }
 
 function cyclePill(step) {
-  const ids = [null, ...categoriesOf(state.scenario).map(([id]) => id)];
+  const ids = [null, ...shownCategories().map(([id]) => id)];
   if (ids.length < 3) return;
-  setCategory(ids[(ids.indexOf(state.category) + step + ids.length) % ids.length]);
+  const next = ids[(ids.indexOf(state.category) + step + ids.length) % ids.length];
+  state.category = null;
+  setCategory(next);
 }
 
 function renderResults(sc, animate = true) {
   const content = $("#panelContent");
   content.hidden = false;
   $("#typeForMe").hidden = true;
-  renderPills(sc);
+  renderScope();
   let i = 0;
   const sections = visibleSections();
   content.innerHTML = sections.map(([title, rows]) => `
@@ -666,8 +729,9 @@ function renderResults(sc, animate = true) {
         : `<span class="icon">${r.icon}</span>`;
       const index = i++;
       const selected = index === state.selection;
+      const verb = r.action || (r.media ? "play" : "open");
       const right = selected
-        ? `<span class="row-hint">preview <kbd>⌘Y</kbd> ${r.media ? "play" : "open"} <kbd>↩</kbd></span>`
+        ? `<span class="row-hint">${r.action ? "" : "preview <kbd>⌘Y</kbd> "}${verb} <kbd>↩</kbd></span>`
         : `<span class="source">${r.source}</span>`;
       return `<div class="result${selected ? " selected" : ""}${animate ? "" : " still"}" data-index="${index}" style="animation-delay:${index * 60}ms">${media}
         <div class="body"><div class="title"><span>${escapeHtml(r.title)}</span>${right}</div>
@@ -691,7 +755,7 @@ function renderPreview(row) {
   const p = row.show || { kind: "text" };
   const content = $("#panelContent");
   content.hidden = false;
-  $("#scopeBar").hidden = true;  // the app hides the pills while previewing
+  $("#scopeIcons").hidden = true;  // the app hides the filter icons while previewing
   let body = "";
   if (p.kind === "image") {
     body = `<div class="preview-media">${p.art}</div>${row.preview ? `<p class="transcript">${highlight(row.preview, sc.phrase)}</p>` : ""}`;
@@ -773,9 +837,10 @@ function onKey(e) {
     else if (state.step === "preview") go("results");
     return;
   }
-  if (e.key === "Escape") {
+  if (e.key === "Escape") {  // like the app: the preview closes first, then the filter goes
     e.preventDefault();
     if (state.step === "preview") go("results");
+    else if (state.category) setCategory(state.category);
     return;
   }
   if (e.key === "Enter") {
@@ -786,10 +851,10 @@ function onKey(e) {
   }
   if (state.step === "results" || state.step === "preview") {
     if (e.key === "Tab") { e.preventDefault(); cyclePill(e.shiftKey ? -1 : 1); return; }
-    if ((e.metaKey || e.ctrlKey) && /^[1-6]$/.test(e.key)) {
+    if ((e.metaKey || e.ctrlKey) && /^[1-7]$/.test(e.key)) {  // ⌘N: always the same kind, again = off
       e.preventDefault();
-      const ids = [null, ...categoriesOf(state.scenario).map(([id]) => id)];
-      if (ids.length > 2 && Number(e.key) <= ids.length) setCategory(ids[Number(e.key) - 1]);
+      const id = CATEGORIES[Number(e.key) - 1][0];
+      if (shownCategories().some(([c]) => c === id) || state.category === id) setCategory(id);
       return;
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -805,6 +870,7 @@ function onKey(e) {
   }
   if (e.key === "Backspace") {
     e.preventDefault();
+    if (!state.typed && state.category) { setCategory(state.category); return; }  // ⌫ in an empty field: the chip goes
     state.typed = state.typed.slice(0, -1);
     renderQuery();
     return;
@@ -839,6 +905,7 @@ function wire() {
     later(140, () => { $("#shortcut").classList.remove("pressed"); go("panel"); });
   });
   $("#typeForMe").addEventListener("click", typeForMe);
+  $("#scopeChip").addEventListener("click", (e) => { e.stopPropagation(); setCategory(state.category); });
   $("#continueAnyway").addEventListener("click", () => { document.body.dataset.anyway = "1"; fitStage(); });
   document.addEventListener("keydown", onKey);
   addEventListener("resize", fitStage);

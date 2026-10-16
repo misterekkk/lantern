@@ -342,15 +342,31 @@ kbd {
 /* matched words: bold in the text colour, as the app marks them */
 .result b.match, .transcript b.match, .text-preview b.match { font-weight: 650; color: var(--text); }
 
-/* filter pills under the query field (the app's ScopeBar) */
-.scope-bar { display: flex; gap: 6px; padding: 0 22px 10px; overflow: hidden; animation: fade 0.2s var(--ease); }
-.scope-pill {
-  border: 0; border-radius: 99px; padding: 5px 11px; cursor: pointer;
-  font-size: 12px; font-weight: 500; white-space: nowrap;
-  background: rgba(255, 255, 255, 0.08); color: var(--text);
+/* filter icons beside the query field (the app's ScopeIcon / ScopeChip, like Spotlight's mode buttons) */
+.scope-icons { display: flex; gap: 8px; flex: none; }
+.scope-icon {
+  display: flex; align-items: center; gap: 0; height: 36px; min-width: 36px; padding: 0 9px;
+  border: 0; border-radius: 99px; cursor: pointer; color: var(--text); overflow: hidden;
+  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition: background 0.2s var(--ease), padding 0.25s var(--ease);
+  animation: iconIn 0.3s var(--ease) both;
 }
-.scope-pill:hover { background: rgba(255, 255, 255, 0.14); }
-.scope-pill.selected { background: var(--accent); color: #fff; }
+@keyframes iconIn { from { opacity: 0; transform: scale(0.6); } }
+.scope-icon svg, .scope-chip svg { width: 18px; height: 18px; flex: none; }
+.scope-icon .label {
+  max-width: 0; opacity: 0; white-space: nowrap; font-size: 12px; font-weight: 500;
+  transition: max-width 0.25s var(--ease), opacity 0.06s linear, margin 0.25s var(--ease);
+}
+.scope-icon:hover { background: rgba(255, 255, 255, 0.16); padding: 0 13px; }
+.scope-icon:hover .label { max-width: 180px; opacity: 1; margin-left: 7px; transition-delay: 0s, 0.08s, 0s; }
+.scope-chip {
+  display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; flex: none;
+  border: 0; border-radius: 99px; cursor: pointer; color: #fff; font-size: 14px; font-weight: 600;
+  background: rgba(59, 130, 246, 0.55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  animation: chipIn 0.3s var(--ease) both; transform-origin: left center;
+}
+@keyframes chipIn { from { opacity: 0; transform: scale(0.6); } }
+.scope-chip .key { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.7); }
 
 /* what ↩ and ⌘Y do with the selected row (the app's RowHint) */
 .result .title .row-hint {

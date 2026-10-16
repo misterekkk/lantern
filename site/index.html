@@ -7,7 +7,7 @@
   <meta name="description" content="Lantern is a local, offline Mac app that finds files, code, photos and moments in recordings by meaning. Try it in your browser.">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="assets/lantern.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <!--
@@ -54,12 +54,13 @@
       <section class="panel glass" id="panel" hidden aria-label="Lantern search">
         <div class="panel-query">
           <span class="panel-glyph" aria-hidden="true"></span>
+          <button class="scope-chip" id="scopeChip" type="button" hidden aria-label="Remove the filter"></button>
           <div class="query-field" id="queryField" tabindex="0" role="textbox" aria-label="Search query">
-            <span class="typed" id="typed"></span><span class="caret" aria-hidden="true"></span><span class="ghost" id="ghost"></span><span class="placeholder" id="placeholder">Search Lantern — by meaning, in code, recordings…</span>
+            <span class="typed" id="typed"></span><span class="caret" aria-hidden="true"></span><span class="ghost" id="ghost"></span><span class="placeholder" id="placeholder">Search Lantern</span>
           </div>
           <button class="type-for-me" id="typeForMe" type="button">Type it for me</button>
+          <div class="scope-icons" id="scopeIcons" role="toolbar" aria-label="Filter results"></div>
         </div>
-        <div class="scope-bar" id="scopeBar" hidden role="toolbar" aria-label="Filter results"></div>
         <div class="panel-content" id="panelContent" hidden></div>
       </section>
 
@@ -93,6 +94,6 @@
     <a href="https://github.com/misterekkk/lantern">View on GitHub</a>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

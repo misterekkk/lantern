@@ -14,9 +14,11 @@ python3 -m http.server -d site 8000   # then open http://localhost:8000
 ```
 
 Jump to a step while working on it: `index.html?step=menu|found|indexing|ready|shortcut|type|results|preview`
-(with `&scenario=photo|screenshot|video|code|pdf|song` for the search steps, `&typed=N` to start with N characters).
+(with `&scenario=photo|screenshot|video|code|pdf|app|setting|answer` for the search steps, `&typed=N` to start with N
+characters).
 
-The search panel mirrors the app: placeholder, the grey completion (→), filter pills (click, Tab / ⇧Tab, ⌘1…⌘6),
+The search panel mirrors the app: "Search Lantern", the grey completion (→), filter icons beside the field (hover shows
+the name; a chosen one becomes a chip; click, Tab / ⇧Tab, ⌘1…⌘7, Esc or ⌫ removes it),
 the hint on the selected row (↩ / ⌘Y) and matched words in bold (`highlight()` is a port of the app's
 `QueryHighlight` and `TextFold`). When the panel changes in the app, change it here too.
 
