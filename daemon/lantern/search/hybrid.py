@@ -6,6 +6,7 @@ per-list ranks and scores (training data for a future reranker).
 """
 
 import json
+import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, field
@@ -25,6 +26,15 @@ MIN_KEYWORD_COVERAGE = 0.5
 # bulk of its candidates (several equally good hits, e.g. three dog photos, still count as confident).
 # See DECISIONS.md, Phase 7.
 PHOTO_SECTION_SIZE = 4
+# Identifiers, calls, paths: "def add_two(x, y):", "parseUserToken", "config.toml". Never a photo query, and their
+# vector scores are flat, so the confidence comparison alone could put photos first.
+_CODE_LIKE = re.compile(r"[_(){}\[\];:=<>/\\]|\w\.\w|[a-z][A-Z]")
+
+
+def looks_like_code(query: str) -> bool:
+    return bool(_CODE_LIKE.search(query))
+
+
 MIN_LIST_WEIGHT = 0.25
 TEXT_GAP_LOW, TEXT_GAP_HIGH = 0.02, 0.08  # cosine gap (top - median of candidates): flat .. clear
 PHOTO_Z_LOW, PHOTO_Z_HIGH = 1.0, 4.0  # per-model z of the top photo against the photo candidate pool
@@ -177,7 +187,11 @@ def search(
     results = fuse([h for h in vector if h.kind != "image"], [h for h in keyword if h.kind != "image"], limit)
     photos = photo_results(image, keyword)
     models = 2 if query_embedder is not None else 1
-    photos_first = bool(image) and photo_list_confidence(image, models) > text_list_confidence(vector)
+    photos_first = (
+        bool(image)
+        and not looks_like_code(query)
+        and photo_list_confidence(image, models) > text_list_confidence(vector)
+    )
     event_id = log_search(conn, query, results, photos) if log else None
     return SearchResponse(
         results,

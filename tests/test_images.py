@@ -129,3 +129,19 @@ def test_silent_video_is_indexed_by_frames(conn, tmp_path):
     assert kinds == {"frame"}
     start, end = conn.execute("SELECT start_ms, end_ms FROM chunks").fetchone()
     assert start == 0 and end > 4000
+
+
+def test_code_like_queries_never_put_photos_first():
+    from lantern.search.hybrid import looks_like_code
+
+    for q in (
+        "def add_two(x, y):",
+        "backoff_wrapper",
+        "parseUserToken",
+        "config.toml",
+        "src/main.rs",
+        "ConnectionRefusedError",
+    ):
+        assert looks_like_code(q), q
+    for q in ("pies", "dziecko w wodzie", "zachód słońca", "README instalacja", "samochód na parkingu"):
+        assert not looks_like_code(q), q
