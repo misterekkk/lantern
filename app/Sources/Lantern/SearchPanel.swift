@@ -865,15 +865,15 @@ private struct PanelBackground: ViewModifier {
 
 // MARK: - Scope icons (prototype of a Spotlight-like scope control)
 
-/// Where the scope control lives: "pills" under the query field (default), or "icons" beside it, like the mode
-/// buttons of Spotlight on macOS 26. `--scope-style icons` (development) or the `scopeStyle` default switches it.
+/// Where the scope control lives: "icons" beside the query field, like the mode buttons of Spotlight on macOS 26
+/// (default), or "pills" under it. `--scope-style pills` (development) or the `scopeStyle` default switches it.
 enum ScopeStyle: String {
     case pills, icons
     static let key = "scopeStyle"
     static var launchDefault: ScopeStyle {
         let args = CommandLine.arguments
         let value = args.firstIndex(of: "--scope-style").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
-        return value.flatMap(ScopeStyle.init(rawValue:)) ?? .pills
+        return value.flatMap(ScopeStyle.init(rawValue:)) ?? .icons
     }
 }
 

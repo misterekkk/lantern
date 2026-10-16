@@ -24,7 +24,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   `FolderTree` and toolbar search, `PatternsPage`), Battery and Heat, Performance (`PerformanceView`, Swift Charts,
   polls `perf` every second while visible), Privacy, About. The window needs `sceneBridgingOptions = [.title, .toolbars]`. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
   string-literal `Text` (Markdown).
-- Panel extras: filter pills (`ScopeBar`, `ResultCategory`; the daemon returns `categories` and filters with
+- Panel extras: scope icons beside the field (default; `ScopeIcon` / `ScopeChip`, Liquid Glass, `scopeStyle` = icons |
+  pills) or filter pills (`ScopeBar`, `ResultCategory`; the daemon returns `categories` and filters with
   `category`), inline completion (`completion` from `search/suggest.py`, shown behind the field, → accepts), shortcut
   hints (`@AppStorage("shortcutHints")`: row / bar / off), matched query words in bold in each result
   (LanternCore `QueryHighlight` + `TextFold`, unit-tested; the demo site has a JS port). Test keys with `CGEvent.postToPid` (sends only to Lantern),

@@ -151,9 +151,10 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
     own words follow Lantern's language.
   - To use ⌘Space, macOS's Spotlight shortcut has to be turned off (System Settings → Keyboard → Keyboard
     Shortcuts… → Spotlight); Lantern says so and opens that page, but never changes system settings itself.
-- **Filter pills** under the query field, like Spotlight's: All, Applications, System Settings, Shortcuts, Code,
-  Documents, PDFs, Photos, Recordings and videos — only the kinds that match appear. Tab / ⇧Tab move between them,
-  ⌘1…⌘9 pick one, a click works too. Esc removes the filter first, then closes the panel; the panel opens empty.
+- **Filter icons** beside the query field, like Spotlight's mode buttons (round glass buttons; hover shows the name,
+  choosing one puts it in the field with its ⌘ shortcut). Kinds: Applications, System Settings, Shortcuts, Clipboard,
+  Code, Documents, PDFs, Photos, Recordings and videos — all before typing, then only the kinds that match. Tab / ⇧Tab
+  move between them, ⌘1…⌘9 pick one, a click works too; ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
 - **↩ on an answer** copies it; on a word definition it opens Dictionary; on a shortcut it runs it.
 - **Inline completion:** while you type, the rest of a likely query appears in grey; → accepts it. Suggestions come
   from your earlier searches that led to an opened result, then from app and System Settings names, then function
