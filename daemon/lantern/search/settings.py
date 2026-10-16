@@ -42,6 +42,14 @@ def _hit(r: sqlite3.Row, match: str, score: float) -> SettingHit:
                       score)  # fmt: skip
 
 
+def _word_hit(word: str, token: str) -> bool:
+    """A typed word matches the start of a setting's word; letters-only words under 4 letters only a whole word
+    ("koń" is not the start of "kończenie", but "24" and "godz" still find "24-godzinnego")."""
+    if len(token) < 4 and token.isalpha():
+        return word == token
+    return word.startswith(token)
+
+
 def settings_search(conn: sqlite3.Connection, query: str, embedder=None,
                     limit: int = SETTINGS_SECTION_SIZE) -> list[SettingHit]:  # fmt: skip
     rows = conn.execute(
@@ -60,8 +68,8 @@ def settings_search(conn: sqlite3.Connection, query: str, embedder=None,
             continue
         words = {w for text in [r["title"], r["pane"], *names, *json.loads(r["keywords"])]
                  for w in _WORD.findall(_plain(text))}  # fmt: skip
-        if all(any(w.startswith(t) for w in words) for t in tokens):
-            in_title = sum(any(w.startswith(t) for w in _WORD.findall(_plain(r["title"]))) for t in tokens)
+        if all(any(_word_hit(w, t) for w in words) for t in tokens):
+            in_title = sum(any(_word_hit(w, t) for w in _WORD.findall(_plain(r["title"]))) for t in tokens)
             hits.append(_hit(r, "words", 0.5 + 0.2 * in_title / len(tokens)))
     if hits:
         hits.sort(key=lambda h: (-h.score, not h.is_pane, len(h.title)))

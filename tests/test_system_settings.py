@@ -65,3 +65,10 @@ def test_search_by_name_words_and_other_language(conn, extensions):
     assert settings_search(conn, "hour clock")[0].title.startswith("Używaj formatu")  # by the English words
     resp = search(conn, embedder, "24 godz", log=False)
     assert resp.settings_first and resp.sections()[0][0] == "settings" and "settings" in resp.categories
+
+
+def test_short_words_match_whole_words_of_a_setting():
+    from lantern.search.settings import _word_hit
+
+    assert not _word_hit("konczenie", "kon")  # "koń" is a horse, not the start of "kończenie"
+    assert _word_hit("kon", "kon") and _word_hit("24", "24") and _word_hit("godzinnego", "godz")
