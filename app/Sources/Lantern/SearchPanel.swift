@@ -100,6 +100,11 @@ final class SearchPanelController {
 
     var windowNumber: Int { panel.windowNumber }
 
+    /// The daemon answered for the first time: a query typed while it was still starting gets its results now.
+    func daemonCameUp() {
+        if panel.isVisible && !model.query.isEmpty { model.search() }
+    }
+
     /// Development: render the panel's views into a PNG (window-server effects such as glass are not included).
     func snapshot(to url: URL) {
         guard let view = panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
@@ -126,6 +131,14 @@ final class SearchModel: ObservableObject {
     @Published var category: ResultCategory? { didSet { if category != oldValue { search() } } }
     /// Inline completion from the daemon (earlier queries, definitions, file names); → accepts it.
     @Published private(set) var completion: String?
+    /// macOS's name for System Settings, in the system's language (from the daemon).
+    @Published private(set) var settingsAppName: String?
+
+    /// A kind's name: Lantern's word for it, except System Settings, which keeps the name macOS gives it.
+    func title(_ category: ResultCategory?) -> Text {
+        if category == .settings, let settingsAppName { return Text(verbatim: settingsAppName) }
+        return category.map { Text($0.titleKey) } ?? Text("All")
+    }
     var completionRemainder: String? { QueryCompletion.remainder(query: query, completion: completion) }
     /// Pills to show: the categories with matches, plus the chosen one even if it has none now.
     var pillCategories: [ResultCategory] {
@@ -172,6 +185,7 @@ final class SearchModel: ObservableObject {
                 sections = resp.sections
                 categories = resp.categories
                 completion = resp.completion
+                if let name = resp.settingsAppName { settingsAppName = name }
                 eventId = resp.eventId
                 selection = 0
                 preview = nil
@@ -228,6 +242,13 @@ final class SearchModel: ObservableObject {
             return
         }
         if hit.isApp && action == .preview { return }  // nothing to preview in an app
+        if hit.isSetting {  // the pane in System Settings; ⌘↩ and ⌘Y have nothing to show
+            guard action == .atLocation || action == .fromStart, let link = URL(string: hit.path) else { return }
+            NSWorkspace.shared.open(link)
+            recordOpened(hit)
+            SearchPanelController.shared.hide()
+            return
+        }
         switch action {
         case .preview:
             togglePreview(hit)
@@ -316,7 +337,7 @@ private struct RowHint: View {
     let result: SearchResult
     var body: some View {
         HStack(spacing: 10) {
-            if !result.isApp {  // an app has nothing to preview
+            if !result.isApp && !result.isSetting {  // nothing to preview
                 HStack(spacing: 4) {
                     Text("preview").foregroundStyle(.secondary)
                     KeyCap(keys: "⌘Y")
@@ -350,7 +371,7 @@ private struct ScopeBar: View {
     private func pill(_ category: ResultCategory?) -> some View {
         let selected = model.category == category
         return Button { model.category = category } label: {
-            Text(title(category))
+            model.title(category)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
                 .padding(.horizontal, 11)
@@ -359,18 +380,6 @@ private struct ScopeBar: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-    }
-
-    private func title(_ category: ResultCategory?) -> LocalizedStringKey {
-        switch category {
-        case nil: "All"
-        case .apps: "Applications"
-        case .code: "Code"
-        case .docs: "Documents"
-        case .pdf: "PDFs"
-        case .photos: "Photos"
-        case .media: "Recordings and videos"
-        }
     }
 }
 
@@ -419,9 +428,16 @@ private func numbered(_ sections: [ResultSection]) -> [(section: ResultSection, 
 private struct SectionHeader: View {
     let kind: ResultSection.Kind
     let first: Bool
+    var settingsAppName: String?
+
+    private var label: Text {
+        if kind == .settings, let settingsAppName { return Text(verbatim: settingsAppName) }
+        return Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications"
+                    : kind == .settings ? "System Settings" : "Files")
+    }
 
     var body: some View {
-        Text(kind == .photos ? "Photos" : kind == .definitions ? "Definitions" : kind == .apps ? "Applications" : "Files")
+        label
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -452,7 +468,9 @@ struct SearchView: View {
                         .foregroundStyle(.secondary)
                         .padding(.trailing, 2)
                     if scopeStyle == .icons, let category = model.category {
-                        ScopeChip(category: category, space: scopeSpace) { model.category = nil }
+                        ScopeChip(category: category, title: model.title(category), space: scopeSpace) {
+                            model.category = nil
+                        }
                     }
                     QueryField(model: model, focused: $focused)
                     if model.searching {
@@ -460,7 +478,9 @@ struct SearchView: View {
                     }
                     if scopeStyle == .icons && model.preview == nil {
                         ForEach(model.iconCategories.filter { $0 != model.category }) { category in
-                            ScopeIcon(category: category, space: scopeSpace) { model.category = category }
+                            ScopeIcon(category: category, title: model.title(category), space: scopeSpace) {
+                                model.category = category
+                            }
                                 .transition(.scale(scale: 0.6).combined(with: .opacity))
                         }
                     }
@@ -493,7 +513,8 @@ struct SearchView: View {
                         LazyVStack(spacing: 2) {
                             ForEach(Array(numbered(model.sections).enumerated()), id: \.element.section.id) { i, group in
                                 if model.sections.count > 1 {
-                                    SectionHeader(kind: group.section.kind, first: i == 0)
+                                    SectionHeader(kind: group.section.kind, first: i == 0,
+                                                  settingsAppName: model.settingsAppName)
                                 }
                                 ForEach(group.rows, id: \.result.id) { index, result in
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
@@ -669,6 +690,8 @@ private struct ResultRow: View {
         HStack(alignment: .top, spacing: 12) {
             if result.isVisual {
                 ResultThumbnail(path: result.path, atMs: result.kind == "frame" ? result.startMs : nil, size: 52)
+            } else if result.isSetting {
+                SettingIcon(symbol: result.settingSymbol, color: result.settingColor)
             } else {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: result.path))
                     .resizable()
@@ -747,6 +770,7 @@ extension ResultCategory {
     var symbol: String {
         switch self {
         case .apps: "square.grid.2x2"
+        case .settings: "gearshape"
         case .code: "chevron.left.forwardslash.chevron.right"
         case .docs: "doc.text"
         case .pdf: "doc.richtext"
@@ -758,6 +782,7 @@ extension ResultCategory {
     var titleKey: LocalizedStringKey {
         switch self {
         case .apps: "Applications"
+        case .settings: "System Settings"
         case .code: "Code"
         case .docs: "Documents"
         case .pdf: "PDFs"
@@ -774,6 +799,7 @@ extension ResultCategory {
 /// the query field (matched geometry), where it becomes the chip.
 private struct ScopeIcon: View {
     let category: ResultCategory
+    let title: Text
     let space: Namespace.ID
     let select: () -> Void
     @State private var hovering = false
@@ -784,7 +810,7 @@ private struct ScopeIcon: View {
                 Image(systemName: category.symbol)
                     .font(.system(size: 14, weight: .semibold))
                 if hovering {
-                    Text(category.titleKey)
+                    title
                         .font(.system(size: 12, weight: .medium))
                         .fixedSize()
                         .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
@@ -804,13 +830,14 @@ private struct ScopeIcon: View {
                 hovering = true
             }
         }
-        .help(Text(category.titleKey) + Text(verbatim: "  ⌘\(category.number)"))
+        .help(title + Text(verbatim: "  ⌘\(category.number)"))
     }
 }
 
 /// The chosen kind inside the query field; a click (or ⌫ in an empty field) takes it back out.
 private struct ScopeChip: View {
     let category: ResultCategory
+    let title: Text
     let space: Namespace.ID
     let clear: () -> Void
 
@@ -819,7 +846,7 @@ private struct ScopeChip: View {
             HStack(spacing: 6) {
                 Image(systemName: category.symbol)
                     .font(.system(size: 13, weight: .semibold))
-                Text(category.titleKey)
+                title
                     .font(.system(size: 13, weight: .semibold))
                     .fixedSize()
                 Text(verbatim: "⌘\(category.number)")
@@ -866,5 +893,40 @@ private struct ScopeGlassContainer<Content: View>: View {
         } else {
             content
         }
+    }
+}
+
+/// A System Settings icon: the pane's SF Symbol in white on its colour, in a rounded square like the sidebar's.
+private struct SettingIcon: View {
+    let symbol: String?
+    let color: String?
+
+    private var fill: Color {
+        switch color?.lowercased() {
+        case "blue": .blue
+        case "red": .red
+        case "green": .green
+        case "orange": .orange
+        case "yellow": .yellow
+        case "purple": .purple
+        case "pink": .pink
+        case "teal": .teal
+        case "indigo": .indigo
+        case "black": Color(white: 0.15)
+        default: .gray
+        }
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(fill.gradient)
+            .frame(width: 30, height: 30)
+            .overlay {
+                Image(systemName: symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil ? $0 : nil }
+                      ?? "gearshape.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 32, height: 32)
     }
 }

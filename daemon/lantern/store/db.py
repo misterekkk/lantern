@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -54,6 +54,22 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     document   TEXT NOT NULL,      -- the text the vector was made of
     model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
     embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
+)"""
+    ],
+    6: [
+        """CREATE TABLE IF NOT EXISTS system_settings (
+    key        TEXT PRIMARY KEY,   -- pane bundle id, or bundle id/setting key
+    pane       TEXT NOT NULL,      -- pane name in the first preferred language
+    title      TEXT NOT NULL,      -- the pane name for a pane, the setting's title otherwise
+    names      TEXT NOT NULL,      -- JSON list: the same in the other preferred languages
+    keywords   TEXT NOT NULL,      -- JSON list: Apple's index words for the setting
+    url        TEXT NOT NULL,      -- x-apple.systempreferences:<pane>
+    symbol     TEXT,               -- SF Symbol of the pane icon
+    color      TEXT,               -- its enclosure colour
+    languages  TEXT NOT NULL,
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, compared only with query vectors of the same model_id
 )"""
     ],
 }

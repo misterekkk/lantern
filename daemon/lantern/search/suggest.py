@@ -1,10 +1,12 @@
 """Inline completion for the query field (accepted with → in the panel), like Spotlight completing a name.
 
 Lantern searches by meaning, so it never guesses the rest of a sentence. It completes what the user has already used
-or what exists by name: earlier queries from the local history, then (for one word) a code definition or a file name.
+or what exists by name: earlier queries from the local history, app and System Settings names, then (for one word)
+a code definition or a file name.
 Everything is read from the index; nothing leaves the Mac.
 """
 
+import json
 import sqlite3
 
 from lantern.chunking.symbols import name_key
@@ -33,9 +35,19 @@ def completion(conn: sqlite3.Connection, typed: str) -> str | None:
     ):
         if _starts(query, typed):
             return typed + query[len(typed) :]
+    # 2. An application or a System Settings pane by any of its names (what Spotlight completes: the top hit).
+    names = []
+    for table, columns in (("apps", "name, names"), ("system_settings", "title, names")):
+        query = f"SELECT {columns} FROM {table}" + (" WHERE key NOT LIKE '%/%'" if table == "system_settings" else "")
+        for first, others in conn.execute(query):
+            names += [first, *json.loads(others)]
+    names = [n for n in names if _starts(n, typed)]
+    if names:
+        best = min(names, key=len)
+        return typed + best[len(typed) :]
     if " " in typed.strip():
         return None
-    # 2. A code definition (the shortest name that starts with the typed text).
+    # 3. A code definition (the shortest name that starts with the typed text).
     key = name_key(typed)
     if key:
         rows = conn.execute("SELECT name FROM symbols WHERE name_key >= ? AND name_key < ? LIMIT 200",
@@ -45,7 +57,7 @@ def completion(conn: sqlite3.Connection, typed: str) -> str | None:
         if names:
             best = min(names, key=len)
             return typed + best[len(typed) :]
-    # 3. A file name.
+    # 4. A file name.
     if len(typed) >= 3:
         rows = conn.execute(
             "SELECT path FROM files WHERE path LIKE ? ESCAPE '\\' LIMIT 200", ("%/" + _like_prefix(typed),)

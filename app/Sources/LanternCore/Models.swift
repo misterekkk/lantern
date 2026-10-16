@@ -65,6 +65,10 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var page: Int?  // PDF page
     public var textRank: Int?  // photos found by the text read from them (OCR)
     public var appCategory: String?  // applications: App Store category ("social-networking")
+    public var settingPane: String?  // System Settings: the pane of a setting (nil for a pane itself)
+    public var settingSymbol: String?  // its icon: SF Symbol and enclosure colour, as System Settings draws it
+    public var settingColor: String?
+    public var settingsAppName: String?  // macOS's own name for System Settings ("Ustawienia systemowe")
 
     public init(
         path: String, chunkId: Int, startLine: Int? = nil, endLine: Int? = nil, symbol: String? = nil,
@@ -78,12 +82,14 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     }
 
     /// Unique across sections (a definition and a file result can share a chunk).
-    public var id: String { "\(kind)|\(chunkId)|\(startLine ?? -1)|\(path)" }
+    // Settings share their pane's URL as the path: the title tells them apart.
+    public var id: String { "\(kind)|\(chunkId)|\(startLine ?? -1)|\(path)|\(isSetting ? symbol ?? "" : "")" }
     public var isMedia: Bool { startMs != nil }
     public var isVisual: Bool { kind == "image" || kind == "frame" }
     public var isDefinition: Bool { kind == "definition" }
     public var isPDF: Bool { kind == "pdf" }
     public var isApp: Bool { kind == "app" }
+    public var isSetting: Bool { kind == "setting" }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
 }
@@ -100,6 +106,27 @@ public struct AppResult: Decodable, Equatable, Sendable {
     public var asResult: SearchResult {
         var row = SearchResult(path: path, chunkId: 0, symbol: name, kind: "app")
         row.appCategory = category
+        return row
+    }
+}
+
+/// A System Settings pane or a setting inside one (`search/settings.py`); opens through its URL.
+public struct SettingResult: Decodable, Equatable, Sendable {
+    public var key: String
+    public var pane: String
+    public var title: String
+    public var url: String
+    public var symbol: String?
+    public var color: String?
+    public var isPane: Bool
+    public var match: String
+
+    public func asResult(appName: String?) -> SearchResult {
+        var row = SearchResult(path: url, chunkId: 0, symbol: title, kind: "setting")
+        row.settingsAppName = appName
+        row.settingPane = isPane ? nil : pane
+        row.settingSymbol = symbol
+        row.settingColor = color
         return row
     }
 }
@@ -134,12 +161,18 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     public var completion: String?
     public var apps: [AppResult]
     public var appsFirst: Bool
+    public var settings: [SettingResult]
+    public var settingsFirst: Bool
+    /// The System Settings app's name in the language of macOS: things from the system keep the system's language,
+    /// Lantern's own words follow Lantern's.
+    public var settingsAppName: String?
     public var eventId: Int?
     public var vectorMs: Double
     public var keywordMs: Double
 
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
+        case settings, settingsFirst, settingsAppName
         case vectorMs, keywordMs
     }
 
@@ -155,6 +188,9 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         completion = try c.decodeIfPresent(String.self, forKey: .completion)
         apps = try c.decodeIfPresent([AppResult].self, forKey: .apps) ?? []
         appsFirst = try c.decodeIfPresent(Bool.self, forKey: .appsFirst) ?? false
+        settings = try c.decodeIfPresent([SettingResult].self, forKey: .settings) ?? []
+        settingsFirst = try c.decodeIfPresent(Bool.self, forKey: .settingsFirst) ?? false
+        settingsAppName = try c.decodeIfPresent(String.self, forKey: .settingsAppName)
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -167,15 +203,18 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         let files = ResultSection(kind: .files, results: results)
         let photos = ResultSection(kind: .photos, results: photos)
         let apps = ResultSection(kind: .apps, results: apps.map(\.asResult))
+        let settings = ResultSection(kind: .settings, results: settings.map { $0.asResult(appName: settingsAppName) })
         let rest = [definitions] + (photosFirst ? [photos, files] : [files, photos])
-        // An app matched by name is the top hit (like Spotlight); apps found only by meaning come last.
-        return (appsFirst ? [apps] + rest : rest + [apps]).filter { !$0.results.isEmpty }
+        // Apps and settings matched by name are the top hits (like Spotlight); found only by meaning, they come last.
+        let first = (appsFirst ? [apps] : []) + (settingsFirst ? [settings] : [])
+        let last = (settingsFirst ? [] : [settings]) + (appsFirst ? [] : [apps])
+        return (first + rest + last).filter { !$0.results.isEmpty }
     }
 }
 
 /// Filter pills in the panel (`hybrid.CATEGORIES` in the daemon), in a fixed order so ⌘1…⌘6 stay the same.
 public enum ResultCategory: String, CaseIterable, Sendable, Identifiable {
-    case apps, code, docs, pdf, photos, media
+    case apps, settings, code, docs, pdf, photos, media
     public var id: String { rawValue }
 }
 
@@ -191,7 +230,7 @@ public enum QueryCompletion {
 }
 
 public struct ResultSection: Equatable, Sendable, Identifiable {
-    public enum Kind: String, Sendable { case apps, definitions, files, photos }
+    public enum Kind: String, Sendable { case apps, settings, definitions, files, photos }
     public var kind: Kind
     public var results: [SearchResult]
     public var id: Kind { kind }
@@ -212,6 +251,7 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var excludeExtensions: [String]
     public var indexAudioVideo: Bool
     public var indexImageText: Bool
+    public var extraLanguages: [String]?
 }
 
 /// One folder level of the settings tree (`api_tree`).

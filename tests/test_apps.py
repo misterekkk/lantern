@@ -130,3 +130,10 @@ def test_opening_an_app_from_history(conn, applications):
 
     first = json.loads(last_event(conn)["results_json"])[0]
     assert first["kind"] == "app" and first["path"].endswith("Discord.app") and first["chunk_id"] == 0
+
+
+def test_completion_offers_app_names(conn, applications):
+    from lantern.search.suggest import completion
+
+    stored(conn, FakeEmbedder())
+    assert completion(conn, "calcu") == "calculator"  # typed text kept, the rest of the app's name

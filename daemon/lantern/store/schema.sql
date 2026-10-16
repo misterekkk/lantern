@@ -111,3 +111,19 @@ CREATE TABLE IF NOT EXISTS apps (
     model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
     embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
 );
+
+-- System Settings panes and settings (lantern/system_settings.py), rebuilt from macOS.
+CREATE TABLE IF NOT EXISTS system_settings (
+    key        TEXT PRIMARY KEY,   -- pane bundle id, or bundle id/setting key
+    pane       TEXT NOT NULL,      -- pane name in the first preferred language
+    title      TEXT NOT NULL,      -- the pane name for a pane, the setting's title otherwise
+    names      TEXT NOT NULL,      -- JSON list: the same in the other preferred languages
+    keywords   TEXT NOT NULL,      -- JSON list: Apple's index words for the setting
+    url        TEXT NOT NULL,      -- x-apple.systempreferences:<pane>
+    symbol     TEXT,               -- SF Symbol of the pane icon
+    color      TEXT,               -- its enclosure colour
+    languages  TEXT NOT NULL,
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, compared only with query vectors of the same model_id
+);

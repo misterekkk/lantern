@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field, replace
 from lantern.embedding.base import Embedder
 from lantern.search.apps import AppHit, app_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
+from lantern.search.settings import SettingHit, settings_search
 from lantern.search.suggest import completion
 from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
@@ -33,6 +34,7 @@ TYPING_WINDOW_S = 5  # history: a longer query typed within this many seconds re
 # Filter pills in the panel: result categories by chunk kind, in a fixed order (stable keyboard shortcuts).
 CATEGORIES = {
     "apps": {"app"},  # applications (search/apps.py), first like Spotlight's ⌘1
+    "settings": {"setting"},  # System Settings panes and settings (search/settings.py)
     "code": {"code"},
     "docs": {"text"},
     "pdf": {"pdf"},
@@ -101,12 +103,19 @@ class SearchResponse:
     completion: str | None = None  # inline completion of the query (panel: accepted with →)
     apps: list[AppHit] = field(default_factory=list)  # applications section
     apps_first: bool = False  # an app matched by name: it is the top hit; meaning-only apps go last
+    settings: list[SettingHit] = field(default_factory=list)  # System Settings section
+    settings_first: bool = False  # matched by name or words: right after apps; meaning-only: last
+    settings_app_name: str | None = None  # "Ustawienia systemowe": macOS's own name for the app, in its language
 
     def sections(self) -> list[tuple[str, list]]:
         """Non-empty sections in display order: definitions (exact answers) first, then photos/files by confidence."""
         media = [("photos", self.photos), ("files", self.results)]
         order = [("definitions", self.definitions)] + (media if self.photos_first else media[::-1])
-        order = [("apps", self.apps), *order] if self.apps_first else [*order, ("apps", self.apps)]
+        first = [("apps", self.apps)] if self.apps_first else []
+        first += [("settings", self.settings)] if self.settings_first else []
+        last = [] if self.settings_first else [("settings", self.settings)]
+        last += [] if self.apps_first else [("apps", self.apps)]
+        order = [*first, *order, *last]
         return [(name, items) for name, items in order if items]
 
 
@@ -196,10 +205,18 @@ def _categories(vector: list[Hit], keyword: list[Hit], image: list[Hit], definit
     return [name for name, members in CATEGORIES.items() if kinds & members]
 
 
-def _log_item(section: str, item: Result | Definition | AppHit) -> dict:
-    if isinstance(item, AppHit):  # chunk_id 0: an application, not a passage of a file
+def _settings_app_name(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT name FROM apps WHERE path LIKE '%/System Settings.app'").fetchone()
+    return row["name"] if row else None
+
+
+def _log_item(section: str, item: Result | Definition | AppHit | SettingHit) -> dict:
+    if isinstance(item, AppHit):  # chunk_id 0: an application or a setting, not a passage of a file
         return {"section": section, "path": item.path, "chunk_id": 0, "start_line": None, "kind": "app",
                 "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
+    if isinstance(item, SettingHit):
+        return {"section": section, "path": item.url, "chunk_id": 0, "start_line": None, "kind": "setting",
+                "symbol": item.title, "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
     if isinstance(item, Definition):
         return {
             "section": section, "path": item.path, "chunk_id": item.chunk_id, "start_line": item.line,
@@ -250,12 +267,16 @@ def search(
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query)
     t4 = time.perf_counter()
-    apps = app_search(conn, query, None if looks_like_code(query) else embedder)
+    code_like = looks_like_code(query)
+    apps = app_search(conn, query, None if code_like else embedder)
+    settings = [] if code_like else settings_search(conn, query, embedder)
     present = _categories(vector, keyword, image, definitions)
-    if apps:
-        present = ["apps", *present]
+    present = (["apps"] if apps else []) + (["settings"] if settings else []) + present
     if category == "apps":  # only applications, with room for more of them
-        apps = app_search(conn, query, embedder, limit=limit)
+        apps, settings = app_search(conn, query, embedder, limit=limit), []
+        vector, keyword, image, definitions = [], [], [], []
+    elif category == "settings":
+        settings, apps = settings_search(conn, query, embedder, limit=limit), []
         vector, keyword, image, definitions = [], [], [], []
     elif category in CATEGORIES:  # a filter pill: only that kind, with room for more of it
         kinds = CATEGORIES[category]
@@ -263,7 +284,7 @@ def search(
         keyword = [h for h in keyword if h.kind in kinds]
         image = [h for h in image if h.kind in kinds]
         definitions = definitions if category == "code" else []
-        apps = []
+        apps, settings = [], []
         limit = limit + limit // 2
     else:
         category = None
@@ -286,6 +307,8 @@ def search(
         photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,
         categories=present, category=category, completion=completion(conn, query),
         apps=apps, apps_first=bool(apps) and apps[0].match != "meaning",
+        settings=settings, settings_first=bool(settings) and settings[0].match != "meaning",
+        settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))

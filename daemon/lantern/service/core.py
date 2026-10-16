@@ -418,6 +418,8 @@ class Daemon:
             "definitions": [asdict(d) for d in resp.definitions], "symbol_ms": resp.symbol_ms,
             "categories": resp.categories, "category": resp.category, "completion": resp.completion,
             "apps": [asdict(a) for a in resp.apps], "apps_first": resp.apps_first,
+            "settings": [asdict(s) for s in resp.settings], "settings_first": resp.settings_first,
+            "settings_app_name": resp.settings_app_name,
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
@@ -563,6 +565,7 @@ class Daemon:
         """Re-read the applications when their folders changed (or languages, or on start); vectors are computed on
         the model thread, only for new or changed apps."""
         from lantern import apps as apps_mod
+        from lantern import system_settings
         from lantern.embedding.base import format_document
         from lantern.syslang import preferred_languages
 
@@ -570,18 +573,20 @@ class Daemon:
         if not force and now - self._apps_checked < APPS_CHECK_S:
             return
         self._apps_checked = now
-        signature = apps_mod.folders_signature()
+        signature = (apps_mod.folders_signature(), system_settings.signature())
         if not force and signature == self._apps_signature:
             return
         languages = preferred_languages(self.settings.extra_languages)
         found = apps_mod.scan_apps(languages)
+        settings_items = system_settings.scan_settings(languages)
 
         def store() -> int:
             conn = self._conn()
             try:
                 model_id = db.ensure_model(conn, self.embedder.model_info())
                 embed = lambda docs: self.embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
-                return apps_mod.store_apps(conn, found, languages, embed, model_id)
+                n = apps_mod.store_apps(conn, found, languages, embed, model_id)
+                return n + system_settings.store_settings(conn, settings_items, languages, embed, model_id)
             finally:
                 conn.close()
 
@@ -741,7 +746,6 @@ class Daemon:
             for root in roots:
                 self.watcher.watch(root)
         self._check_power()
-        self._refresh_apps(force=True)
         self.scan_all()  # source of truth after any downtime
         conn = self._conn()
         self._after_scan(conn, found_new=True)  # also files left waiting by an earlier run

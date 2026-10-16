@@ -13,6 +13,7 @@ def lantern_home(tmp_path, monkeypatch):
     home = tmp_path / "lantern-home"
     monkeypatch.setenv("LANTERN_HOME", str(home))
     monkeypatch.setenv("LANTERN_APP_DIRS", "")  # no applications unless a test makes some (never the real ones)
+    monkeypatch.setenv("LANTERN_SETTINGS_DIR", "")  # nor System Settings
     return home
 
 

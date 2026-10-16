@@ -39,6 +39,7 @@ def system_language() -> str:
 
 
 def preferred_languages(extra: list[str] | tuple[str, ...] = ()) -> list[str]:
-    """macOS languages, then the ones added in Settings, then English (names of most apps); no duplicates."""
+    """macOS languages, then the ones added in Settings, then English (names of most apps); no duplicates. App and
+    setting names come from macOS, so they are shown in its language whatever language Lantern's window uses."""
     codes = [*system_languages(), *(normalize_language(c) for c in extra), "en"]
     return list(dict.fromkeys(c for c in codes if c))

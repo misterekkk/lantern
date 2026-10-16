@@ -243,3 +243,20 @@ import Testing
         #expect(try response(appsFirst: false, match: "meaning").sections.map(\.kind) == [.files, .apps])
     }
 }
+
+@Suite struct SettingResultTests {
+    @Test func settingsMatchedByWordsComeFirstAndOpenTheirPane() throws {
+        let json = """
+        {"results": [], "settings": [{"key": "com.apple.Date-Time-Settings.extension/24HourTime", "pane": "Data i czas",
+          "title": "Używaj formatu 24‑godzinnego", "url": "x-apple.systempreferences:com.apple.Date-Time-Settings.extension",
+          "symbol": "calendar.badge.clock", "color": "Blue", "is_pane": false, "match": "words", "score": 0.6}],
+         "settings_first": true, "categories": ["settings"], "vector_ms": 1, "keyword_ms": 1}
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let resp = try decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        let row = resp.sections[0].results[0]
+        #expect(resp.sections.map(\.kind) == [.settings] && row.isSetting && row.path.hasPrefix("x-apple.systempreferences:"))
+        #expect(Format.title(row) == "Używaj formatu 24‑godzinnego" && Format.subtitle(row).hasSuffix("Data i czas"))
+    }
+}
