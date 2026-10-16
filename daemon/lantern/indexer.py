@@ -41,7 +41,7 @@ IMAGE_BATCH = 8
 # Bump the version of a file kind when its chunking rules or prompt formats change: indexed files of that kind
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2.
-PIPELINE_VERSIONS = {"text": 2, "code": 3, "audio": 2, "video": 3, "image": 1}
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "audio": 2, "video": 3, "image": 2}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 

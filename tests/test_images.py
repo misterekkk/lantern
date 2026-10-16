@@ -145,3 +145,16 @@ def test_code_like_queries_never_put_photos_first():
         assert looks_like_code(q), q
     for q in ("pies", "dziecko w wodzie", "zachód słońca", "README instalacja", "samochód na parkingu"):
         assert not looks_like_code(q), q
+
+
+def test_transparent_images_are_flattened_onto_white(tmp_path):
+    """Black text on a transparent background (PDF exports, graphics) must stay readable, not turn black on black."""
+    from PIL import Image, ImageDraw
+
+    from lantern.extractors.image import load_image
+
+    im = Image.new("RGBA", (300, 200), (0, 0, 0, 0))
+    ImageDraw.Draw(im).rectangle((40, 80, 260, 120), fill=(0, 0, 0, 255))  # "text"
+    im.save(tmp_path / "export.png")
+    loaded = load_image(tmp_path / "export.png")
+    assert loaded.getpixel((5, 5)) == (255, 255, 255) and loaded.getpixel((150, 100)) == (0, 0, 0)
