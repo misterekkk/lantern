@@ -292,7 +292,8 @@ kbd {
   white-space: nowrap; overflow: hidden; outline: none;
 }
 .query-field span { white-space: pre; }  /* keep typed spaces; markup whitespace between spans is ignored */
-.query-field .ghost { color: var(--text-3); }
+.query-field .ghost, .query-field .placeholder { color: var(--text-3); }
+.query-field .placeholder { margin-left: 2px; }
 .query-field .caret {  /* drawn over the text, takes no width: no gap between typed text and the suggestion */
   display: inline-block; width: 2px; height: 26px; margin: 0 -2px -5px 0;
   background: var(--accent); animation: blink 1.05s steps(1) infinite;
@@ -328,14 +329,41 @@ kbd {
 .result .sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
 .result .preview { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.4; }
 .result .preview.code { font-family: var(--mono); color: var(--text); }
-.result mark { background: rgba(250, 204, 21, 0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
 
-.panel-hints {
-  display: flex; align-items: center; gap: 14px;
-  padding: 9px 18px; font-size: 11px; color: var(--text-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+/* matched words: bold in the text colour, as the app marks them */
+.result b.match, .transcript b.match, .text-preview b.match { font-weight: 650; color: var(--text); }
+
+/* filter pills under the query field (the app's ScopeBar) */
+.scope-bar { display: flex; gap: 6px; padding: 0 22px 10px; overflow: hidden; animation: fade 0.2s var(--ease); }
+.scope-pill {
+  border: 0; border-radius: 99px; padding: 5px 11px; cursor: pointer;
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.08); color: var(--text);
 }
-.panel-hints .spacer { flex: 1; }
+.scope-pill:hover { background: rgba(255, 255, 255, 0.14); }
+.scope-pill.selected { background: var(--accent); color: #fff; }
+
+/* what ↩ and ⌘Y do with the selected row (the app's RowHint) */
+.result .title .row-hint {
+  margin-left: auto; display: flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 400; color: var(--text-2); white-space: nowrap;
+}
+.row-hint kbd { font-size: 10px; padding: 1px 6px; border-radius: 99px; margin-right: 6px; }
+.row-hint kbd:last-child { margin-right: 0; }
+.result.still { animation: none; }
+.result { cursor: default; }
+
+/* PDF page preview (the app's PDFKit view, zoomed in, query words highlighted) */
+.pdf-page {
+  position: relative; background: #fbfbf8; color: #1f2937; border-radius: 6px;
+  padding: 26px 34px 34px; font-family: Georgia, "Times New Roman", serif; font-size: 14px; line-height: 1.55;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.pdf-page p { margin: 0; }
+.pdf-page p:first-child { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.pdf-page .pdf-hit { font-weight: inherit; background: rgba(250, 204, 21, 0.55); border-radius: 2px; }
+.pdf-folio { position: absolute; right: 16px; bottom: 10px; font-size: 11px; color: #6b7280; }
+.text-preview { font-size: 13px; line-height: 1.6; color: var(--text-2); padding: 4px; }
 
 /* preview inside the panel */
 .preview-pane { padding: 10px 12px 12px; animation: fade 0.25s var(--ease); }

@@ -1,8 +1,10 @@
 /* Lantern demo: a scripted walkthrough on a simulated Mac desktop.
  * Steps: open Lantern in the menu bar → start it → index new files → close the menu → ⌥Space → type a suggested
- * phrase → results → ⌘Y preview → another search … → the end card.
- * Development: ?step=menu|found|indexing|ready|shortcut|type|results|preview&scenario=photo|video|code|song
- *   (&typed=N: the first N characters already typed)
+ * phrase (the grey completion is accepted with →) → results with filter pills → ⌘Y preview → another search … →
+ * the end card. The panel mirrors the app: placeholder, inline completion, pills, hints on the selected row, matched
+ * words in bold (same folding as the app: "lodz" marks "Łódź").
+ * Development: ?step=menu|found|indexing|ready|shortcut|type|results|preview
+ *   &scenario=photo|screenshot|video|code|pdf|song (&typed=N: the first N characters already typed)
  */
 "use strict";
 
@@ -19,6 +21,7 @@ const ICON = {
   control: `<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.5"><rect x="2" y="3.5" width="16" height="5.5" rx="2.75"/><circle cx="5.2" cy="6.25" r="1.6" fill="#fff"/><rect x="2" y="11" width="16" height="5.5" rx="2.75"/><circle cx="14.8" cy="13.75" r="1.6" fill="#fff"/></svg>`,
   glyph: `<svg viewBox="0 0 26 26" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M16.2 16.2 22 22" stroke-linecap="round"/><path d="M11 6.6 11.9 10.1 15.4 11 11.9 11.9 11 15.4 10.1 11.9 6.6 11 10.1 10.1Z" fill="#fff" stroke="none"/></svg>`,
   doc: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><g stroke="#9aa3b2" stroke-width="2.4" stroke-linecap="round"><path d="M13 28h28M13 36h28M13 44h20"/></g></svg>`,
+  pdf: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><rect x="9" y="34" width="38" height="16" rx="3" fill="#dc2626"/><text x="28" y="46" font-family="-apple-system,Helvetica,Arial" font-size="11" font-weight="800" text-anchor="middle" fill="#fff">PDF</text></svg>`,
   md: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><text x="27" y="44" font-family="-apple-system,Helvetica,Arial" font-size="15" font-weight="800" text-anchor="middle" fill="#6b4fbb">MD</text></svg>`,
   py: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><rect x="13" y="26" width="15" height="15" rx="4" fill="#3b77a8"/><rect x="26" y="34" width="15" height="15" rx="4" fill="#f2c94c"/></svg>`,
   txt: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><g stroke="#9aa3b2" stroke-width="2.4" stroke-linecap="round"><path d="M13 30h28M13 38h28M13 46h14"/></g></svg>`,
@@ -59,82 +62,173 @@ const ART = {
   parkDog: `<svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid slice"><rect width="160" height="120" fill="#bae6fd"/><circle cx="30" cy="26" r="10" fill="#fef3c7"/><path d="M0 70q40-18 80-6t80-4v60H0z" fill="#4ade80"/><path d="M0 86q50-10 100 0t60 0v34H0z" fill="#22c55e"/><circle cx="128" cy="52" r="20" fill="#16a34a"/><rect x="125" y="62" width="6" height="22" fill="#78350f"/><g fill="#e5e7eb"><ellipse cx="70" cy="90" rx="15" ry="7"/><circle cx="85" cy="82" r="6.5"/><path d="M88 76l5-5 1 8z"/><rect x="59" y="94" width="4" height="11" rx="2"/><rect x="67" y="95" width="4" height="10" rx="2"/><rect x="75" y="94" width="4" height="11" rx="2"/></g><circle cx="98" cy="96" r="4" fill="#ef4444"/></svg>`,
   sunset: `<svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset=".5" stop-color="#f97316"/><stop offset="1" stop-color="#fde047"/></linearGradient></defs><rect width="160" height="120" fill="url(#ss)"/><circle cx="80" cy="74" r="20" fill="#fff7ed"/><rect y="74" width="160" height="46" fill="#1e3a8a"/><g stroke="#fde68a" stroke-width="2" opacity=".7"><path d="M60 82h40M66 90h28M72 98h16"/></g></svg>`,
   vlog: `<svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice"><rect width="320" height="200" fill="#14532d"/><rect y="0" width="320" height="70" fill="#1e293b"/><g fill="#fde68a" opacity=".9"><circle cx="40" cy="20" r="5"/><circle cx="280" cy="20" r="5"/></g><g fill="#334155"><rect x="0" y="40" width="320" height="30"/></g><g fill="#64748b"><circle cx="20" cy="55" r="4"/><circle cx="40" cy="52" r="4"/><circle cx="60" cy="56" r="4"/><circle cx="80" cy="53" r="4"/><circle cx="100" cy="55" r="4"/><circle cx="120" cy="52" r="4"/><circle cx="140" cy="56" r="4"/><circle cx="160" cy="53" r="4"/><circle cx="180" cy="55" r="4"/><circle cx="200" cy="52" r="4"/><circle cx="220" cy="56" r="4"/><circle cx="240" cy="53" r="4"/><circle cx="260" cy="55" r="4"/><circle cx="280" cy="52" r="4"/><circle cx="300" cy="56" r="4"/></g><g stroke="#e2e8f0" stroke-width="2" fill="none" opacity=".75"><rect x="20" y="82" width="280" height="110"/><path d="M160 82v110"/><circle cx="160" cy="137" r="20"/></g><g fill="#ef4444"><circle cx="120" cy="120" r="4"/><circle cx="190" cy="150" r="4"/></g><g fill="#3b82f6"><circle cx="210" cy="118" r="4"/><circle cx="140" cy="160" r="4"/></g><circle cx="168" cy="134" r="3" fill="#fff"/></svg>`,
+  screenshot: `<svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice"><rect width="320" height="200" fill="#1d4ed8"/><rect x="34" y="26" width="252" height="148" rx="10" fill="#f8fafc"/><rect x="34" y="26" width="252" height="24" rx="10" fill="#e2e8f0"/><rect x="34" y="40" width="252" height="10" fill="#e2e8f0"/><g fill="#94a3b8"><circle cx="48" cy="38" r="4"/><circle cx="61" cy="38" r="4"/><circle cx="74" cy="38" r="4"/></g><circle cx="66" cy="86" r="14" fill="#ef4444"/><path d="M60 80l12 12M72 80 60 92" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><g font-family="-apple-system,Helvetica,Arial" fill="#0f172a"><text x="92" y="82" font-size="14" font-weight="700">Windows Update</text><text x="92" y="102" font-size="12">Error code: 0x80070002</text><text x="50" y="128" font-size="11" fill="#475569">The system cannot find the file specified.</text></g><rect x="206" y="146" width="66" height="18" rx="5" fill="#2563eb"/><text x="239" y="159" font-family="-apple-system,Helvetica,Arial" font-size="10" fill="#fff" text-anchor="middle">Try again</text></svg>`,
   cover: `<svg viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="cv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#be185d"/></linearGradient></defs><rect width="160" height="160" fill="url(#cv)"/><circle cx="110" cy="50" r="18" fill="#fde68a" opacity=".85"/><path d="M0 120q40-30 80-10t80-20v70H0z" fill="#0f172a" opacity=".7"/><g fill="#fff" opacity=".8"><circle cx="30" cy="30" r="1.2"/><circle cx="60" cy="20" r="1"/><circle cx="140" cy="100" r="1"/><circle cx="20" cy="80" r="1"/></g></svg>`,
 };
 
 /* ---------- scenarios ---------- */
 
+// Rows: cat = filter pill (code, docs, pdf, photos, media), preview = plain text (matched words are bolded at render
+// time, like the app). complete = characters typed before the grey completion appears.
 const SCENARIOS = [
   {
-    id: "photo", label: "a photo", phrase: "dog on the beach",
+    id: "photo", label: "a photo", phrase: "dog on the beach", complete: 5,
     typeHint: "No file is called that — Lantern looks at what is in your photos.",
     blurb: "Photos come first because that’s what you meant — Lantern looks at what is <b>in</b> the picture, not its file name.",
     sections: [
       ["Photos", [
-        { thumb: ART.beachDog, title: "IMG_2041.heic", sub: "~/Pictures/Hel 2025", source: "image" },
-        { thumb: ART.parkDog, title: "rex_park.jpg", sub: "~/Pictures/Rex", source: "image" },
-        { thumb: ART.sunset, title: "IMG_2077.heic", sub: "~/Pictures/Hel 2025", source: "image" },
+        { thumb: ART.beachDog, title: "IMG_2041.heic", sub: "~/Pictures/Hel 2025", source: "image", cat: "photos",
+          show: { kind: "image", art: ART.beachDog } },
+        { thumb: ART.parkDog, title: "rex_park.jpg", sub: "~/Pictures/Rex", source: "image", cat: "photos",
+          show: { kind: "image", art: ART.parkDog } },
+        { thumb: ART.sunset, title: "IMG_2077.heic", sub: "~/Pictures/Hel 2025", source: "image", cat: "photos",
+          show: { kind: "image", art: ART.sunset } },
       ]],
       ["Files", [
-        { icon: ICON.md, title: "trip-notes.md · Day 3", sub: "~/Documents — lines 12–20", preview: "…took Rex to the <mark>beach</mark> at sunrise, he chased the waves for an hour…", source: "meaning · words" },
+        { icon: ICON.md, title: "trip-notes.md · Day 3", sub: "~/Documents — lines 12–20", cat: "docs", source: "meaning · words",
+          preview: "…took Rex to the beach at sunrise, the dog chased the waves for an hour…" },
       ]],
     ],
-    preview: { kind: "image", art: ART.beachDog, title: "IMG_2041.heic" },
   },
   {
-    id: "video", label: "a moment in a video", phrase: "when we talked about the match",
+    id: "screenshot", label: "text in a screenshot", phrase: "error 0x80070002", complete: 8,
+    typeHint: "Lantern reads the text in your screenshots and scans — on your Mac.",
+    blurb: "macOS reads the text in images on your Mac, so a screenshot is found by <b>what it says</b> — the matching text is shown under it.",
+    sections: [
+      ["Photos", [
+        { thumb: ART.screenshot, title: "Screenshot 2025-10-14 at 09.12.33.png", sub: "~/Desktop", cat: "photos",
+          source: "text in image", preview: "Windows Update · Error code: 0x80070002 · The system cannot find the file specified.",
+          show: { kind: "image", art: ART.screenshot } },
+      ]],
+      ["Files", [
+        { icon: ICON.md, title: "pc-fixes.md · Windows", sub: "~/Documents — lines 4–9", cat: "docs", source: "words · meaning",
+          preview: "Update error 0x80070002: stop the update service, clear SoftwareDistribution, try again." },
+      ]],
+    ],
+  },
+  {
+    id: "video", label: "a moment in a video", phrase: "when we talked about the match", complete: 9,
     typeHint: "Describe it in your own words — Lantern understands what was said in your videos.",
     blurb: "Lantern transcribes recordings on your Mac, so it finds <b>the moment</b> something was said — here at 1:48.",
     sections: [
       ["Files", [
-        { thumb: ART.vlog, badge: "1:48", title: "vlog_weekend.mp4 · 1:48", sub: "~/Movies — 1:48–2:13", preview: "“…and then the <mark>match</mark>, two–one in the very last minute, the whole stadium went silent…”", source: "meaning · words" },
-        { icon: ICON.txt, title: "football.txt", sub: "~/Documents — lines 1–8", preview: "Saturday: Lech vs Legia, tickets in the drawer…", source: "meaning" },
+        { thumb: ART.vlog, badge: "1:48", title: "vlog_weekend.mp4 · 1:48", sub: "~/Movies — 1:48–2:13", cat: "media", media: true,
+          source: "meaning · words", preview: "“…and then the match, two–one in the very last minute, the whole stadium went silent…”",
+          show: { kind: "video", art: ART.vlog, start: 105, length: 412,
+            transcript: "“…and then the match, two–one in the very last minute, the whole stadium went silent and then just exploded…”" } },
+        { icon: ICON.txt, title: "football.txt", sub: "~/Documents — lines 1–8", cat: "docs", source: "meaning",
+          preview: "Saturday: Lech vs Legia, tickets in the drawer…" },
       ]],
     ],
-    preview: { kind: "video", art: ART.vlog, title: "vlog_weekend.mp4 · 1:48", start: 105, length: 412,
-      transcript: "“…and then the match, two–one in the very last minute, the whole stadium went silent and then just exploded…”" },
   },
   {
-    id: "code", label: "code at its line", phrase: "def add_two(x, y):",
+    id: "code", label: "code at its line", phrase: "def add_two(x, y):", complete: 6,
     typeHint: "Paste a line of code — Lantern finds where it is defined.",
     blurb: "Paste a line of code and Lantern jumps to the <b>exact line</b> where it is defined — in your own editor.",
     sections: [
       ["Definitions", [
-        { icon: ICON.py, title: "add_two · math_utils.py", sub: "~/Projects/calc — line 200", preview: "def add_two(x, y)", code: true, source: "definition" },
+        { icon: ICON.py, title: "add_two · math_utils.py", sub: "~/Projects/calc — line 200", preview: "def add_two(x, y)", code: true,
+          source: "definition", cat: "code",
+          show: { kind: "code", title: "math_utils.py — line 200", from: 194, hit: [200, 201], lines: [
+            ['<span class="tok-c"># --- arithmetic helpers ---</span>'],
+            [""],
+            ['<span class="tok-k">def</span> <span class="tok-f">add_one</span>(x):'],
+            ['    <span class="tok-k">return</span> x + <span class="tok-n">1</span>'],
+            [""],
+            [""],
+            ['<span class="tok-k">def</span> <span class="tok-f">add_two</span>(x, y):'],
+            ['    <span class="tok-k">return</span> x + y'],
+            [""],
+            [""],
+            ['<span class="tok-k">def</span> <span class="tok-f">mean</span>(values):'],
+            ['    <span class="tok-k">return</span> <span class="tok-f">sum</span>(values) / <span class="tok-f">len</span>(values)'],
+          ] } },
       ]],
       ["Files", [
-        { icon: ICON.py, title: "calculator.py · total", sub: "~/Projects/calc — lines 41–48", preview: "result = add_two(subtotal, tax)", code: true, source: "meaning · words" },
+        { icon: ICON.py, title: "calculator.py · total", sub: "~/Projects/calc — lines 41–48", preview: "result = add_two(subtotal, tax)",
+          code: true, source: "meaning · words", cat: "code" },
+        { icon: ICON.md, title: "README.md · Helpers", sub: "~/Projects/calc — lines 18–24", cat: "docs", source: "words",
+          preview: "add_two(x, y) returns the sum; see math_utils.py for the other helpers." },
       ]],
     ],
-    preview: { kind: "code", title: "math_utils.py — line 200", from: 194, hit: [200, 201], lines: [
-      ['<span class="tok-c"># --- arithmetic helpers ---</span>'],
-      [""],
-      ['<span class="tok-k">def</span> <span class="tok-f">add_one</span>(x):'],
-      ['    <span class="tok-k">return</span> x + <span class="tok-n">1</span>'],
-      [""],
-      [""],
-      ['<span class="tok-k">def</span> <span class="tok-f">add_two</span>(x, y):'],
-      ['    <span class="tok-k">return</span> x + y'],
-      [""],
-      [""],
-      ['<span class="tok-k">def</span> <span class="tok-f">mean</span>(values):'],
-      ['    <span class="tok-k">return</span> <span class="tok-f">sum</span>(values) / <span class="tok-f">len</span>(values)'],
-    ]},
   },
   {
-    id: "song", label: "a song by its lyrics", phrase: "song about a summer night",
+    id: "pdf", label: "a page in a PDF", phrase: "electricity invoice for october", complete: 7,
+    typeHint: "Lantern reads PDFs page by page — even scanned ones.",
+    blurb: "PDFs are searched page by page, so the result is <b>the page</b> — ⌘Y shows it with your words highlighted.",
+    sections: [
+      ["Files", [
+        { icon: ICON.pdf, title: "invoices_2025.pdf · page 10", sub: "~/Documents/Bills — page 10", cat: "pdf", source: "meaning · words",
+          preview: "Invoice 2025/10/1187 — electricity, October 2025. Total due: 245.30 PLN by 14 November.",
+          show: { kind: "pdf", page: 10, lines: [
+            "Invoice 2025/10/1187", "", "Period: 1–31 October 2025", "Electricity, tariff G11 — 412 kWh",
+            "Distribution fee", "", "Total due: 245.30 PLN", "Payment by 14 November 2025",
+          ] } },
+        { icon: ICON.md, title: "budget.md · Bills", sub: "~/Documents — lines 30–36", cat: "docs", source: "meaning",
+          preview: "October: rent paid, electricity invoice still open, internet 59 PLN." },
+      ]],
+    ],
+  },
+  {
+    id: "song", label: "a song by its lyrics", phrase: "song about a summer night", complete: 7,
     typeHint: "The title says nothing about it — Lantern listens to the lyrics.",
     blurb: "Songs and podcasts are searchable by what is sung or said — even if the title says nothing about it.",
     sections: [
       ["Files", [
-        { thumb: ART.cover, badge: "0:42", title: "track_07.m4a · 0:42", sub: "~/Music/Demos — 0:42–1:07", preview: "“…we drove all night under the <mark>summer</mark> sky, windows down…”", source: "words · meaning" },
-        { icon: ICON.md, title: "setlist.md", sub: "~/Documents — lines 3–6", preview: "7. the slow one about July, capo on 2", source: "meaning" },
+        { thumb: ART.cover, badge: "0:42", title: "track_07.m4a · 0:42", sub: "~/Music/Demos — 0:42–1:07", cat: "media", media: true,
+          source: "words · meaning", preview: "“…we drove all night under the summer sky, windows down…”",
+          show: { kind: "audio", start: 39, length: 214,
+            transcript: "“…we drove all night under the summer sky, windows down, singing every word we knew…”" } },
+        { icon: ICON.md, title: "setlist.md", sub: "~/Documents — lines 3–6", cat: "docs", source: "meaning",
+          preview: "7. the slow one about July, capo on 2" },
       ]],
     ],
-    preview: { kind: "audio", title: "track_07.m4a · 0:42", start: 39, length: 214,
-      transcript: "“…we drove all night under the summer sky, windows down, singing every word we knew…”" },
   },
 ];
+
+// Pills in the app's order (stable ⌘1…⌘6) and its labels.
+const CATEGORIES = [["code", "Code"], ["docs", "Documents"], ["pdf", "PDFs"], ["photos", "Photos"], ["media", "Recordings and videos"]];
+
+/* ---------- matched words (a port of the app's QueryHighlight + TextFold) ---------- */
+
+// Letters without a Unicode decomposition: diacritic stripping leaves them, so they are spelled out (as in the app).
+const FOLD = { "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ħ": "h", "ŧ": "t", "ŋ": "n", "ı": "i", "ĸ": "k", "ß": "ss", "æ": "ae", "œ": "oe", "þ": "th" };
+const SKIP = new Set("the and for with about when that this from into what where was were jak dla czy nie sie oraz przez przy jest gdzie kiedy albo lub".split(" "));
+const WORD = /[\p{L}\p{N}]/u;
+const foldChar = (c) => [...c.normalize("NFKC").toLowerCase()].map((x) => FOLD[x] ?? x).join("").normalize("NFKD").replace(/\p{M}/gu, "");
+
+function stems(query) {
+  const out = new Set();
+  for (const part of query.split(/[^\p{L}\p{N}]+/u)) {
+    const word = [...part].map(foldChar).join("");
+    const number = /^\p{N}+$/u.test(word);
+    if (word.length < (number ? 2 : 3) || SKIP.has(word)) continue;
+    out.add(word.length >= 7 ? word.slice(0, -2) : word);
+  }
+  return [...out];
+}
+
+/** HTML of text with the whole words that start with one of the query's stems in bold. */
+function highlight(text, query) {
+  const chars = [...text];
+  let folded = "";
+  const origin = [];  // folded index -> index in chars
+  chars.forEach((c, k) => { for (const f of foldChar(c)) { folded += f; origin.push(k); } });
+  const marked = new Array(chars.length).fill(false);
+  for (const stem of stems(query)) {
+    for (let at = folded.indexOf(stem); at !== -1; at = folded.indexOf(stem, at + stem.length)) {
+      let k = origin[at];
+      if (k > 0 && WORD.test(chars[k - 1])) continue;  // word starts only
+      for (; k < chars.length && WORD.test(chars[k]); k++) marked[k] = true;
+    }
+  }
+  let html = "", open = false;
+  chars.forEach((c, k) => {
+    if (marked[k] !== open) { html += marked[k] ? '<b class="match">' : "</b>"; open = marked[k]; }
+    html += escapeHtml(c);
+  });
+  return open ? `${html}</b>` : html;
+}
 
 /* ---------- state ---------- */
 
@@ -142,6 +236,8 @@ const state = {
   step: "intro",
   scenario: null,
   typed: "",
+  category: null,  // the selected pill (null = All)
+  selection: 0,  // index into the visible rows
   done: new Set(),
   timers: [],
 };
@@ -346,20 +442,22 @@ const STEPS = {
   results() {
     const sc = state.scenario;
     renderResults(sc);
-    hint(`${sc.blurb}<br><br>Press <b>⌘Y</b> to preview it, right here.`, {
+    const pills = categoriesOf(sc).length > 1
+      ? "<br><br>The pills narrow it to one kind — click one or press <b>Tab</b>." : "";
+    hint(`${sc.blurb}${pills}<br><br>Press <b>⌘Y</b> to preview it, right here.`, {
       x: 40, y: 196, arrow: "none", actions: [{ label: "Preview (⌘Y)", onClick: () => go("preview") }],
     });
   },
 
   preview() {
     const sc = state.scenario;
-    renderPreview(sc);
+    renderPreview(visibleRows()[state.selection]);
     state.done.add(sc.id);
     const left = SCENARIOS.filter((s) => !state.done.has(s.id));
     const actions = nextSearchActions();
     hint(left.length
       ? "In Lantern, <b>↩</b> opens it at this exact spot — the line in your editor, the moment in QuickTime.<br><br>Try another search:"
-      : "That’s all four. <b>↩</b> would open each one at the exact spot.", { x: 40, y: 196, actions });
+      : "That’s all of them. <b>↩</b> would open each one at the exact spot.", { x: 40, y: 196, actions });
   },
 
   finale() {
@@ -415,20 +513,53 @@ function pickScenario(sc) {
   state.scenario = sc;
   state.step = "type";
   state.typed = "";
+  state.category = null;
+  state.selection = 0;
   $("#panelContent").hidden = true;
-  $("#panelHints").hidden = true;
+  $("#scopeBar").hidden = true;
   renderQuery();
   $("#queryField").focus({ preventScroll: true });
-  hint(`Type <b>“${escapeHtml(sc.phrase)}”</b><br>${sc.typeHint}`, {
-    x: 534, y: 252, arrow: "up",
-  });
+  typeHintFor(sc);
+}
+
+function typeHintFor(sc) {
+  hint(`Type <b>“${escapeHtml(sc.phrase)}”</b><br>${sc.typeHint}`, { x: 534, y: 252, arrow: "up" });
+}
+
+/** The grey completion, as in the app: it appears once enough is typed and completes from earlier searches and the
+ * names in the index (here: the scenario's phrase). */
+function completion() {
+  const sc = state.scenario;
+  return sc && state.step === "type" && state.typed.length >= sc.complete ? sc.phrase.slice(state.typed.length) : "";
 }
 
 function renderQuery() {
   const sc = state.scenario;
+  const ghost = completion();
   $("#typed").textContent = state.typed;
-  $("#ghost").textContent = sc ? sc.phrase.slice(state.typed.length) : "";
+  $("#ghost").textContent = ghost;
+  $("#placeholder").hidden = state.typed.length > 0;
   $("#typeForMe").hidden = !sc || state.step !== "type";
+  if (sc && state.step === "type") {
+    if (ghost && !state.completionHinted) {
+      state.completionHinted = true;
+      hint("The grey text completes your query — from your earlier searches and the names in your index, never from "
+        + "the internet. Press <b>→</b> to accept it.", { x: 534, y: 252, arrow: "up",
+        actions: [{ label: "Accept (→)", onClick: acceptCompletion }] });
+    } else if (!ghost && state.completionHinted) {
+      state.completionHinted = false;
+      typeHintFor(sc);
+    }
+  }
+}
+
+function acceptCompletion() {
+  const sc = state.scenario;
+  if (!sc || state.step !== "type" || !completion()) return;
+  state.typed = sc.phrase;
+  state.completionHinted = false;
+  renderQuery();
+  later(220, () => go("results"));
 }
 
 function typeChar(ch) {
@@ -444,64 +575,124 @@ function typeChar(ch) {
     return;
   }
   state.typed += expected;
+  if (state.typed === sc.phrase) state.completionHinted = false;
   renderQuery();
   if (state.typed === sc.phrase) later(220, () => go("results"));
 }
 
+/** Types up to the completion, pauses so it can be seen, then accepts it with →. */
 function typeForMe() {
   const sc = state.scenario;
   if (!sc || state.step !== "type") return;
   const next = () => {
     if (state.step !== "type" || state.typed === sc.phrase) return;
+    if (completion()) { later(900, acceptCompletion); return; }
     typeChar(sc.phrase[state.typed.length]);
-    later(45 + Math.random() * 40, next);
+    later(60 + Math.random() * 50, next);
   };
   next();
 }
 
-function renderResults(sc) {
+function categoriesOf(sc) {
+  const present = new Set(sc.sections.flatMap(([, rows]) => rows.map((r) => r.cat)));
+  return CATEGORIES.filter(([id]) => present.has(id));
+}
+
+function visibleSections() {
+  const sc = state.scenario;
+  return sc.sections
+    .map(([title, rows]) => [title, rows.filter((r) => !state.category || r.cat === state.category)])
+    .filter(([, rows]) => rows.length);
+}
+const visibleRows = () => visibleSections().flatMap(([, rows]) => rows);
+
+function renderPills(sc) {
+  const cats = categoriesOf(sc);
+  const bar = $("#scopeBar");
+  bar.hidden = cats.length < 2;  // like the app: only when there is something to choose between
+  bar.innerHTML = [[null, "All"], ...cats].map(([id, label]) =>
+    `<button type="button" class="scope-pill${state.category === id ? " selected" : ""}" data-cat="${id ?? ""}">${label}</button>`).join("");
+  bar.querySelectorAll(".scope-pill").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat || null)));
+}
+
+function setCategory(cat) {
+  if (state.step === "preview") state.step = "results";
+  state.category = cat;
+  state.selection = 0;
+  renderResults(state.scenario, false);
+}
+
+function cyclePill(step) {
+  const ids = [null, ...categoriesOf(state.scenario).map(([id]) => id)];
+  if (ids.length < 3) return;
+  setCategory(ids[(ids.indexOf(state.category) + step + ids.length) % ids.length]);
+}
+
+function renderResults(sc, animate = true) {
   const content = $("#panelContent");
   content.hidden = false;
-  $("#panelHints").hidden = false;
-  $("#previewHint").textContent = "preview";
   $("#typeForMe").hidden = true;
+  renderPills(sc);
   let i = 0;
-  content.innerHTML = sc.sections.map(([title, rows]) => `
-    <div class="section-title">${title}</div>
+  const sections = visibleSections();
+  content.innerHTML = sections.map(([title, rows]) => `
+    ${sections.length > 1 ? `<div class="section-title">${title}</div>` : ""}
     ${rows.map((r) => {
       const media = r.thumb
         ? `<span class="thumb">${r.thumb}${r.badge ? `<span class="badge">${r.badge}</span>` : ""}</span>`
         : `<span class="icon">${r.icon}</span>`;
-      const delay = (i++) * 60;
-      return `<div class="result${delay === 0 ? " selected" : ""}" style="animation-delay:${delay}ms">${media}
-        <div class="body"><div class="title"><span>${r.title}</span><span class="source">${r.source}</span></div>
-        <div class="sub">${r.sub}</div>${r.preview ? `<div class="preview${r.code ? " code" : ""}">${r.preview}</div>` : ""}</div></div>`;
+      const index = i++;
+      const selected = index === state.selection;
+      const right = selected
+        ? `<span class="row-hint">preview <kbd>⌘Y</kbd> ${r.media ? "play" : "open"} <kbd>↩</kbd></span>`
+        : `<span class="source">${r.source}</span>`;
+      return `<div class="result${selected ? " selected" : ""}${animate ? "" : " still"}" data-index="${index}" style="animation-delay:${index * 60}ms">${media}
+        <div class="body"><div class="title"><span>${escapeHtml(r.title)}</span>${right}</div>
+        <div class="sub">${r.sub}</div>${r.preview ? `<div class="preview${r.code ? " code" : ""}">${highlight(r.preview, sc.phrase)}</div>` : ""}</div></div>`;
     }).join("")}`).join("");
+  content.querySelectorAll(".result").forEach((row) => {
+    row.addEventListener("click", () => select(Number(row.dataset.index)));
+    row.addEventListener("dblclick", () => { select(Number(row.dataset.index)); go("preview"); });
+  });
 }
 
-function renderPreview(sc) {
-  const p = sc.preview;
+function select(index) {
+  const count = visibleRows().length;
+  state.selection = Math.max(0, Math.min(count - 1, index));
+  if (state.step === "preview") state.step = "results";
+  renderResults(state.scenario, false);
+}
+
+function renderPreview(row) {
+  const sc = state.scenario;
+  const p = row.show || { kind: "text" };
   const content = $("#panelContent");
   content.hidden = false;
-  $("#panelHints").hidden = false;
-  $("#previewHint").textContent = "back";
+  $("#scopeBar").hidden = true;  // the app hides the pills while previewing
   let body = "";
   if (p.kind === "image") {
-    body = `<div class="preview-media">${p.art}</div>`;
+    body = `<div class="preview-media">${p.art}</div>${row.preview ? `<p class="transcript">${highlight(row.preview, sc.phrase)}</p>` : ""}`;
   } else if (p.kind === "video" || p.kind === "audio") {
     // Same as the app's preview: the system player starts 3 s before the words, the transcript below, and a button
     // for QuickTime Player. Audio has no picture, so the player is just its control bar (as in the app).
     const screen = p.kind === "video" ? `<div class="preview-media">${p.art}${playerBar(p)}</div>`
       : `<div class="preview-media audio">${playerBar(p)}</div>`;
-    body = `${screen}<p class="transcript">${p.transcript}</p>
+    body = `${screen}<p class="transcript">${highlight(p.transcript, sc.phrase)}</p>
       <div class="preview-actions"><button class="btn" type="button" id="openQT">Open in QuickTime Player</button></div>`;
   } else if (p.kind === "code") {
     body = `<div class="code-preview">${p.lines.map((l, k) => {
       const n = p.from + k;
       return `<div class="${n >= p.hit[0] && n <= p.hit[1] ? "hit" : ""}"><span class="ln">${n}</span><span>${l[0] || "&nbsp;"}</span></div>`;
     }).join("")}</div>`;
+  } else if (p.kind === "pdf") {
+    // The app shows the matching page (PDFKit) zoomed in, with the query's words highlighted.
+    body = `<div class="pdf-page">${p.lines.map((l) => `<p>${l ? highlight(l, sc.phrase).replaceAll('class="match"', 'class="pdf-hit"') : "&nbsp;"}</p>`).join("")}
+      <span class="pdf-folio">${p.page}</span></div>`;
+  } else {
+    body = `<div class="text-preview">${highlight(row.preview || "", sc.phrase)}</div>`;
   }
-  content.innerHTML = `<div class="preview-pane"><h3>${p.title}</h3>${body}</div>`;
+  const title = p.title || row.title;
+  content.innerHTML = `<div class="preview-pane"><h3>${escapeHtml(title)}</h3>${body}</div>`;
   if (p.kind === "video" || p.kind === "audio") {
     playFrom(p);
     $("#openQT").addEventListener("click", () => hint(
@@ -527,7 +718,7 @@ function playFrom(p) {
     btn.setAttribute("aria-label", playing ? "Pause" : "Play");
   });
   const tick = (now) => {
-    if (state.step !== "preview" || state.scenario.preview !== p || !$("#tBar")) return;
+    if (state.step !== "preview" || !$("#tBar")) return;
     if (playing) t = Math.min(p.length, t + (now - last) / 1000);
     last = now;
     $("#tBar").style.width = `${(t / p.length) * 100}%`;
@@ -569,7 +760,25 @@ function onKey(e) {
     if (state.step === "results") go("preview");
     return;
   }
+  if (state.step === "results" || state.step === "preview") {
+    if (e.key === "Tab") { e.preventDefault(); cyclePill(e.shiftKey ? -1 : 1); return; }
+    if ((e.metaKey || e.ctrlKey) && /^[1-6]$/.test(e.key)) {
+      e.preventDefault();
+      const ids = [null, ...categoriesOf(state.scenario).map(([id]) => id)];
+      if (ids.length > 2 && Number(e.key) <= ids.length) setCategory(ids[Number(e.key) - 1]);
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      select(state.selection + (e.key === "ArrowDown" ? 1 : -1));
+      return;
+    }
+  }
   if (state.step !== "type") return;
+  if (e.key === "ArrowRight") {  // → accepts the grey completion, as in the app
+    if (completion()) { e.preventDefault(); acceptCompletion(); }
+    return;
+  }
   if (e.key === "Backspace") {
     e.preventDefault();
     state.typed = state.typed.slice(0, -1);
