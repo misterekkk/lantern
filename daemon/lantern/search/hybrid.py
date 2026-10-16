@@ -17,6 +17,7 @@ from lantern.dictionary import define
 from lantern.embedding.base import Embedder
 from lantern.search.apps import AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
+from lantern.search.music import MusicHit, music_search
 from lantern.search.settings import SettingHit, settings_search
 from lantern.search.spelling import correct
 from lantern.search.suggest import completion
@@ -47,6 +48,7 @@ CATEGORIES = {
     "pdf": {"pdf"},
     "photos": {"image", "ocr"},
     "media": {"audio", "transcript", "frame", "screen"},
+    "music": {"music"},  # the user's Apple Music songs and playlists (search/music.py)
 }
 MIN_LIST_WEIGHT = 0.25
 TEXT_GAP_LOW, TEXT_GAP_HIGH = 0.02, 0.08  # cosine gap (top - median of candidates): flat .. clear
@@ -129,6 +131,7 @@ class SearchResponse:
     definition_first: bool = False  # no file contains the word: the definition is the better answer
     section_scores: dict[str, float] = field(default_factory=dict)  # 0..1 per section, on one scale (see top)
     corrected_query: str | None = None  # the query actually searched, when a spelling guess replaced a word
+    music: list[MusicHit] = field(default_factory=list)  # Apple Music songs and playlists
 
     def sections(self) -> list[tuple[str, list]]:
         """Non-empty sections in display order: by section_scores when set (one scale for every kind), otherwise
@@ -136,7 +139,8 @@ class SearchResponse:
         if self.section_scores:
             named = {"answer": [self.answer] if self.answer else [], "apps": self.apps, "shortcuts": self.shortcuts,
                      "settings": self.settings, "definitions": self.definitions, "photos": self.photos,
-                     "files": self.results, "definition": [self.definition] if self.definition else []}  # fmt: skip
+                     "files": self.results, "definition": [self.definition] if self.definition else [],
+                     "music": self.music}  # fmt: skip
             order = sorted(named, key=lambda n: -self.section_scores.get(n, 0.0))  # stable: ties keep this order
             return [(n, named[n]) for n in order if named[n] and n in self.section_scores]
         media = [("photos", self.photos), ("files", self.results)]
@@ -239,6 +243,21 @@ def _categories(vector: list[Hit], keyword: list[Hit], image: list[Hit], definit
     return [name for name, members in CATEGORIES.items() if kinds & members]
 
 
+def _music_score(top: MusicHit, query: str) -> float:
+    """The music section on the common scale. The exact title or a playlist's name is a near-certain answer; one word
+    that only starts a title ("time", "love") is weak, below files that contain the word and agree by meaning."""
+    words = len(query.split())
+    if top.match == "title_exact":
+        return 0.95 if len(query.strip()) >= 4 else 0.7
+    if top.match in ("playlist", "kind"):
+        return 0.8
+    if top.match == "title":
+        return 0.8 if words >= 2 else 0.6
+    if top.match in ("artist", "album"):
+        return 0.7
+    return 0.42  # meaning only
+
+
 def _section_scores(
     query,
     results,
@@ -312,6 +331,9 @@ def _log_item(section: str, item: Result | Definition | AppHit | SettingHit) -> 
     if isinstance(item, ShortcutHit):
         return {"section": section, "path": f"shortcut:{item.id}", "chunk_id": 0, "start_line": None,
                 "kind": "shortcut", "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
+    if isinstance(item, MusicHit):  # music:<persistent id>; titles stay out of the log like file contents
+        return {"section": section, "path": f"music:{item.id}", "chunk_id": 0, "start_line": None,
+                "kind": item.kind, "match": item.match, "score": item.score, "start_ms": None}  # fmt: skip
     if isinstance(item, Answer | WordDefinition):  # computed on the spot: only the kind is logged
         return {"section": section, "path": "", "chunk_id": 0, "start_line": None, "kind": section, "start_ms": None}
     if isinstance(item, SettingHit):
@@ -375,15 +397,17 @@ def search(
     apps = app_search(conn, query, None if code_like else embedder)
     settings = [] if code_like else settings_search(conn, query, embedder)
     shortcuts = [] if code_like else shortcut_search(conn, query)
+    music = [] if code_like else music_search(conn, query, embedder)
     answer = None if category else instant_answer(query)
     word_definition = None if category or code_like else define(query)
     present = _categories(vector, keyword, image, definitions)
     extras = [("apps", apps), ("settings", settings), ("shortcuts", shortcuts)]
-    present = [name for name, found in extras if found] + present
-    if category in ("apps", "settings", "shortcuts"):  # only that kind, with room for more of it
+    present = [name for name, found in extras if found] + present + (["music"] if music else [])
+    if category in ("apps", "settings", "shortcuts", "music"):  # only that kind, with room for more of it
         apps = app_search(conn, query, embedder, limit=limit) if category == "apps" else []
         settings = settings_search(conn, query, embedder, limit=limit) if category == "settings" else []
         shortcuts = shortcut_search(conn, query, limit=limit) if category == "shortcuts" else []
+        music = music_search(conn, query, embedder, limit=limit * 3) if category == "music" else []
         vector, keyword, image, definitions = [], [], [], []
     elif category in CATEGORIES:  # a filter pill: only that kind, with room for more of it
         kinds = CATEGORIES[category]
@@ -391,7 +415,7 @@ def search(
         keyword = [h for h in keyword if h.kind in kinds]
         image = [h for h in image if h.kind in kinds]
         definitions = definitions if category == "code" else []
-        apps, settings, shortcuts = [], [], []
+        apps, settings, shortcuts, music = [], [], [], []
         limit = limit + limit // 2
     else:
         category = None
@@ -411,6 +435,8 @@ def search(
     )
     scores = _section_scores(query, results, file_vector, keyword, image, photos, exact_text, apps, settings,
                              shortcuts, definitions, answer, word_definition)  # fmt: skip
+    if music:
+        scores["music"] = _music_score(music[0], query)
     if category == "photos" and photos:
         scores.setdefault("photos", 0.5)  # the Photos filter shows them all, however weak
     if "photos" not in scores:
@@ -424,7 +450,7 @@ def search(
         settings_app_name=_settings_app_name(conn) if settings or "settings" in present else None,
         shortcuts=shortcuts, answer=answer, definition=word_definition,
         definition_first=bool(word_definition) and not any(r.keyword_rank for r in results),
-        section_scores=scores, corrected_query=corrected,
+        section_scores=scores, corrected_query=corrected, music=music,
     )  # fmt: skip
     if log:
         resp = replace(resp, event_id=log_search(conn, query, resp.sections()))

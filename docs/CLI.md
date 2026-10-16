@@ -77,7 +77,7 @@ definitions and photos come in their own sections, in the order the daemon decid
 | Option | Meaning |
 |---|---|
 | `-n`, `--limit N` | number of results in the files section (default 10) |
-| `--only KIND` | `apps`, `settings` (System Settings), `shortcuts`, `code`, `docs`, `pdf`, `photos` or `media` (recordings and videos): the panel's filter pills |
+| `--only KIND` | `apps`, `settings` (System Settings), `shortcuts`, `code`, `docs`, `pdf`, `photos`, `media` (recordings and videos) or `music` (Apple Music songs and playlists, sent by the app): the panel's filter pills |
 | `--no-log` | do not record this search in the local history |
 
 Output:

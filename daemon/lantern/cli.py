@@ -196,7 +196,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log,
                                         "category": args.only})  # fmt: skip
-        named = ("definitions", "photos", "apps", "settings", "shortcuts")
+        named = ("definitions", "photos", "apps", "settings", "shortcuts", "music")
         sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in named}
         sections["files"] = [SimpleNamespace(**r) for r in resp["results"]]
         media = ["photos", "files"] if resp.get("photos_first") else ["files", "photos"]
@@ -230,7 +230,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     for name, items in ordered:
         print({"definitions": "Definitions:", "photos": "Photos:", "files": "Files:", "apps": "Applications:",
                "settings": "System Settings:", "shortcuts": "Shortcuts:", "answer": "Answer:",
-               "definition": "Dictionary:"}[name])  # fmt: skip
+               "definition": "Dictionary:", "music": "Music:"}[name])  # fmt: skip
         for r in items:
             n += 1
             if name == "apps":
@@ -244,6 +244,13 @@ def cmd_search(args: argparse.Namespace) -> int:
                 continue
             if name == "shortcuts":
                 print(f"  {n:2d}. {r.name}   (shortcut, {r.match})")
+                continue
+            if name == "music":
+                if r.kind == "playlist":
+                    print(f"  {n:2d}. {r.title}   (playlist, {r.count} songs)")
+                else:
+                    where = f", playlist {r.playlist_name}" if r.playlist_name else ""
+                    print(f"  {n:2d}. {r.title} — {r.artist} · {r.album}   (song{where}, {r.match})")
                 continue
             if name == "settings":
                 where = "" if r.is_pane else f"   ({r.pane})"
@@ -275,6 +282,9 @@ def cmd_open(args: argparse.Namespace) -> int:
         where = f" @ {_clock(hit['start_ms'])}" if hit.get("start_ms") is not None else ""
         print(hit["path"] + (f":{hit['start_line']}" if hit["start_line"] else "") + where)
         return 0
+    if hit["path"].startswith("music:"):
+        print("error: songs and playlists play from the search panel (Music app)", file=sys.stderr)
+        return 1
     if not Path(hit["path"]).exists():
         print(f"error: file no longer exists: {hit['path']}", file=sys.stderr)
         return 1
@@ -548,7 +558,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-log", action="store_true", help="do not record this search in the local history")
     p.add_argument(
         "--only",
-        choices=["apps", "settings", "shortcuts", "code", "docs", "pdf", "photos", "media"],
+        choices=["apps", "settings", "shortcuts", "code", "docs", "pdf", "photos", "media", "music"],
         help="only one kind of result (the panel's filter pills)",
     )
     p.set_defaults(func=cmd_search)

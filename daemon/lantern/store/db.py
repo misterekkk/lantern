@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold, is_blob
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -97,6 +97,21 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     ],
     8: [_drop_blob_chunks],
     9: [_requeue_trimmed_files],
+    10: [
+        """CREATE TABLE IF NOT EXISTS music (
+    id         TEXT PRIMARY KEY,   -- Music's persistent ID (16 hex digits)
+    kind       TEXT NOT NULL,      -- song | playlist
+    title      TEXT NOT NULL,      -- song title or playlist name
+    artist     TEXT NOT NULL DEFAULT '',
+    album      TEXT NOT NULL DEFAULT '',
+    track      INTEGER NOT NULL DEFAULT 0,
+    downloaded INTEGER NOT NULL DEFAULT 0,
+    members    TEXT NOT NULL DEFAULT '[]',  -- JSON: a song's playlist ids, a playlist's song ids (in order)
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
+)"""
+    ],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.

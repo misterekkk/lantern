@@ -444,7 +444,7 @@ class Daemon:
             "definition": asdict(resp.definition) if resp.definition else None,
             "definition_first": resp.definition_first,
             "section_scores": resp.section_scores, "order": [name for name, _ in resp.sections()],
-            "corrected_query": resp.corrected_query,
+            "corrected_query": resp.corrected_query, "music": [asdict(m) for m in resp.music],
         }  # fmt: skip
 
     def api_opened(self, event_id: int, chunk_id: int) -> dict:
@@ -560,6 +560,27 @@ class Daemon:
             {"ext": e, "kind": known.get(e), "indexed": counts.get(e, 0)} for e in sorted(set(known) | set(counts))
         ]
         return {"suggestions": [i for i in items if i["ext"]], "ignored": list(self.settings.exclude_extensions)}
+
+    def api_music(self, songs: list | None = None, playlists: list | None = None, clear: bool = False) -> dict:
+        """The user's Apple Music library as the app reads it (MusicLibrary.swift): replaces the stored list, vectors
+        only for new or changed songs. clear: the feature was switched off, forget the list."""
+        from lantern import music as music_mod
+        from lantern.embedding.base import format_document
+
+        items = [] if clear else music_mod.items_from(songs or [], playlists or [])
+
+        def store() -> int:
+            conn = self._conn()
+            try:
+                model_id = db.ensure_model(conn, self.embedder.model_info())
+                embed = lambda docs: self.embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
+                return music_mod.store_music(conn, items, embed, model_id)
+            finally:
+                conn.close()
+
+        embedded = self.model_thread.submit(store).result()
+        return {"songs": sum(i.kind == "song" for i in items), "playlists": sum(i.kind == "playlist" for i in items),
+                "embedded": embedded}  # fmt: skip
 
     def api_languages(self, action: str | None = None, language: str | None = None) -> dict:
         """Preferred languages: the macOS ones (read fresh), the ones added in Settings, and the effective list."""

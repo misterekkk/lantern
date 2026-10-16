@@ -133,3 +133,18 @@ CREATE TABLE IF NOT EXISTS shortcuts (
     id    TEXT PRIMARY KEY,   -- Shortcuts' identifier
     name  TEXT NOT NULL
 );
+
+-- The user's Apple Music library (lantern/music.py), sent by the app (iTunesLibrary), rebuilt on change.
+CREATE TABLE IF NOT EXISTS music (
+    id         TEXT PRIMARY KEY,   -- Music's persistent ID (16 hex digits)
+    kind       TEXT NOT NULL,      -- song | playlist
+    title      TEXT NOT NULL,      -- song title or playlist name
+    artist     TEXT NOT NULL DEFAULT '',
+    album      TEXT NOT NULL DEFAULT '',
+    track      INTEGER NOT NULL DEFAULT 0,
+    downloaded INTEGER NOT NULL DEFAULT 0,
+    members    TEXT NOT NULL DEFAULT '[]',  -- JSON: a song's playlist ids, a playlist's song ids (in order)
+    document   TEXT NOT NULL,      -- the text the vector was made of
+    model_id   INTEGER NOT NULL REFERENCES embedding_models(id),
+    embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
+);

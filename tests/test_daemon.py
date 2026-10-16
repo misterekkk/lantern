@@ -333,3 +333,14 @@ def test_daemon_stops_when_newer_code_upgraded_the_index(start_daemon, lantern_h
     with pytest.raises(Exception, match="newer than this Lantern"):
         protocol.call("search", {"query": "x"})
     assert wait_until(lambda: d.stopping.is_set())  # the app's supervisor starts it again from the new code
+
+
+def test_music_library_through_the_api(start_daemon):
+    start_daemon(mode="ask")
+    songs = [{"id": "A1", "title": "SKELETONS", "artist": "Travis Scott", "album": "ASTROWORLD", "track": 5}]
+    r = protocol.call("music", {"songs": songs, "playlists": [{"id": "P1", "name": "Gym", "songs": ["A1"]}]})
+    assert r == {"songs": 1, "playlists": 1, "embedded": 2}
+    hit = protocol.call("search", {"query": "skeletons", "log": False})["music"][0]
+    assert hit["title"] == "SKELETONS" and hit["playlist_name"] == "Gym"
+    assert protocol.call("music", {"clear": True})["songs"] == 0
+    assert protocol.call("search", {"query": "skeletons", "log": False})["music"] == []
