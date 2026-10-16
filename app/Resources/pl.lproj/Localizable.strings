@@ -267,3 +267,4 @@
 "You can still choose what to skip in Choose What to Index." = "Możesz jeszcze wybrać, co pominąć, w „Wybierz, co indeksować”.";
 "Close Settings and Index" = "Zamknij Ustawienia i indeksuj";
 "Indexing starts when you close Settings, so you can still choose what to skip below." = "Indeksowanie zacznie się po zamknięciu Ustawień, więc możesz jeszcze wybrać poniżej, co pominąć.";
+"Search Lantern" = "Wyszukiwanie Lantern";  /* like "Wyszukiwanie Spotlight" */

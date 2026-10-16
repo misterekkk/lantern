@@ -134,6 +134,11 @@ final class SearchModel: ObservableObject {
         return ResultCategory.allCases.filter(list.contains)
     }
     var showsPills: Bool { !query.isEmpty && (pillCategories.count > 1 || category != nil) }
+    /// How the scope is shown (pills under the field, or Spotlight-like icons beside it); set by the view.
+    var scopeStyle: ScopeStyle = .pills
+    /// Icons beside the field: every kind before typing (choose a scope first, like Spotlight's modes), then only
+    /// the kinds with matches, plus the chosen one.
+    var iconCategories: [ResultCategory] { query.trimmingCharacters(in: .whitespaces).isEmpty ? ResultCategory.allCases : pillCategories }
     private var eventId: Int?
     private var pending: Task<Void, Never>?
 
@@ -153,7 +158,7 @@ final class SearchModel: ObservableObject {
             message = nil
             categories = []
             completion = nil
-            if category != nil { category = nil }
+            if category != nil && scopeStyle == .pills { category = nil }  // icons: a scope may be chosen first
             return
         }
         searching = true
@@ -188,13 +193,19 @@ final class SearchModel: ObservableObject {
 
     /// Tab / ⇧Tab: next or previous filter pill ("All" first).
     func cycleCategory(_ delta: Int) {
-        let options: [ResultCategory?] = [nil] + pillCategories
+        let options: [ResultCategory?] = [nil] + (scopeStyle == .icons ? iconCategories : pillCategories)
         let current = options.firstIndex(of: category) ?? 0
         category = options[(current + delta + options.count) % options.count]
     }
 
-    /// ⌘1 = All, ⌘2… = the pills in order.
+    /// ⌘1 = All, ⌘2… = the pills in order. Icons: ⌘N is always the same kind (as in Spotlight), again = off.
     func selectCategory(number: Int) {
+        if scopeStyle == .icons {
+            let kinds = ResultCategory.allCases
+            guard kinds.indices.contains(number - 1) else { return }
+            category = category == kinds[number - 1] ? nil : kinds[number - 1]
+            return
+        }
         let options: [ResultCategory?] = [nil] + pillCategories
         if options.indices.contains(number - 1) { category = options[number - 1] }
     }
@@ -416,24 +427,41 @@ struct SearchView: View {
     /// Keyboard shortcut hints: "row" (on the selected result, like Spotlight), "bar" (a bar at the bottom) or "off".
     @AppStorage(ShortcutHints.key) private var hints = ShortcutHints.row.rawValue
     @FocusState private var focused: Bool
+    @AppStorage(ScopeStyle.key) private var scopeStyleRaw = ScopeStyle.launchDefault.rawValue
     @State private var shown = false
     @Namespace private var selectionSpace
+    @Namespace private var scopeSpace
+    private var scopeStyle: ScopeStyle { ScopeStyle(rawValue: scopeStyleRaw) ?? .pills }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.secondary)
-                QueryField(model: model, focused: $focused)
-                if model.searching {
-                    ProgressView().controlSize(.small)
+            ScopeGlassContainer {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkle.magnifyingglass")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.trailing, 2)
+                    if scopeStyle == .icons, let category = model.category {
+                        ScopeChip(category: category, space: scopeSpace) { model.category = nil }
+                    }
+                    QueryField(model: model, focused: $focused)
+                    if model.searching {
+                        ProgressView().controlSize(.small)
+                    }
+                    if scopeStyle == .icons && model.preview == nil {
+                        ForEach(model.iconCategories.filter { $0 != model.category }) { category in
+                            ScopeIcon(category: category, space: scopeSpace) { model.category = category }
+                                .transition(.scale(scale: 0.6).combined(with: .opacity))
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
+            .animation(.smooth(duration: 0.3), value: model.category)  // quiet, no bounce (app/CLAUDE.md)
+            .animation(.smooth(duration: 0.3), value: model.iconCategories)
 
-            if model.showsPills && model.preview == nil {
+            if scopeStyle == .pills && model.showsPills && model.preview == nil {
                 ScopeBar(model: model)
                     .transition(.opacity)
             }
@@ -518,23 +546,31 @@ struct SearchView: View {
         }
         // Filter pills, like Tab narrowing the scope in Spotlight. ⇧Tab arrives as the "backtab" character (U+0019).
         .onKeyPress(keys: [.tab, KeyEquivalent("\u{19}")], phases: .down) { press in
-            guard model.showsPills, model.preview == nil else { return .ignored }
+            guard scopeStyle == .icons || model.showsPills, model.preview == nil else { return .ignored }
             let back = press.key == KeyEquivalent("\u{19}") || press.modifiers.contains(.shift)
             model.cycleCategory(back ? -1 : 1)
             return .handled
         }
         .onKeyPress(keys: ["1", "2", "3", "4", "5", "6"], phases: .down) { press in
-            guard press.modifiers.contains(.command), model.showsPills, let n = Int(String(press.characters)) else {
+            guard press.modifiers.contains(.command), scopeStyle == .icons || model.showsPills,
+                  let n = Int(String(press.characters)) else {
                 return .ignored
             }
             model.selectCategory(number: n)
             return .handled
         }
         .onKeyPress(.rightArrow, phases: .down) { _ in model.acceptCompletion() ? .handled : .ignored }
+        // Icons: ⌫ in an empty field takes the scope back out of it.
+        .onKeyPress(.delete, phases: .down) { _ in
+            guard scopeStyle == .icons, model.query.isEmpty, model.category != nil else { return .ignored }
+            model.category = nil
+            return .handled
+        }
         .animation(.snappy(duration: 0.18), value: model.showsPills)
         .animation(.snappy(duration: 0.18), value: model.category)
         .animation(.snappy(duration: 0.2), value: model.preview)
         .onChange(of: model.focusToken) { _, _ in focused = true }
+        .onChange(of: scopeStyleRaw, initial: true) { _, _ in model.scopeStyle = scopeStyle }
         .onAppear { focused = true }
     }
 }
@@ -544,7 +580,7 @@ struct SearchView: View {
 private struct QueryField: View {
     @ObservedObject var model: SearchModel
     var focused: FocusState<Bool>.Binding
-    private let prompt: LocalizedStringKey = "Search Lantern — by meaning, in code, recordings…"
+    private let prompt: LocalizedStringKey = "Search Lantern"  // short, like "Spotlight Search"
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -677,6 +713,146 @@ private struct PanelBackground: ViewModifier {
         } else {
             content
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        }
+    }
+}
+
+
+// MARK: - Scope icons (prototype of a Spotlight-like scope control)
+
+/// Where the scope control lives: "pills" under the query field (default), or "icons" beside it, like the mode
+/// buttons of Spotlight on macOS 26. `--scope-style icons` (development) or the `scopeStyle` default switches it.
+enum ScopeStyle: String {
+    case pills, icons
+    static let key = "scopeStyle"
+    static var launchDefault: ScopeStyle {
+        let args = CommandLine.arguments
+        let value = args.firstIndex(of: "--scope-style").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
+        return value.flatMap(ScopeStyle.init(rawValue:)) ?? .pills
+    }
+}
+
+extension ResultCategory {
+    /// SF Symbols, in the style of Spotlight's mode buttons.
+    var symbol: String {
+        switch self {
+        case .code: "chevron.left.forwardslash.chevron.right"
+        case .docs: "doc.text"
+        case .pdf: "doc.richtext"
+        case .photos: "photo"
+        case .media: "play.rectangle"
+        }
+    }
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .code: "Code"
+        case .docs: "Documents"
+        case .pdf: "PDFs"
+        case .photos: "Photos"
+        case .media: "Recordings and videos"
+        }
+    }
+
+    /// ⌘N: fixed per kind, so the shortcut never changes with the results.
+    var number: Int { (Self.allCases.firstIndex(of: self) ?? 0) + 1 }
+}
+
+/// A round glass button for one kind. On hover it widens into a capsule with the name; choosing it moves it into
+/// the query field (matched geometry), where it becomes the chip.
+private struct ScopeIcon: View {
+    let category: ResultCategory
+    let space: Namespace.ID
+    let select: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: select) {
+            HStack(spacing: 6) {
+                Image(systemName: category.symbol)
+                    .font(.system(size: 14, weight: .semibold))
+                if hovering {
+                    Text(category.titleKey)
+                        .font(.system(size: 12, weight: .medium))
+                        .fixedSize()
+                        .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+                }
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, hovering ? 12 : 0)
+            .frame(minWidth: 34, minHeight: 34)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .modifier(ScopeGlass(selected: false))
+        .onHover { inside in withAnimation(.snappy(duration: 0.22)) { hovering = inside } }
+        .onAppear {  // `--hover-scope docs`: development screenshots of the hover state
+            let args = CommandLine.arguments
+            if let i = args.firstIndex(of: "--hover-scope"), args.indices.contains(i + 1), args[i + 1] == category.rawValue {
+                hovering = true
+            }
+        }
+        .help(Text(category.titleKey) + Text(verbatim: "  ⌘\(category.number)"))
+    }
+}
+
+/// The chosen kind inside the query field; a click (or ⌫ in an empty field) takes it back out.
+private struct ScopeChip: View {
+    let category: ResultCategory
+    let space: Namespace.ID
+    let clear: () -> Void
+
+    var body: some View {
+        Button(action: clear) {
+            HStack(spacing: 6) {
+                Image(systemName: category.symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(category.titleKey)
+                    .font(.system(size: 13, weight: .semibold))
+                    .fixedSize()
+                Text(verbatim: "⌘\(category.number)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            }
+            .padding(.horizontal, 11)
+            .frame(height: 32)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .modifier(ScopeGlass(selected: true))
+        // Grows in at the start of the field while the icon folds away on the right: nothing crosses the text.
+        .transition(.scale(scale: 0.6, anchor: .leading).combined(with: .opacity))
+    }
+}
+
+/// Liquid Glass on macOS 26 (interactive: it reacts to the pointer), a soft fill before.
+private struct ScopeGlass: ViewModifier {
+    let selected: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .background(Capsule().fill(.primary.opacity(selected ? 0 : 0.07)))  // visible on the empty panel too
+                .glassEffect(
+                    selected ? .regular.tint(Color.accentColor.opacity(0.45)).interactive() : .regular.interactive(),
+                    in: Capsule())
+        } else {
+            content.background(Capsule().fill(selected ? AnyShapeStyle(Color.accentColor.opacity(0.3))
+                                                       : AnyShapeStyle(.primary.opacity(0.08))))
+        }
+    }
+}
+
+/// Lets neighbouring glass shapes blend and morph into each other as they move (macOS 26).
+private struct ScopeGlassContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) { content }
+        } else {
+            content
         }
     }
 }
