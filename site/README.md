@@ -22,3 +22,6 @@ the hint on the selected row (↩ / ⌘Y) and matched words in bold (`highlight(
 
 Going live: make the repository public, then Settings → Pages → Source: **GitHub Actions**, and push to `main`. The
 site will be at `https://misterekkk.github.io/lantern/`.
+
+When `app.js` or `styles.css` change, bump their `?v=` in `index.html`: otherwise a browser may combine a cached
+page with the new script, and the tour stops responding.

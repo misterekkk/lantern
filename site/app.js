@@ -503,8 +503,12 @@ function restart() {
 function notify(text) {
   $("#notificationText").textContent = text;
   const n = $("#notification");
+  n.classList.remove("leaving");
   n.hidden = false;
-  later(5200, () => { n.hidden = true; });
+  later(5200, () => {  // like macOS: the banner slides out past the right edge instead of vanishing
+    n.classList.add("leaving");
+    n.addEventListener("animationend", () => { n.hidden = true; n.classList.remove("leaving"); }, { once: true });
+  });
 }
 
 /* ---------- search panel ---------- */
@@ -538,7 +542,14 @@ function renderQuery() {
   const ghost = completion();
   $("#typed").textContent = state.typed;
   $("#ghost").textContent = ghost;
-  $("#placeholder").hidden = state.typed.length > 0;
+  // Before the first key, the field suggests what to type: the phrase, its letters rising in a slow wave.
+  const placeholder = $("#placeholder");
+  const suggest = sc && state.step === "type" && !state.typed;
+  placeholder.hidden = state.typed.length > 0;
+  placeholder.classList.toggle("suggest", Boolean(suggest));
+  placeholder.innerHTML = suggest
+    ? [...sc.phrase].map((c, k) => `<span style="--i:${k}">${escapeHtml(c)}</span>`).join("")
+    : "Search Lantern — by meaning, in code, recordings…";
   $("#typeForMe").hidden = !sc || state.step !== "type";
   if (sc && state.step === "type") {
     if (ghost && !state.completionHinted) {
@@ -578,6 +589,18 @@ function typeChar(ch) {
   if (state.typed === sc.phrase) state.completionHinted = false;
   renderQuery();
   if (state.typed === sc.phrase) later(220, () => go("results"));
+}
+
+/** ↩ while typing: search with the completion if it is showing, otherwise show what is still missing. */
+function submitQuery() {
+  const sc = state.scenario;
+  if (completion()) return acceptCompletion();
+  if (state.typed === sc.phrase) return go("results");
+  const f = $("#queryField");
+  f.classList.remove("shake");
+  void f.offsetWidth;
+  f.classList.add("shake");
+  hint(`Keep typing <b>“${escapeHtml(sc.phrase)}”</b> — or press <b>Type it for me</b>.`, { x: 534, y: 252, arrow: "up" });
 }
 
 /** Types up to the completion, pauses so it can be seen, then accepts it with →. */
@@ -758,6 +781,7 @@ function onKey(e) {
   if (e.key === "Enter") {
     e.preventDefault();
     if (state.step === "results") go("preview");
+    else if (state.step === "type") submitQuery();
     return;
   }
   if (state.step === "results" || state.step === "preview") {

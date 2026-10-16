@@ -294,6 +294,15 @@ kbd {
 .query-field span { white-space: pre; }  /* keep typed spaces; markup whitespace between spans is ignored */
 .query-field .ghost, .query-field .placeholder { color: var(--text-3); }
 .query-field .placeholder { margin-left: 2px; }
+/* the suggested phrase before the first key: letters rise one after another, then rest */
+.query-field .placeholder.suggest span { display: inline-block; animation: wave 2.8s ease-in-out infinite; animation-delay: calc(var(--i) * 45ms); }
+@keyframes wave {
+  0%, 24%, 100% { transform: none; color: var(--text-3); }
+  10% { transform: translateY(-4px); color: var(--text); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .query-field .placeholder.suggest span { animation: none; color: var(--text-2); }
+}
 .query-field .caret {  /* drawn over the text, takes no width: no gap between typed text and the suggestion */
   display: inline-block; width: 2px; height: 26px; margin: 0 -2px -5px 0;
   background: var(--accent); animation: blink 1.05s steps(1) infinite;
@@ -398,6 +407,8 @@ kbd {
   animation: slideIn 0.35s var(--ease);
 }
 @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } }
+.notification.leaving { animation: slideOut 0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
+@keyframes slideOut { to { transform: translateX(calc(100% + 24px)); } }
 .notification strong { font-size: 13px; }
 .notification p { margin: 2px 0 0; font-size: 12px; color: var(--text-2); }
 
