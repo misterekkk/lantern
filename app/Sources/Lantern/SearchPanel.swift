@@ -455,7 +455,6 @@ struct SearchView: View {
                                 ForEach(group.rows, id: \.result.id) { index, result in
                                     ResultRow(result: result, selected: index == model.selection, space: selectionSpace,
                                               query: model.query, showsHint: hints == ShortcutHints.row.rawValue)
-                                        .id(index)
                                         .transition(.opacity)
                                         .onTapGesture(count: 2) {
                                             model.selection = index
@@ -475,7 +474,11 @@ struct SearchView: View {
                         .padding(8)
                     }
                     .frame(maxHeight: 340)
-                    .onChange(of: model.selection) { _, new in proxy.scrollTo(new) }
+                    // Rows are identified by their result (ForEach), never by position: a positional `.id(index)`
+                    // let a row from the previous search-as-you-type response stay on screen in the new one.
+                    .onChange(of: model.selection) { _, new in
+                        if model.results.indices.contains(new) { proxy.scrollTo(model.results[new].id) }
+                    }
                     .animation(.snappy(duration: 0.18), value: model.selection)
                     .animation(.smooth(duration: 0.22), value: model.results.map(\.id))
                 }
