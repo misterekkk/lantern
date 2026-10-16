@@ -4,8 +4,9 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 
 ## Rules
 
-1. **Local and offline.** The only network traffic is the one-time, manual model download (`hf download`, see the
-   README). Afterwards the libraries run with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
+1. **Local and offline.** The only network traffic is the one-time installation: Homebrew packages, Python packages
+   (`uv sync`) and the model download (`hf download`), all run by `install.sh` or by hand (README). Afterwards the
+   libraries run with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
    `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
 2. **Read-only towards your files.** No writes, moves or deletions in indexed folders.
 3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections.
@@ -58,7 +59,7 @@ the indexed data.
 | Pillow, `sips` (photos) | no network traffic; read the photo file | HEIC through `sips` into a temporary file that is deleted right away |
 | ffmpeg | no network traffic; reads the input file, output goes to a pipe | run with `-nostdin`, no output files |
 | Ollama (**not used**) | its server periodically fetches "model recommendations" from ollama.com (visible in its log) | not part of Lantern |
-| Homebrew (installation) | Homebrew analytics during `brew install` | optionally `brew analytics off` (does not affect Lantern itself) |
+| Homebrew (installation) | Homebrew analytics during `brew install` | `install.sh` runs brew with `HOMEBREW_NO_ANALYTICS=1`; for your own brew calls: `brew analytics off` |
 
 Measurement: `spikes/phase0/probe_network.py` intercepts `socket.connect` and `getaddrinfo` in the Python process;
 the `-m model` tests do the same for every model Lantern loads.

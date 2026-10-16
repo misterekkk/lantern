@@ -38,7 +38,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **Photos and video frames:** two models (EmbeddingGemma 2 vision tower and SigLIP 2) vote on what is in a picture,
   and macOS's own text recognition (Vision, on device) reads text in screenshots, scans and photos of documents.
 - **Recordings and videos:** audio embeddings plus Whisper transcripts, with the moment each phrase is spoken.
-- **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery and heat, and a
+- **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery, in Low Power Mode and on heat, and a
   settings window laid out like System Settings.
 - **Private by design:** offline after a one-time model download, read-only access to your files, no telemetry.
 
@@ -63,6 +63,24 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 > Python that uv installs can.
 
 ## Installation
+
+### Quick install
+
+```bash
+git clone https://github.com/misterekkk/lantern.git && cd lantern
+./install.sh
+```
+
+The script checks the Mac (Apple Silicon, macOS 14+, Command Line Tools), installs `uv` and `ffmpeg` with Homebrew
+(with Homebrew analytics off for its own calls; if Homebrew is missing it asks before running the official
+installer), runs `uv sync`, downloads the required model and asks about the optional ones, checks that search works
+offline, and builds the app into `/Applications` when Xcode 26 is present. It can be run again at any time: finished
+steps are skipped. `./install.sh --all` installs everything without questions, `./install.sh --minimal` only the
+command line and the required model; `--no-app`, `--test` (also run the tests). It never installs the LaunchAgent.
+
+### Step by step
+
+The same steps by hand:
 
 ```bash
 # 1. System tools
@@ -144,7 +162,7 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
     ignored extensions,
   - **Folders:** indexed folders, *Choose What to Index* (a folder tree with checkboxes, down to single files, with
     name search and the number of indexed files), exclusion patterns,
-  - **Battery and Heat:** pause indexing on battery power or when the Mac is hot,
+  - **Battery and Heat:** pause indexing on battery power, in Low Power Mode or when the Mac is hot,
   - **Performance:** live memory chart of the daemon and the indexing process, peaks, current work and speed,
     models (revision, size on disk, where they are loaded),
   - **Privacy:** clear history, compact the index, data folder, macOS permissions; **About**.
@@ -181,6 +199,8 @@ uv run lantern clear-history               # delete the local search history
 - **Two lists, one ranking:** meaning (EmbeddingGemma 2: paraphrases, other languages) and exact words (FTS5/BM25:
   function names, error messages), fused with Reciprocal Rank Fusion. Each result shows where it came from, e.g.
   `(meaning #1 · keywords #3)`. Keyword search skips stop words and matches Polish inflections by stem.
+  Letters match without their accents and strokes in any language: `lodz` finds `Łódź`, `soren` finds `Søren`,
+  `strasse` finds `Straße`.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and
@@ -269,7 +289,7 @@ uv run lantern clear-history               # delete the local search history
 ## Background daemon
 
 ```bash
-uv run lantern daemon install     # install and start the LaunchAgent (starts at login, low priority)
+uv run lantern daemon install     # install and start the LaunchAgent (starts at login)
 uv run lantern daemon run         # or run the daemon in the foreground (Ctrl+C stops it)
 uv run lantern pending            # files found by the daemon, waiting for approval
 uv run lantern approve | decline  # index them / ask again on the next change
@@ -281,8 +301,10 @@ uv run lantern daemon stop | uninstall
 - **On start** (also after a long shutdown) the daemon scans all folders: deleted files leave the index at once; new
   and changed ones wait for approval in "ask" mode. While running, FSEvents report changes.
 - **Indexing runs in a separate background-priority process**: the audio, vision and Whisper models live only there
-  and are released when it finishes. The idle daemon uses ~490 MB.
-- **Automatic pause** on battery power and on thermal warnings; the current file is finished, the rest waits.
+  and are released when it finishes. The idle daemon uses ~490 MB. Searches run at a higher priority than the
+  daemon's own scans, so they stay fast while it works (measured in DECISIONS.md, "Power and QoS").
+- **Automatic pause** on battery power, in Low Power Mode and when macOS reports the Mac is hot (thermal state
+  "serious" or worse); the current file is finished, the rest waits. `lantern status` shows what the daemon sees.
 - **Settings** live in `~/Library/Application Support/Lantern/config.toml` (`lantern config` lists them).
 - **API:** Unix socket `~/Library/Application Support/Lantern/lantern.sock` (mode `0600`, folder `0700`), JSON lines.
   The menu bar app uses the same API.
