@@ -81,3 +81,31 @@ def test_the_music_filter_and_clearing(conn):
     model_id = db.ensure_model(conn, FakeEmbedder().model_info())
     music_mod.store_music(conn, [], lambda docs: [], model_id)
     assert music_search(conn, "skeletons") == []
+
+
+def test_each_source_replaces_only_its_own_songs(conn):
+    stored(conn)
+    embedder = FakeEmbedder()
+    model_id = db.ensure_model(conn, embedder.model_info())
+    embed = lambda docs: embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
+    spotify = music_mod.items_from(
+        [{"id": "sp-3eekarcy7kvgVJJE", "title": "Skeletons", "artist": "Travis Scott", "album": "ASTROWORLD"}],
+        [{"id": "sp-37i9dQZF1DX", "name": "Liked Songs", "songs": ["sp-3eekarcy7kvgVJJE"]}],
+        source="spotify",
+    )
+    assert music_mod.store_music(conn, spotify, embed, model_id, source="spotify") == 2
+    hits = music_search(conn, "skeletons", limit=10)
+    assert {h.source for h in hits} == {"apple", "spotify"}
+    spotify_hit = next(h for h in hits if h.source == "spotify")
+    assert spotify_hit.playlist_name == "Liked Songs"  # the context comes from the same source
+    music_mod.store_music(conn, [], embed, model_id, source="spotify")  # Spotify switched off
+    assert {h.source for h in music_search(conn, "skeletons", limit=10)} == {"apple"}
+
+
+def test_a_whole_artist_or_album_name_comes_before_files(conn):
+    stored(conn)
+    assert music_search(conn, "travisa scotta")[0].match == "artist_exact"
+    assert music_search(conn, "scott")[0].match == "artist"  # part of the name: weaker
+    assert music_search(conn, "astroworld")[0].match == "album_exact"
+    resp = search(conn, FakeEmbedder(), "travisa scotta", log=False)
+    assert resp.section_scores["music"] > 0.72  # above files that contain the words and agree by meaning

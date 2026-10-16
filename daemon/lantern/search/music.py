@@ -29,6 +29,7 @@ _WORD = re.compile(r"\w+")
 class MusicHit:
     id: str
     kind: str  # song | playlist
+    source: str  # apple | spotify
     title: str
     artist: str
     album: str
@@ -37,7 +38,7 @@ class MusicHit:
     playlist_id: str | None  # a song: a playlist holding it (play in its context); a playlist: itself
     playlist_name: str | None
     count: int  # a playlist: its number of songs
-    match: str  # title_exact | title | artist | album | featured | playlist | kind | meaning
+    match: str  # title_exact | title | artist(_exact) | album(_exact) | featured | playlist | kind | meaning
     score: float
 
 
@@ -56,8 +57,8 @@ def _fits(token: str, words: list[str]) -> bool:
 def music_search(
     conn: sqlite3.Connection, query: str, embedder=None, limit: int = MUSIC_SECTION_SIZE
 ) -> list[MusicHit]:
-    rows = conn.execute("SELECT id, kind, title, artist, album, track, downloaded, members, model_id, embedding "
-                        "FROM music").fetchall()  # fmt: skip
+    rows = conn.execute("SELECT id, kind, source, title, artist, album, track, downloaded, members, model_id, "
+                        "embedding FROM music").fetchall()  # fmt: skip
     if not rows or not query.strip():
         return []
     names = {r["id"]: r["title"] for r in rows if r["kind"] == "playlist"}
@@ -68,11 +69,12 @@ def music_search(
 
     def hit(r, match: str, score: float) -> MusicHit:
         if r["kind"] == "playlist":
-            return MusicHit(r["id"], "playlist", r["title"], "", "", 0, False, r["id"], r["title"],
+            return MusicHit(r["id"], "playlist", r["source"], r["title"], "", "", 0, False, r["id"], r["title"],
                             counts.get(r["id"], 0), match, score)  # fmt: skip
         holders = [p for p in json.loads(r["members"]) if p in names]
         playlist = min(holders, key=lambda p: counts.get(p, 0)) if holders else None  # the most specific one
-        return MusicHit(r["id"], "song", r["title"], r["artist"], r["album"], r["track"], bool(r["downloaded"]),
+        return MusicHit(r["id"], "song", r["source"], r["title"], r["artist"], r["album"], r["track"],
+                        bool(r["downloaded"]),
                         playlist, names.get(playlist) if playlist else None, 0, match, score)  # fmt: skip
 
     hits = []
@@ -99,14 +101,25 @@ def music_search(
             hits.append(hit(r, "title_exact", 0.95))
         elif all(_fits(t, main) for t in content):
             hits.append(hit(r, "title", 0.85))
-        elif all(_fits(t, people) for t in content):
-            hits.append(hit(r, "artist", 0.7))
+        elif all(_fits(t, people) for t in content):  # the whole name typed ("travisa scotta", "drake"): sure
+            whole = all(_fits(w, content) for w in people)
+            hits.append(hit(r, "artist_exact" if whole else "artist", 0.9 if whole else 0.7))
         elif all(_fits(t, title) for t in content):  # only in the brackets: a guest ("feat. Travis Scott")
             hits.append(hit(r, "featured", 0.65))
         else:
-            hits.append(hit(r, "album", 0.7))
+            whole = all(_fits(t, album) for t in content) and all(_fits(w, content) for w in album)
+            hits.append(hit(r, "album_exact" if whole else "album", 0.9 if whole else 0.7))
     if hits:
-        rank = {"title_exact": 0, "playlist": 1, "title": 2, "artist": 3, "album": 3, "featured": 4}
+        rank = {
+            "title_exact": 0,
+            "playlist": 1,
+            "title": 2,
+            "artist_exact": 3,
+            "album_exact": 3,
+            "artist": 3,
+            "album": 3,
+            "featured": 4,
+        }
         hits.sort(key=lambda h: (rank.get(h.match, 4), h.album, h.track, h.title))
         return hits[:limit]
     # No words matched: perhaps a description ("smutna piosenka po angielsku" will not, "rap travisa" may).

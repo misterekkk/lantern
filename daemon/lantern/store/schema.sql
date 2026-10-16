@@ -136,8 +136,9 @@ CREATE TABLE IF NOT EXISTS shortcuts (
 
 -- The user's Apple Music library (lantern/music.py), sent by the app (iTunesLibrary), rebuilt on change.
 CREATE TABLE IF NOT EXISTS music (
-    id         TEXT PRIMARY KEY,   -- Music's persistent ID (16 hex digits)
+    id         TEXT PRIMARY KEY,   -- Music's persistent ID (16 hex digits) or "sp-" + a Spotify ID
     kind       TEXT NOT NULL,      -- song | playlist
+    source     TEXT NOT NULL DEFAULT 'apple',  -- apple | spotify: each source replaces only its own rows
     title      TEXT NOT NULL,      -- song title or playlist name
     artist     TEXT NOT NULL DEFAULT '',
     album      TEXT NOT NULL DEFAULT '',

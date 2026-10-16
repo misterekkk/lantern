@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold, is_blob
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -40,6 +40,12 @@ def _requeue_trimmed_files(conn: sqlite3.Connection) -> None:
         "SELECT file_id FROM chunks WHERE kind IN ('text', 'code') GROUP BY file_id HAVING max(ord) + 1 != count(*)"
         ") OR NOT EXISTS (SELECT 1 FROM chunks c WHERE c.file_id = files.id))"
     )
+
+
+def _add_music_source(conn: sqlite3.Connection) -> None:
+    """Music from two sources (Apple Music, Spotify), each replacing only its own rows."""
+    if "source" not in {r[1] for r in conn.execute("PRAGMA table_info(music)")}:
+        conn.execute("ALTER TABLE music ADD COLUMN source TEXT NOT NULL DEFAULT 'apple'")
 
 
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
@@ -112,6 +118,7 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     embedding  BLOB NOT NULL       -- float32, only compared with query vectors of the same model_id
 )"""
     ],
+    11: [_add_music_source],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.

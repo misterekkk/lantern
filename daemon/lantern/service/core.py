@@ -561,20 +561,23 @@ class Daemon:
         ]
         return {"suggestions": [i for i in items if i["ext"]], "ignored": list(self.settings.exclude_extensions)}
 
-    def api_music(self, songs: list | None = None, playlists: list | None = None, clear: bool = False) -> dict:
-        """The user's Apple Music library as the app reads it (MusicLibrary.swift): replaces the stored list, vectors
-        only for new or changed songs. clear: the feature was switched off, forget the list."""
+    def api_music(self, songs: list | None = None, playlists: list | None = None, clear: bool = False,
+                  source: str = "apple") -> dict:  # fmt: skip
+        """A music library as the app reads it (MusicLibrary.swift, SpotifyLibrary.swift): replaces that source's
+        list, vectors only for new or changed songs. clear: the source was switched off, forget its list."""
+        if source not in ("apple", "spotify"):
+            raise ValueError(f"unknown music source {source!r}")
         from lantern import music as music_mod
         from lantern.embedding.base import format_document
 
-        items = [] if clear else music_mod.items_from(songs or [], playlists or [])
+        items = [] if clear else music_mod.items_from(songs or [], playlists or [], source)
 
         def store() -> int:
             conn = self._conn()
             try:
                 model_id = db.ensure_model(conn, self.embedder.model_info())
                 embed = lambda docs: self.embedder.embed_text([format_document(None, d) for d in docs])  # noqa: E731
-                return music_mod.store_music(conn, items, embed, model_id)
+                return music_mod.store_music(conn, items, embed, model_id, source)
             finally:
                 conn.close()
 
