@@ -41,6 +41,10 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
   contains the query's words. Lantern itself makes no network request.
 - **Clipboard history** (off by default, Settings → Privacy): text you copied in the last 30 minutes or 8 hours,
   kept in memory only; ↩ copies it again.
+- **Menu items and windows** (off by default, Settings → Privacy, needs the Accessibility permission): commands from
+  the menus of the app in front ("new private window" in a browser) and open windows by their titles; ↩ runs the
+  command or brings the window to the front.
+- **The panel can be dragged** by its header; it snaps to the centre line of the screen and back to its default spot.
 - **Hybrid ranking:** meaning (embeddings) and exact words (SQLite FTS5/BM25) fused with Reciprocal Rank Fusion.
 - **Code:** split into functions and classes with tree-sitter (22 languages); a symbol table finds the exact line of
   a definition.

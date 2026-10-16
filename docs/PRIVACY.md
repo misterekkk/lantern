@@ -39,7 +39,10 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     app's memory only, never on disk, in the index or in the search history; items that apps mark as private
     (nspasteboard.org concealed / transient types, used by password managers) are skipped; it is forgotten after
     the chosen time, when switched off, or when Lantern quits.
-13. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+13. **Menu items and windows** (off by default; Settings → Privacy): with the Accessibility permission, Lantern reads
+    the menu titles of the app in front and the titles of open windows when the panel opens, keeps them only while
+    it is open, and presses the item or raises the window you choose. Nothing is stored or logged.
+14. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

@@ -592,6 +592,8 @@ private struct PrivacyPane: View {
     @State private var compacting = false
     @State private var compactResult: String?
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
+    @AppStorage(MenuCommands.key) private var menuCommands = false
+    @State private var accessibilityOK = MenuCommands.trusted
 
     var body: some View {
         SettingsPage {
@@ -644,6 +646,26 @@ private struct PrivacyPane: View {
                     .font(.caption)
             }
             Section {
+                Toggle(isOn: $menuCommands) {
+                    IconLabel(title: "Menu items and windows", symbol: "filemenu.and.selection", color: .purple)
+                }
+                .onChange(of: menuCommands) { _, on in
+                    if on && !MenuCommands.trusted { MenuCommands.requestAccess() }
+                }
+                if menuCommands && !accessibilityOK {
+                    Button { NSWorkspace.shared.open(MenuCommands.accessibilitySettings) } label: {
+                        IconLabel(title: "Allow Lantern in Accessibility…", symbol: "exclamationmark.triangle.fill",
+                                  color: .orange)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Menu Items and Windows")
+            } footer: {
+                Text("Search finds commands in the menus of the app in front (“new private window” in a browser) and your open windows by their titles. macOS asks for the Accessibility permission; Lantern only reads menu and window titles and presses what you choose.")
+                    .font(.caption)
+            }
+            Section {
                 Button {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 } label: {
@@ -661,6 +683,12 @@ private struct PrivacyPane: View {
                 Text("Lantern works offline and sends no telemetry. Indexed files are only read, never changed, moved or deleted. The index lives in this Mac's Application Support folder and is not synced to iCloud.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+        .task {
+            while !Task.isCancelled {  // the permission is granted in System Settings: follow it
+                accessibilityOK = MenuCommands.trusted
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
             }
         }
         .confirmationDialog("Compact the index?", isPresented: $confirmCompact) {

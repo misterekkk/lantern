@@ -64,6 +64,7 @@ final class SearchPanelController {
 
     func show(query: String? = nil) {
         if let query { model.query = query }
+        MenuCommands.shared.capture()  // before the panel shows: the frontmost app is still the user's
         position()
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
@@ -243,6 +244,7 @@ final class SearchModel: ObservableObject {
                 let clipboard = category == nil ? ClipboardHistory.shared.section(for: q, limit: 3) : nil
                 // Copied text that contains the whole query is a near-certain answer; a short query less so.
                 var extra = clipboard.map { [(section: $0, score: q.count >= 4 ? 0.9 : 0.55)] } ?? []
+                if category == nil { extra += MenuCommands.shared.sections(for: q) }
                 extra += WebSearch.section(for: q, filtered: category != nil).map { ($0, ResultLayout.webScore) }
                 sections = ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra)
                 categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
@@ -316,6 +318,10 @@ final class SearchModel: ObservableObject {
             }
             if hit.kind == "clipboard" {
                 ClipboardHistory.shared.copy(hit.path)
+            } else if hit.kind == "menu" || hit.kind == "window" {
+                SearchPanelController.shared.hide()
+                MenuCommands.shared.perform(hit.path)
+                return
             } else if hit.isApp {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
             } else if hit.isAnswer {  // ↩ copies the answer
@@ -520,6 +526,8 @@ private struct SectionHeader: View {
         case .files: Text("Files")
         case .dictionary: Text("Dictionary")
         case .clipboard: Text("Clipboard")
+        case .menu: Text("Menu Items")
+        case .windows: Text("Windows")
         case .web: Text("Web")
         }
     }
@@ -820,7 +828,7 @@ private struct ResultRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if !result.preview.isEmpty && !["answer", "web", "clipboard"].contains(result.kind) {
+                if !result.preview.isEmpty && !["answer", "web", "clipboard", "menu", "window"].contains(result.kind) {
                     Text(preview)
                         .font(result.isDefinition ? .system(size: 12, design: .monospaced) : .system(size: 12))
                         .foregroundStyle(.secondary)

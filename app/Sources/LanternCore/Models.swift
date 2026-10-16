@@ -93,7 +93,9 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var isSetting: Bool { kind == "setting" }
     public var isAnswer: Bool { kind == "answer" }
     /// Rows that are not files: nothing to preview, ↩ opens or copies them.
-    public var isAction: Bool { ["app", "setting", "answer", "dictionary", "shortcut", "web", "clipboard"].contains(kind) }
+    public var isAction: Bool {
+        ["app", "setting", "answer", "dictionary", "shortcut", "web", "clipboard", "menu", "window"].contains(kind)
+    }
     /// Line to open the file at in a code editor (definitions and code/text chunks).
     public var openLine: Int? { isMedia || isVisual || isPDF ? nil : startLine }
 }
@@ -303,7 +305,7 @@ public enum QueryCompletion {
 
 public struct ResultSection: Equatable, Sendable, Identifiable {
     public enum Kind: String, Sendable {
-        case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, clipboard, web
+        case answer, apps, shortcuts, settings, definitions, files, photos, dictionary, clipboard, web, menu, windows
 
         /// The section's name in `section_scores`.
         public var daemonName: String { self == .dictionary ? "definition" : rawValue }
