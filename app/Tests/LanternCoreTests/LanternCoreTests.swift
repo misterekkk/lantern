@@ -319,28 +319,6 @@ import Testing
     }
 }
 
-@Suite struct CommandResultTests {
-    @Test func raycastAndAlfredCommandsOpenInTheirApp() throws {
-        let json = """
-        {"results": [], "shortcuts": [
-          {"id": "s1", "name": "Morning", "match": "exact", "score": 1},
-          {"id": "raycast://extensions/someone/github/my-pull-requests", "name": "My Pull Requests", "match": "word",
-           "score": 0.75, "source": "raycast", "detail": "GitHub", "keyword": null,
-           "url": "raycast://extensions/someone/github/my-pull-requests"},
-          {"id": "alfred:com.x.kill:kill", "name": "Kill a process", "match": "exact", "score": 1, "source": "alfred",
-           "detail": "Kill Process", "keyword": "kill", "url": "alfred:search:kill"}],
-         "categories": ["shortcuts"], "vector_ms": 1, "keyword_ms": 1}
-        """
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let rows = try decoder.decode(SearchResponse.self, from: Data(json.utf8)).sections[0].results
-        #expect(rows[0].path.hasPrefix("shortcuts://run-shortcut") && Format.subtitle(rows[0]) == "Shortcut")
-        #expect(rows[1].path == "raycast://extensions/someone/github/my-pull-requests")
-        #expect(Format.subtitle(rows[1]) == "Raycast · GitHub")
-        #expect(rows[2].path == "alfred:search:kill" && Format.subtitle(rows[2]) == "Alfred · Kill Process · kill")
-    }
-}
-
 @Suite struct WebRowTests {
     private let web = [ResultSection(kind: .web, results: [SearchResult(path: "https://x", chunkId: 0, kind: "web")])]
 

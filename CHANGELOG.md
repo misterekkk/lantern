@@ -8,8 +8,6 @@ What changed for people using Lantern, newest first. Lantern has no numbered rel
 - **Use with Raycast or Alfred:** Settings → General → *Search from* hands searching to Raycast (the "Search Lantern"
   extension) or Alfred (a workflow built into the app). Lantern's shortcut turns off; it keeps indexing and answers
   in the background, and your choices there teach it as in its own panel.
-- **Raycast and Alfred commands in Lantern's panel:** the commands of your Raycast extensions and the keywords of your
-  Alfred workflows appear under **Commands** (with your Shortcuts); ↩ opens them there.
 - Raycast can show "Search Lantern" under any query (Fallback Commands).
 - **Fixed:** changing the search shortcut (or handing it to Raycast or Alfred) left the old one working.
 

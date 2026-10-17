@@ -1062,14 +1062,11 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
 - Settings → General → **Search from** (`searchLauncher`: lantern | raycast | alfred). With a launcher, Lantern's
   shortcut is not registered (the picker stays, dimmed); Alfred's workflow is built into the app's Resources by
   build.sh and imported by opening it.
-- **Both directions.** Launchers do not let extensions add rows to their main list, so: (1) Raycast's Fallback
-  Commands can show "Search Lantern" under any query (the command takes `fallbackText`); (2) Lantern's panel lists
-  the launchers' commands in the shortcuts section, titled **Commands**: Raycast extension commands from
-  `~/.config/raycast/extensions/*/package.json` (opened through `raycast://extensions/<owner>/<name>/<command>`;
-  Raycast's built-in commands are in an encrypted database and are not listed) and Alfred workflow keywords from
-  `Alfred.alfredpreferences/workflows/*/info.plist` (Alfred opens with the keyword typed, its `search` AppleScript).
-  Kept in memory (`apps.refresh_launcher_commands`), not in the index: a schema change on `development` would stop
-  `main`'s daemon on the same database ("schema newer") when switching branches.
+- **One direction: Lantern in the launchers.** Launchers do not let extensions add rows to their main list; Raycast's
+  Fallback Commands can show "Search Lantern" under any query (the command takes `fallbackText`). The other direction
+  (Raycast and Alfred commands in Lantern's panel) was built and dropped: Raycast's built-in commands sit in an
+  encrypted database, so only extension commands could be listed ("create extension" found nothing), and half a
+  list of another launcher's commands is worse than none.
 - **The search shortcut never turned off.** `HotKey.instances` kept every hotkey alive, so `hotKey = nil` never
   unregistered it (also when switching ⌥Space to ⌃⌥Space). `HotKey.invalidate()` releases it explicitly.
 - **No folder permissions for Raycast.** File icons and photo thumbnails made Raycast read files in Downloads and

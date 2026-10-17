@@ -450,8 +450,6 @@ final class SearchModel: ObservableObject {
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
-            } else if hit.path.hasPrefix(ShortcutResult.alfredPrefix) {  // an Alfred keyword: Alfred opens with it typed
-                AlfredSearch.open(String(hit.path.dropFirst(ShortcutResult.alfredPrefix.count)))
             } else if let link = URL(string: hit.path) {
                 NSWorkspace.shared.open(link)
             }
@@ -685,7 +683,7 @@ private struct SectionHeader: View {
         switch kind {
         case .answer: Text("Answer")
         case .apps: Text("Applications")
-        case .shortcuts: Text("Commands")  // Shortcuts, Raycast commands and Alfred workflows
+        case .shortcuts: Text("Shortcuts")
         case .settings: Text("System Settings")
         case .definitions: Text("Definitions")
         case .photos: Text("Photos")
@@ -1171,7 +1169,7 @@ extension ResultCategory {
         switch self {
         case .apps: "Applications"
         case .settings: "System Settings"
-        case .shortcuts: "Commands"
+        case .shortcuts: "Shortcuts"
         case .clipboard: "Clipboard"
         case .code: "Code"
         case .docs: "Documents"
@@ -1414,17 +1412,3 @@ enum PanelDrag {
 
 /// Invisible markers at both ends of the results list (scroll targets for the first and last rows).
 private enum ListEdge: Hashable { case top, bottom }
-
-/// Opens Alfred with a workflow keyword typed (Alfred's "search" AppleScript command; macOS asks once whether
-/// Lantern may control Alfred). Nothing is run until you press ↩ there.
-enum AlfredSearch {
-    static func open(_ keyword: String) {
-        let text = (keyword + " ").replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", "tell application id \"com.runningwithcrayons.Alfred\" to search \"\(text)\""]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-    }
-}
