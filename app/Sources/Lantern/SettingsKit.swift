@@ -20,21 +20,6 @@ struct SettingsIcon: View {
     }
 }
 
-/// Row label with a coloured icon, like the rows in System Settings.
-struct IconLabel: View {
-    let title: LocalizedStringKey
-    let symbol: String
-    let color: Color
-
-    var body: some View {
-        Label {
-            Text(title)
-        } icon: {
-            SettingsIcon(symbol: symbol, color: color)
-        }
-    }
-}
-
 /// The card at the top of a pane: icon, title and what the pane is for.
 struct PaneHeader: View {
     let symbol: String

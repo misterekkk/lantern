@@ -275,14 +275,14 @@ private struct GeneralPane: View {
                        text: "Startup, language, the search shortcut and when Lantern indexes new files.")
             Section {
                 Toggle(isOn: Binding(get: { state.launchAtLogin }, set: { state.launchAtLogin = $0 })) {
-                    IconLabel(title: "Open Lantern at login", symbol: "power", color: .gray)
+                    Text("Open Lantern at login")
                 }
                 Picker(selection: $shortcut) {
                     Text(verbatim: SearchShortcut.optionSpace.label).tag(SearchShortcut.optionSpace.rawValue)
                     Text("\(SearchShortcut.commandSpace.label) (instead of Spotlight)").tag(SearchShortcut.commandSpace.rawValue)
                     Text(verbatim: SearchShortcut.controlOptionSpace.label).tag(SearchShortcut.controlOptionSpace.rawValue)
                 } label: {
-                    IconLabel(title: "Search shortcut", symbol: "keyboard", color: .gray)
+                    Text("Search shortcut")
                 }
                 .onChange(of: shortcut) { _, _ in state.registerShortcut() }
                 if shortcut == SearchShortcut.commandSpace.rawValue && spotlightOn {
@@ -301,19 +301,19 @@ private struct GeneralPane: View {
                 Picker(selection: $webSearch) {
                     ForEach(WebSearch.allCases) { Text(verbatim: $0.name).tag($0.rawValue) }
                 } label: {
-                    IconLabel(title: "Search the web with", symbol: "globe", color: .blue)
+                    Text("Search the web with")
                 }
                 Picker(selection: $hints) {
                     Text("On the selected result").tag(ShortcutHints.row.rawValue)
                     Text("Bar at the bottom").tag(ShortcutHints.bar.rawValue)
                     Text("Hidden").tag(ShortcutHints.off.rawValue)
                 } label: {
-                    IconLabel(title: "Shortcut hints in the panel", symbol: "command", color: .gray)
+                    Text("Shortcut hints in the panel")
                 }
                 Picker(selection: $language) {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
                 } label: {
-                    IconLabel(title: "Language", symbol: "globe", color: .blue)
+                    Text("Language")
                 }
                 .onChange(of: language) { _, new in
                     new.apply()
@@ -355,7 +355,7 @@ private struct GeneralPane: View {
                         Text("Ask before indexing").tag("ask")
                         Text("Index automatically").tag("auto")
                     } label: {
-                        IconLabel(title: "New and changed files", symbol: "doc.badge.clock", color: .blue)
+                        Text("New and changed files")
                     }
                 } footer: {
                     Text("Ask: Lantern finds new files and waits for your approval in the menu bar.").font(.caption)
@@ -398,21 +398,21 @@ private struct FileTypesPane: View {
             if let s = state.settings {
                 Section {
                     Toggle(isOn: binding("index_photos", s.indexPhotos)) {
-                        IconLabel(title: "Photos", symbol: "photo.fill", color: .pink)
+                        Text("Photos")
                     }
                     Toggle(isOn: binding("index_image_text", s.indexImageText)) {
-                        IconLabel(title: "Text in photos and screenshots (OCR)", symbol: "text.viewfinder", color: .teal)
+                        Text("Text in photos and screenshots (OCR)")
                     }
                     .disabled(!s.indexPhotos)
                     Toggle(isOn: binding("index_audio_video", s.indexAudioVideo)) {
-                        IconLabel(title: "Recordings and videos", symbol: "waveform", color: .red)
+                        Text("Recordings and videos")
                     }
                     Toggle(isOn: binding("transcribe", s.transcribe)) {
-                        IconLabel(title: "Transcribe speech (Whisper)", symbol: "text.bubble.fill", color: .orange)
+                        Text("Transcribe speech (Whisper)")
                     }
                     .disabled(!s.indexAudioVideo)  // dimmed, not indented: like dependent rows in System Settings
                     Toggle(isOn: binding("index_video_frames", s.indexVideoFrames)) {
-                        IconLabel(title: "Search inside video frames", symbol: "film.fill", color: .purple)
+                        Text("Search inside video frames")
                     }
                     .disabled(!s.indexAudioVideo)  // dimmed, not indented: like dependent rows in System Settings
                 } footer: {
@@ -483,10 +483,10 @@ private struct FoldersPane: View {
             }
             Section {
                 NavigationLink(value: SettingsSubpage.tree) {
-                    IconLabel(title: "Choose What to Index", symbol: "checklist", color: .blue)
+                    Text("Choose What to Index")
                 }
                 NavigationLink(value: SettingsSubpage.patterns) {
-                    IconLabel(title: "Exclusion Patterns", symbol: "line.3.horizontal.decrease", color: .gray)
+                    Text("Exclusion Patterns")
                 }
             } footer: {
                 Text("Always skipped: ~/Library (except iCloud Drive), files with secrets, .git, node_modules, iCloud files that are not on this Mac.")
@@ -569,13 +569,13 @@ private struct PowerPane: View {
             if let s = state.settings {
                 Section {
                     Toggle(isOn: Binding(get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") })) {
-                        IconLabel(title: "Pause on battery power", symbol: "battery.50percent", color: .green)
+                        Text("Pause on battery power")
                     }
                     Toggle(isOn: Binding(get: { s.pauseOnLowPower }, set: { state.setConfig("pause_on_low_power", $0 ? "true" : "false") })) {
-                        IconLabel(title: "Pause in Low Power Mode", symbol: "leaf.fill", color: .yellow)
+                        Text("Pause in Low Power Mode")
                     }
                     Toggle(isOn: Binding(get: { s.pauseOnThermal }, set: { state.setConfig("pause_on_thermal", $0 ? "true" : "false") })) {
-                        IconLabel(title: "Pause when the Mac is hot", symbol: "thermometer.medium", color: .orange)
+                        Text("Pause when the Mac is hot")
                     }
                 } footer: {
                     Text("Search always works, also while indexing is paused.").font(.caption)
@@ -616,12 +616,12 @@ private struct PrivacyPane: View {
                        text: "Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on.")
             Section {
                 Button { confirmClear = true } label: {
-                    IconLabel(title: "Clear Search History…", symbol: "clock.arrow.circlepath", color: .red)
+                    Text("Clear Search History…")
                 }
                 .buttonStyle(.plain)
                 Button { confirmCompact = true } label: {
                     HStack {
-                        IconLabel(title: "Compact Index…", symbol: "archivebox.fill", color: .brown)
+                        Text("Compact Index…")
                         Spacer()
                         if compacting { ProgressView().controlSize(.small) }
                     }
@@ -631,7 +631,7 @@ private struct PrivacyPane: View {
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: DaemonClient.dataDirectory)])
                 } label: {
-                    IconLabel(title: "Show Data Folder in Finder", symbol: "folder.fill", color: .blue)
+                    Text("Show Data Folder in Finder")
                 }
                 .buttonStyle(.plain)
             } header: {
@@ -645,12 +645,12 @@ private struct PrivacyPane: View {
                     Text("30 minutes").tag("30m")
                     Text("8 hours").tag("8h")
                 } label: {
-                    IconLabel(title: "Clipboard history", symbol: "doc.on.clipboard", color: .gray)
+                    Text("Clipboard history")
                 }
                 .onChange(of: clipboardHistory) { _, new in if new == "off" { ClipboardHistory.shared.clear() } }
                 if clipboardHistory != "off" {
                     Button { ClipboardHistory.shared.clear() } label: {
-                        IconLabel(title: "Clear Clipboard History", symbol: "trash", color: .red)
+                        Text("Clear Clipboard History")
                     }
                     .buttonStyle(.plain)
                 }
@@ -662,15 +662,14 @@ private struct PrivacyPane: View {
             }
             Section {
                 Toggle(isOn: $menuCommands) {
-                    IconLabel(title: "Menu items and windows", symbol: "filemenu.and.selection", color: .purple)
+                    Text("Menu items and windows")
                 }
                 .onChange(of: menuCommands) { _, on in
                     if on && !MenuCommands.trusted { MenuCommands.requestAccess() }
                 }
                 if menuCommands && !accessibilityOK {
                     Button { NSWorkspace.shared.open(MenuCommands.accessibilitySettings) } label: {
-                        IconLabel(title: "Allow Lantern in Accessibility…", symbol: "exclamationmark.triangle.fill",
-                                  color: .orange)
+                        Text("Allow Lantern in Accessibility…")
                     }
                     .buttonStyle(.plain)
                 }
@@ -682,7 +681,7 @@ private struct PrivacyPane: View {
             }
             Section {
                 Toggle(isOn: $appleMusic) {
-                    IconLabel(title: "Songs and playlists", symbol: "music.note", color: .pink)
+                    Text("Songs and playlists")
                 }
                 .onChange(of: appleMusic) { _, on in
                     if on { MusicSync.shared.syncIfChanged(force: true) } else { MusicSync.shared.clear() }
@@ -695,7 +694,7 @@ private struct PrivacyPane: View {
             }
             Section {
                 Toggle(isOn: $spotify) {
-                    IconLabel(title: "Spotify playlists and liked songs", symbol: "music.note.list", color: .green)
+                    Text("Spotify playlists and liked songs")
                 }
                 .onChange(of: spotify) { _, on in
                     if on { Task { await SpotifySync.shared.sync() } } else { SpotifySync.shared.clear() }
@@ -748,7 +747,7 @@ private struct PrivacyPane: View {
                 Button {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
                 } label: {
-                    IconLabel(title: "Open Privacy Settings…", symbol: "hand.raised.fill", color: .indigo)
+                    Text("Open Privacy Settings…")
                 }
                 .buttonStyle(.plain)
             } header: {

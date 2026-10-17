@@ -17,7 +17,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   the file normally. Never switch to a different app than the user's default.
 - Settings: `SettingsView` copies System Settings (`NavigationSplitView`, sidebar search + status row, panes in
   groups, ← → arrows, subpages in a `NavigationStack`). Panes are built from `SettingsKit.swift`: `PaneHeader`
-  (icon, title, one-line description), `IconLabel` rows with coloured icons, `SettingsPage` (grouped form + soft
+  (icon, title, one-line description), plain text rows (no icons inside panes: they drew the eye away from the
+  words; icons stay in the sidebar, pane headers and search results), `SettingsPage` (grouped form + soft
   scroll edge; `scrollEdgeEffectStyle` on macOS 26, gradient mask before). Dependent rows are dimmed, never indented.
   Panes: General (login, language via `AppLanguage` + relaunch, shortcut, index mode), File Types (switches,
   `ExtensionField` pills — parsing in LanternCore `ExtensionInput`), Folders (roots; subpages `TreePage` with
