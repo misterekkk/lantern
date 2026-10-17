@@ -45,8 +45,8 @@ jobs:
           sys.modules['torch'] = None
           import lantern, mlx.core, sqlite_vec, mlx_whisper, Vision, Quartz
           from lantern.embedding import siglip_vision, processor
-          from lantern.models import status_list
-          assert len(status_list()) == 3
+          from lantern.models import catalogue
+          assert len(catalogue()) == 4
           "
           mv .venv.hidden .venv
           codesign --verify --deep --strict app/build/Lantern.app
