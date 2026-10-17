@@ -15,6 +15,8 @@ permissions:
 jobs:
   dmg:
     runs-on: macos-26
+    env:
+      UV_PYTHON_PREFERENCE: only-managed
     steps:
       - uses: actions/checkout@v4
 
@@ -22,16 +24,18 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install Python 3.12 and dependencies
-        run: uv sync
-
-      - name: Fast Python and Swift tests
+      - name: Install Python 3.12 (uv managed, with sqlite load_extension) and dependencies
         run: |
-          uv run pytest -q
-          DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
+          uv python install 3.12
+          uv sync --python-preference only-managed
 
       - name: Build standalone Lantern.app and Lantern.dmg
         run: app/build.sh --dmg
+
+      - name: Fast Python and Swift tests
+        run: |
+          DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
+          uv run pytest -q
 
       - name: Verify bundle is self-contained without .venv
         run: |

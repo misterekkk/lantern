@@ -108,6 +108,7 @@ fi
 ok "uv $(uv --version | awk '{print $2}'), ffmpeg $(ffmpeg -version | head -1 | awk '{print $3}')"
 
 step "Python dependencies (uv sync: Python 3.12 and packages into .venv)"
+export UV_PYTHON_PREFERENCE=only-managed  # python.org builds lack sqlite enable_load_extension; uv's managed build has it
 uv sync --quiet
 ok ".venv ready"
 

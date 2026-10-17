@@ -128,10 +128,12 @@ def test_unchecking_and_checking(conn, tree_root, embedder):
 
 
 def test_footprint_peak_survives_a_spike():
+    import mmap
+
     before = footprint(os.getpid())
-    spike = bytearray(64 * 2**20)
-    spike[::4096] = b"1" * len(spike[::4096])
-    del spike
+    with mmap.mmap(-1, 64 * 2**20) as spike:
+        for off in range(0, 64 * 2**20, 4096):
+            spike[off] = 1
     after = footprint(os.getpid())
     assert before and after and after[1] >= before[0] + 60 and after[0] < after[1]
 
