@@ -48,6 +48,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
 - Apple Music: `MusicLibrary.swift` reads the library with iTunesLibrary (`MusicLibrary.read`, dev flag `--music-dump`),
   `MusicSync` sends it to the daemon (`music` API) while `appleMusicLibrary` is on (launch with
   `-appleMusicLibrary YES` to test without touching the shared defaults), `MusicPlayer` plays via osascript.
+- Settings → General → Search from (`SearchLauncher`: lantern | raycast | alfred): with a launcher the hotkey is not
+  registered; `build.sh` builds `integrations/alfred` into Resources (`Lantern.alfredworkflow`).
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),

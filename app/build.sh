@@ -19,6 +19,7 @@ sed -e "s#__PYTHON__#$REPO/.venv/bin/python#" -e "s#__VERSION__#$VERSION#" -e "s
     Resources/Info.plist.template > "$APP/Contents/Info.plist"
 cp -R Resources/*.lproj "$APP/Contents/Resources/"   # localizations (the system language picks one)
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"  # from brand/lantern-icon.svg (brand/make-icons.sh)
+/usr/bin/python3 ../integrations/alfred/build.py "$APP/Contents/Resources" >/dev/null  # Settings → Search from: Alfred
 
 IDENTITY="$(security find-identity -v -p codesigning | grep -m1 'Apple Development' | sed -E 's/.*"(.*)"/\1/' || true)"
 if [[ -n "$IDENTITY" ]]; then
