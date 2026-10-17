@@ -44,7 +44,7 @@ IMAGE_BATCH = 8
 # with another version are re-indexed. text/code 2 = long-line cutting + head-only data files;
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2;
 # video 6 = text on key frames (OCR).
-PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 4, "video": 6, "image": 3}
+PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 5, "video": 7, "image": 3}
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 

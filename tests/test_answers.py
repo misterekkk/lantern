@@ -50,3 +50,19 @@ def test_answer_is_the_top_line_and_shortcuts_follow_apps(conn):
     resp = search(conn, FakeEmbedder(), "battery st", log=False)
     assert resp.shortcuts[0].name == "Battery Stats" and "shortcuts" in resp.categories
     assert search(conn, FakeEmbedder(), "2+2", log=False, category="code").answer is None  # a filter: no answer
+
+
+def test_whisper_text_invented_on_sound_without_speech_is_dropped():
+    from lantern.transcription.whisper import keep_speech
+
+    def seg(text, lp=-0.3, cr=1.4):
+        return {"start": 0.0, "end": 5.0, "text": text, "avg_logprob": lp, "compression_ratio": cr}
+
+    speech = [seg("Przygotowaliśmy na projekt prosty dashboard z filtrami."), seg("Możemy wybrać osobę i datę.")]
+    assert keep_speech(speech, 30.0) == speech
+    assert keep_speech([seg("!"), seg(" ! ! ")], 30.0) == []  # punctuation only (an elephant)
+    assert keep_speech([seg("deep deep deep deep deep")], 30.0) == []  # one word over and over (waves)
+    assert keep_speech([seg("your for to to", lp=-1.89, cr=6.24)], 30.0) == []  # rain: guessed and repetitive
+    assert keep_speech([seg("!", lp=float("nan"))], 30.0) == []
+    assert keep_speech([seg("Thank you.")], 25.0) == []  # 2 words in 25 s: not speech
+    assert keep_speech([seg("Thank you.")], 3.0) != []  # a short real reply stays

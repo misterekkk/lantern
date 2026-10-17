@@ -5,6 +5,9 @@ EmbeddingGemma audio tower.
 """
 
 import gc
+import math
+import re
+from collections import Counter
 from typing import Protocol
 
 import numpy as np
@@ -14,6 +17,37 @@ from lantern.config import enforce_offline
 
 REPO = "mlx-community/whisper-large-v3-turbo"
 REVISION = "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+
+
+# Whisper invents text on sound without speech (rain, animals, music): "! ! !", "f f f f", "deep deep deep", a lone
+# "Thank you." Measured on such files vs speech (docs/DECISIONS.md): repetitive output has a compression ratio of 5–10
+# (speech ~1.4; 2.4 is Whisper's own limit), guessed output an average log-probability of -1.9 or NaN (speech -0.2 to
+# -0.4). mlx-whisper's no_speech_prob was always 0, so it is not used.
+MAX_COMPRESSION = 2.4
+MIN_LOGPROB = -1.0
+MIN_WORDS_PER_S = 0.1  # less than this over the whole recording: no speech ("Thank you." in a 25 s clip)
+
+
+def _noise_text(text: str) -> bool:
+    words = re.findall(r"[^\W\d_]+", text.lower())
+    if not words:
+        return True  # punctuation only ("! ! !")
+    top = Counter(words).most_common(1)[0][1]
+    return len(words) >= 4 and top / len(words) >= 0.5  # one word over and over
+
+
+def keep_speech(segments: list[dict], duration_s: float) -> list[dict]:
+    """Whisper's segments without invented text; [] when what is left is too little to be speech."""
+    kept = []
+    for s in segments:
+        logprob = s.get("avg_logprob", 0.0)
+        if s.get("compression_ratio", 0.0) > MAX_COMPRESSION or logprob is None or math.isnan(logprob):
+            continue
+        if logprob < MIN_LOGPROB or _noise_text(s.get("text", "")):
+            continue
+        kept.append(s)
+    words = sum(len(re.findall(r"[^\W\d_]+", s["text"])) for s in kept)
+    return kept if duration_s <= 0 or words / duration_s >= MIN_WORDS_PER_S else []
 
 
 class Transcriber(Protocol):
@@ -58,7 +92,8 @@ class WhisperTranscriber:
             condition_on_previous_text=False,  # fewer repetition loops on long recordings
             verbose=None,
         )
-        return [Segment(float(s["start"]), float(s["end"]), s["text"]) for s in result["segments"]]
+        kept = keep_speech(result["segments"], len(samples) / 16000)
+        return [Segment(float(s["start"]), float(s["end"]), s["text"]) for s in kept]
 
     def unload(self) -> None:
         try:
