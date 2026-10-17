@@ -1,9 +1,18 @@
 # Changelog
 
-What changed for people using Lantern, newest first. Lantern has no numbered releases yet: entries are dated and
-`main` is always the current version.
+What changed for people using Lantern, newest first.
 
-## 2026-10-17 (later)
+## 0.1.1 — 2026-10-17
+
+- **Fixed (Raycast):** transcripts of recordings and videos now appear in Raycast's preview pane (`passage` returns the
+  recording's transcript for audio-window and video-frame matches, and video/photo thumbnails leave room for the
+  transcript above the metadata section).
+- **Fixed (Settings):** *Settings → File Types → Transcribe speech (Whisper)* is now off and disabled until the optional
+  Whisper model is downloaded in *Settings → Performance*, and the index worker skips transcription cleanly when Whisper
+  is not installed instead of failing transcription jobs.
+- **Docs:** removed the outdated `Text inside images is not read (no OCR)` bullet from *Known limitations* in `README.md`.
+
+## 0.1.0 — 2026-10-17
 
 - **Install from `Lantern.dmg`:** a self-contained app built on GitHub Actions (`macos-26` Apple Silicon) with Python
   3.12, MLX and the daemon bundled inside `Lantern.app` (`app/build.sh --dmg`, `.github/workflows/release.yml`). No

@@ -352,7 +352,8 @@ function usePreviewMarkdown(h: FileHit, ctx: Ctx, photo: boolean, thumb: string 
     execute: !code && h.chunk_id >= 0,
     onError: () => undefined,
   });
-  const image = thumb ? `![](${encodeURI(`file://${thumb}`)})\n\n` : "";
+  const size = large ? "" : "?raycast-height=135";
+  const image = thumb ? `![](${encodeURI(`file://${thumb}`)}${size})\n\n` : "";
   if (code && rows?.length) return codeMarkdown(h.path, rows, h.start_line!, h.end_line ?? h.start_line!);
   const text = (whole?.text ?? h.preview).trim();
   if (text) return image + highlight(large ? text : around(text, ctx.query), ctx.query);

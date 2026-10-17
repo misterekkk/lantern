@@ -40,9 +40,9 @@ def make_transcriber(enabled: bool):
         from lantern.transcription.whisper import FakeTranscriber
 
         return FakeTranscriber(os.environ.get("LANTERN_FAKE_TRANSCRIPT", "fake transcript"))
-    from lantern.transcription.whisper import WhisperTranscriber
+    from lantern.transcription import whisper
 
-    return WhisperTranscriber()
+    return whisper.WhisperTranscriber() if whisper.available() else None
 
 
 def make_image_embedder(settings):

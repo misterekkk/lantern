@@ -449,10 +449,11 @@ private struct FileTypesPane: View {
                     Toggle(isOn: binding("index_audio_video", s.indexAudioVideo)) {
                         Text("Recordings and videos")
                     }
-                    Toggle(isOn: binding("transcribe", s.transcribe)) {
+                    let whisperAvailable = state.status?.whisperDownloaded ?? true
+                    Toggle(isOn: whisperAvailable ? binding("transcribe", s.transcribe) : .constant(false)) {
                         Text("Transcribe speech (Whisper)")
                     }
-                    .disabled(!s.indexAudioVideo)  // dimmed, not indented: like dependent rows in System Settings
+                    .disabled(!s.indexAudioVideo || !whisperAvailable)  // dimmed, not indented: like dependent rows in System Settings
                     Toggle(isOn: binding("index_video_frames", s.indexVideoFrames)) {
                         Text("Search inside video frames")
                     }

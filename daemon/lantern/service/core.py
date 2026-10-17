@@ -382,6 +382,8 @@ class Daemon:
             }
         finally:
             conn.close()
+        from lantern.transcription import whisper
+
         with self.lock:
             worker = {"running": self.worker is not None, **self.progress} if self.worker else {"running": False}
             return {
@@ -392,6 +394,7 @@ class Daemon:
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
+                "whisper_downloaded": whisper.available(),
                 "models_missing": self.models_missing, "model_download": self._download_status(),
                 "warnings": self.warnings[-5:],
             }  # fmt: skip
@@ -575,6 +578,8 @@ class Daemon:
                 self._last_power_check = 0.0
         if key in ("index_photos", "index_audio_video"):  # files join or leave the index at the next scan: now
             self._scan_all_soon()
+        elif key == "transcribe" and self.settings.transcribe:
+            self._enqueue_missing_transcripts()
         return asdict(self.settings)
 
     def api_exclude(self, action: str, pattern: str) -> dict:
@@ -739,6 +744,8 @@ class Daemon:
     def api_passage(self, chunk_id: int) -> dict:
         """The whole indexed passage of a result (the search reply carries only an excerpt), for previews in clients
         such as the Raycast extension. Text from the index only; the file itself is not read."""
+        from lantern.search.basic import _transcript_at
+
         conn = self._conn()
         try:
             row = conn.execute(
@@ -746,11 +753,37 @@ class Daemon:
                 "FROM chunks c JOIN files f ON f.id = c.file_id WHERE c.id = ?",
                 (int(chunk_id),),
             ).fetchone()
+            if row is None:
+                raise ValueError("no such passage")
+            out = dict(row)
+            if out["text"] is None and out["start_ms"] is not None:
+                out["text"] = _transcript_at(conn, int(chunk_id), out["start_ms"], out["end_ms"]) or None
         finally:
             conn.close()
-        if row is None:
-            raise ValueError("no such passage")
-        return dict(row)
+        return out
+
+    def _enqueue_missing_transcripts(self) -> None:
+        """Queue transcription for already-indexed recordings when Whisper was downloaded or switched on later."""
+        from lantern.queue import jobs
+        from lantern.transcription import whisper
+
+        if not (self.settings.index_audio_video and self.settings.transcribe and whisper.available()):
+            return
+        with self.scan_lock:
+            conn = self._conn()
+            try:
+                rows = conn.execute(
+                    "SELECT f.id FROM files f WHERE f.status = 'indexed' AND f.kind IN ('audio', 'video') "
+                    "AND EXISTS (SELECT 1 FROM chunks a WHERE a.file_id = f.id AND a.kind = 'audio') "
+                    "AND NOT EXISTS (SELECT 1 FROM chunks t WHERE t.file_id = f.id AND t.kind = 'transcript')"
+                ).fetchall()
+                if rows:
+                    with db.transaction(conn):
+                        for (file_id,) in rows:
+                            jobs.enqueue(conn, file_id, "transcribe")
+                    self._after_scan(conn, found_new=True)
+            finally:
+                conn.close()
 
     def api_thumbnail(self, path: str, start_ms: int | None = None, size: int = 320) -> dict:
         """A small JPEG of an indexed photo, or of a video's frame at start_ms, for clients without access to the
@@ -849,6 +882,7 @@ class Daemon:
                 self.query_embedder = make_query_embedder()
             self.downloader = None
             self.download_state = None
+        self._enqueue_missing_transcripts()
 
     def api_compact(self) -> dict:
         with self.worker_suspended(), self.scan_lock:

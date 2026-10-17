@@ -224,7 +224,7 @@ def photo_results(
         frame = v[1] if v and v[1].kind == "frame" else None  # a video frame keeps its moment
         fused.append(Result(
             path=path, chunk_id=shown.chunk_id, start_line=None, end_line=None, symbol=None,
-            preview=shown.preview if shown.kind == "ocr" else "", score=round(score, 5),
+            preview=shown.preview if shown.kind in ("ocr", "frame") else "", score=round(score, 5),
             vector_rank=None, vector_score=None, keyword_rank=w[0] if w else None,
             keyword_score=round(w[1].score, 4) if w else None, keyword_coverage=round(w[1].coverage, 3) if w else None,
             image_rank=v[0] if v else None, image_score=round(v[1].score, 4) if v else None,

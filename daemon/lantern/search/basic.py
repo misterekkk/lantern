@@ -70,7 +70,8 @@ def _hits(conn: sqlite3.Connection, scored: list[tuple[int, float]], query: str 
 
 
 def _transcript_at(conn: sqlite3.Connection, chunk_id: int, start_ms: int | None, end_ms: int | None) -> str:
-    """Preview for an audio-window match: the transcript text spoken in the same time range, if any."""
+    """Preview for an audio-window or frame match: the transcript spoken in the same time range, or (when matched at a
+    silent moment, e.g. by file name) the nearest transcript or screen-text passage of the recording."""
     if start_ms is None:
         return ""
     rows = conn.execute(
@@ -78,7 +79,14 @@ def _transcript_at(conn: sqlite3.Connection, chunk_id: int, start_ms: int | None
         "WHERE a.id = ? AND t.end_ms > ? AND t.start_ms < ? ORDER BY t.start_ms",
         (chunk_id, start_ms, end_ms),
     ).fetchall()
-    return " ".join(r[0] for r in rows)
+    if rows:
+        return " ".join(r[0] for r in rows)
+    row = conn.execute(
+        "SELECT t.text FROM chunks a JOIN chunks t ON t.file_id = a.file_id AND t.kind IN ('transcript', 'screen') "
+        "WHERE a.id = ? ORDER BY (t.kind != 'transcript'), ABS(COALESCE(t.start_ms, 0) - ?) LIMIT 1",
+        (chunk_id, start_ms),
+    ).fetchone()
+    return row[0] if row else ""
 
 
 def _best_per_file(hits: list[Hit], limit: int) -> list[Hit]:

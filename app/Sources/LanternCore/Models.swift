@@ -47,6 +47,7 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var files: [String: Int]
     public var kinds: [String: Int]?
     public var photoModelLoaded: Bool?
+    public var whisperDownloaded: Bool?
     public var modelsMissing: Bool?
     public var modelDownload: ModelDownload?
     public var chunks: Int
@@ -579,6 +580,6 @@ public enum ResultLayout {
         let answered = sections.contains { $0.kind == .answer || $0.kind == .dictionary }
         if wordMatch || answered { return sections + web }
         let lead = sections.prefix { !local.contains($0.kind) }
-        return Array(lead) + web + sections.dropFirst(lead.count)
+        return Array(lead) + web + Array(sections.dropFirst(lead.count))
     }
 }

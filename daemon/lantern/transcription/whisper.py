@@ -60,6 +60,13 @@ class ModelNotDownloaded(RuntimeError):
     pass
 
 
+def available() -> bool:
+    """True when the Whisper weights are in the local Hugging Face cache."""
+    from lantern import models
+
+    return models.is_downloaded(REPO, REVISION)
+
+
 class WhisperTranscriber:
     def __init__(self, repo: str = REPO, revision: str = REVISION):
         self.repo, self.revision = repo, revision

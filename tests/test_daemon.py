@@ -406,3 +406,45 @@ def test_daemon_stays_up_when_models_are_missing_and_recovers(sock, lantern_home
     finally:
         d.stopping.set()
         t.join(timeout=5)
+
+
+def test_make_transcriber_checks_whisper_available(monkeypatch):
+    from lantern.service import worker
+    from lantern.transcription import whisper
+
+    monkeypatch.delenv("LANTERN_EMBEDDER", raising=False)
+    monkeypatch.setattr(whisper, "available", lambda: False)
+    assert worker.make_transcriber(True) is None
+    monkeypatch.setattr(whisper, "available", lambda: True)
+    assert isinstance(worker.make_transcriber(True), whisper.WhisperTranscriber)
+
+
+def test_passage_returns_transcript_for_audio_and_frame_chunks(start_daemon):
+    import numpy as np
+
+    start_daemon(mode="ask")
+    conn = db.connect(config.db_path())
+    with db.transaction(conn):
+        root_id = db.ensure_root(conn, Path("/tmp"))
+        cur = conn.execute(
+            "INSERT INTO files(root_id, path, size, mtime_ns, content_hash, kind, status) "
+            "VALUES (?, ?, 1, 1, 'a', 'video', 'indexed')",
+            (root_id, "/tmp/demo.mp4"),
+        )
+        file_id = cur.lastrowid
+        mid = db.ensure_model(conn, FakeEmbedder().model_info())
+        db.ensure_model(conn, FakeEmbedder().model_info(), images=True)
+        z = np.zeros((1, 64), dtype=np.float32)
+        frame = [db.ChunkRecord(0, "frame", None, start_ms=0, end_ms=1000)]
+        audio = [db.ChunkRecord(0, "audio", None, start_ms=0, end_ms=30000)]
+        tr = [db.ChunkRecord(0, "transcript", "Spotkanie o budżecie na czwartek.", start_ms=3000, end_ms=15000)]
+        db.replace_file_chunks(conn, file_id, "demo.mp4", frame, z, mid, 7, {"frame"})
+        db.replace_file_chunks(conn, file_id, "demo.mp4", audio, z, mid, 7, {"audio"})
+        db.replace_file_chunks(conn, file_id, "demo.mp4", tr, z, mid, 7, {"transcript"})
+    rows = conn.execute("SELECT id, kind FROM chunks WHERE file_id = ?", (file_id,)).fetchall()
+    conn.close()
+    by_kind = {r["kind"]: r["id"] for r in rows}
+    assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["audio"]})["text"]
+    assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["frame"]})["text"]
+
+
