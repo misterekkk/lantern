@@ -365,3 +365,12 @@ def test_one_letter_learns_from_the_longer_queries_typed_on(start_daemon):
         protocol.call("opened", {"event_id": event, "chunk_id": 0, "key": key})
     assert protocol.call("search", {"query": "d", "log": False})["learned"] == discord  # 3 of 4 choices
     assert protocol.call("search", {"query": "do", "log": False})["learned"] is None  # Docker only once
+
+
+def test_import_reports_whether_alfred_is_there(start_daemon, monkeypatch, tmp_path):
+    from lantern import importers
+
+    monkeypatch.setattr(importers, "ALFRED_DB", tmp_path / "none.alfdb")
+    start_daemon(mode="ask")
+    assert protocol.call("import", {"source": "alfred", "check": True}) == {"available": False}
+    assert protocol.call("import", {"source": "alfred"}) == {"imported": 0}

@@ -448,6 +448,20 @@ class Daemon:
             "learned": self._learned(resp.corrected_query or query),
         }  # fmt: skip
 
+    def api_import(self, source: str = "alfred", check: bool = False) -> dict:
+        """Learned choices from another launcher (lantern/importers.py). check: only say whether there is one."""
+        from lantern import importers
+
+        if source != "alfred":
+            raise ValueError(f"unknown source {source!r}")
+        if check:
+            return {"available": importers.ALFRED_DB.is_file()}
+        conn = self._conn()
+        try:
+            return {"imported": importers.import_alfred(conn)}
+        finally:
+            conn.close()
+
     def _learned(self, query: str) -> str | None:
         conn = self._conn()
         try:

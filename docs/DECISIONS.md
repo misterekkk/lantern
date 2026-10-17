@@ -1022,6 +1022,19 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
 - Open question 39: importing what other launchers learned (Alfred's knowledge.alfdb is SQLite; Raycast's database
   is encrypted with a key in the keychain, so not readable). Not installed here, so not verified.
 
+## Importing Alfred's knowledge (2026-10-17)
+
+- Installed Alfred 5.8.1 (Homebrew), let it create its database and removed it again (`brew uninstall --zap`; note:
+  Homebrew's autoremove also dropped a few orphaned libraries such as fribidi, flac and libogg; ffmpeg and every tool
+  Lantern uses were checked afterwards). `Databases/knowledge.alfdb` is SQLite: `knowledge(item, keyword, ts,
+  hidden)`, `latching(item, keyword, strong, ts)`, `recentdocs(path, bundle, ts)`, `other(...)`. Choosing a result in
+  Alfred could not be driven safely (a keystroke for Alfred's window would go to whatever window is in front), so the
+  rows' exact content stays unverified; the importer takes an app's item as a path or a bundle id.
+- Settings → Privacy shows "Choices learned by Alfred · Import" only when the file exists. Each choice becomes a
+  search-history row (`results_json` marked as imported, so a future ranking model can leave them out); a latched
+  keyword counts twice, enough for the learned-choice rule. Apps only (their row ids are stable). Read-only;
+  importing again adds nothing. Raycast's database is encrypted (key in the keychain): not imported.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1148,6 +1161,5 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 38. Spotify sign-in and sync (SpotifyLibrary.swift) are written against the documented API but untested until the
     user registers a Client ID; the response shape of `/playlists/{id}/items` (`item` vs `track` per row) is handled
     both ways.
-39. Import other launchers' learned choices for a faster switch: Alfred (`~/Library/Application Support/Alfred/
-    Databases/knowledge.alfdb`, SQLite, format unverified), LaunchBar (abbreviations); Raycast keeps an encrypted
-    database (key in the keychain), so it stays out. Needs a Mac with them installed to verify.
+39. ~~Import other launchers' learned choices~~ — Alfred done (see "Importing Alfred's knowledge"). Still open: the
+    exact form of Alfred's `knowledge.item` for apps (path or bundle id; both handled), LaunchBar's abbreviations.

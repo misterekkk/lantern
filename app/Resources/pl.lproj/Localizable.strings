@@ -373,3 +373,6 @@
 "Search and indexing stop until you open Lantern again." = "Wyszukiwanie i indeksowanie zatrzymają się, dopóki ponownie nie otworzysz Lanterna.";
 "Keep search history" = "Zapisuj historię wyszukiwania";
 "Search history stays on this Mac: your queries and the results you open, never file contents. Lantern learns from it which result you usually pick for a query (“sl” → Slack)." = "Historia wyszukiwania zostaje na tym Macu: Twoje zapytania i otwierane wyniki, nigdy treść plików. Lantern uczy się z niej, który wynik zwykle wybierasz dla danego zapytania („sl” → Slack).";
+"Choices learned by Alfred" = "Wybory zapamiętane przez Alfreda";
+"Import" = "Importuj";
+"%lld imported" = "Zaimportowano: %lld";

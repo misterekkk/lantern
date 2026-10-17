@@ -32,7 +32,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 - **A quick search panel** (⌥Space, or ⌘Space instead of Spotlight) with sections for applications, System
   Settings, code definitions, photos, files and music; the section that fits the query best comes first. One letter
   answers at once with the apps you use most (macOS's own launch counts), and a query you keep answering with the
-  same result ("d" → Discord) puts it first.
+  same result ("d" → Discord) puts it first. Coming from Alfred? Settings → Privacy imports the choices it learned.
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
   `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).

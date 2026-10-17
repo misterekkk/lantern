@@ -593,6 +593,8 @@ private struct PrivacyPane: View {
     @State private var compactResult: String?
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
     @AppStorage(SearchHistory.key) private var searchHistory = true
+    @State private var alfredAvailable = false
+    @State private var importResult: String?
     @AppStorage(MenuCommands.key) private var menuCommands = false
     @AppStorage(MusicSync.key) private var appleMusic = false
     @AppStorage(SpotifySync.enabledKey) private var spotify = false
@@ -617,6 +619,26 @@ private struct PrivacyPane: View {
                        text: "Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on.")
             Section {
                 Toggle("Keep search history", isOn: $searchHistory)
+                    .task {
+                        let data = try? await state.client.callRaw("import", ["source": "alfred", "check": true])
+                        let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                        alfredAvailable = json?["available"] as? Bool ?? false
+                    }
+                if alfredAvailable {  // Alfred's knowledge on this Mac: start from what it learned
+                    HStack {
+                        Text("Choices learned by Alfred")
+                        Spacer()
+                        if let importResult { Text(importResult).foregroundStyle(.secondary) }
+                        Button("Import") {
+                            Task {
+                                let data = try? await state.client.callRaw("import", ["source": "alfred"])
+                                let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                                let count = json?["imported"] as? Int ?? 0
+                                importResult = String(localized: "\(count) imported")
+                            }
+                        }
+                    }
+                }
                 Button { confirmClear = true } label: {
                     Text("Clear Search History…")
                 }

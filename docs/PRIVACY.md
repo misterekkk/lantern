@@ -58,7 +58,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     words and sends nothing out. The daemon only compares the guesses with the index.
 17. **Search history** (`search_events`) is local only: queries, result positions and the row you
     opened, no file contents. It teaches Lantern your usual choice for a query ("sl" → Slack); Settings → Privacy →
-    Keep search history switches it off.
+    Keep search history switches it off. "Choices learned by Alfred · Import" (shown only when Alfred's
+    database exists) reads that file once, read-only, and adds its app choices to this history.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is
