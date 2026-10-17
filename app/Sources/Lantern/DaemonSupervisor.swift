@@ -45,6 +45,8 @@ final class DaemonSupervisor {
         p.arguments = ["-m", "lantern.cli", "daemon", "run"]
         var env = ProcessInfo.processInfo.environment
         env["HF_HUB_OFFLINE"] = "1"
+        // The app's own AVFoundation decoder (lantern-media) for recordings and videos; ffmpeg stays a fallback.
+        if let media = Bundle.main.url(forAuxiliaryExecutable: "lantern-media")?.path { env["LANTERN_MEDIA"] = media }
         env["TRANSFORMERS_OFFLINE"] = "1"
         env["HF_HUB_DISABLE_TELEMETRY"] = "1"
         env["DO_NOT_TRACK"] = "1"

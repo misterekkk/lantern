@@ -78,7 +78,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 | Homebrew | package manager | https://brew.sh |
 | uv | Python environment and dependencies | `brew install uv` |
 | Python 3.12 | the daemon; **installed by uv**, not the system Python | automatic with `uv sync` |
-| ffmpeg | decodes audio and video | `brew install ffmpeg` |
+| ffmpeg (optional) | MKV and WebM recordings only; everything else is decoded by macOS itself (AVFoundation) | `brew install ffmpeg` |
 
 `uv sync` installs everything else into the project's `.venv` (nothing global): MLX and a pinned `mlx-vlm` commit
 (EmbeddingGemma 2 support), `transformers`, `torch`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
@@ -97,7 +97,7 @@ git clone https://github.com/misterekkk/lantern.git && cd lantern
 ./install.sh
 ```
 
-The script checks the Mac (Apple Silicon, macOS 14+, Command Line Tools), installs `uv` and `ffmpeg` with Homebrew
+The script checks the Mac (Apple Silicon, macOS 14+, Command Line Tools), installs `uv` and `ffmpeg` (for MKV/WebM) with Homebrew
 (with Homebrew analytics off for its own calls; if Homebrew is missing it asks before running the official
 installer), runs `uv sync`, downloads the required model and asks about the optional ones, checks that search works
 offline, and builds the app into `/Applications` when Xcode 26 is present. It can be run again at any time: finished
@@ -352,7 +352,7 @@ uv run lantern clear-history               # delete the local search history
 - Two models rate every photo: the EmbeddingGemma 2 vision tower (better at sentences and Polish) and SigLIP 2 base
   (better at single words). Their scores are normalised and summed; a photo is listed only when it clearly stands
   out from the rest.
-- Videos: frames at scene changes (ffmpeg), at least one every 30 s, near-duplicates dropped before embedding. A
+- Videos: frames at scene changes (macOS's AVFoundation; ffmpeg for MKV/WebM), at least one every 30 s, near-duplicates dropped before embedding. A
   video is found by what is seen in it even when nobody speaks ("sea", "beach"), at the moment it is seen; text on
   its frames (slides, screen recordings, captions) is read like text in photos and found at its moment too.
 - Skipped: images under 96 px (icons), over 100 MB, or broken. HEIC is decoded with the system's `sips`.
@@ -360,7 +360,9 @@ uv run lantern clear-history               # delete the local search history
 
 ### Recordings and videos
 
-- ffmpeg streams the audio (16 kHz mono) window by window, so the length of a recording does not affect memory.
+- macOS (AVFoundation, through Lantern's `lantern-media` helper) streams the audio (16 kHz mono) window by window, so
+  the length of a recording does not affect memory. MKV and WebM, which macOS cannot read, go through ffmpeg if it is
+  installed; measured equal for search (docs/DECISIONS.md, "Phase 14").
 - Two tracks in one ranking: **audio embeddings** of 30 s windows with 5 s overlap (the meaning of what is said,
   also across languages) and **Whisper large-v3-turbo transcripts** in ~20 s chunks (single words, text previews).
 - `lantern index <folder> --no-transcribe` skips Whisper (faster, but single words are not found).

@@ -50,9 +50,17 @@ def make(path: str, kind: str, start_ms: int | None, size: int = 320, folder: Pa
             image.thumbnail((size, size))
             image.save(out, "JPEG", quality=80)
         elif kind == "video":
-            from lantern.extractors.media import find_ffmpeg
+            from lantern.extractors.media import find_ffmpeg, find_media_helper
 
             seconds = f"{max(0, (start_ms or 0)) / 1000:.3f}"
+            helper = find_media_helper()
+            if helper:
+                done = subprocess.run(
+                    [helper, "still", path, seconds, str(out), str(size)], capture_output=True, timeout=20
+                )
+                if done.returncode == 0 and out.exists():
+                    os.chmod(out, 0o600)
+                    return out
             subprocess.run(
                 [find_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-ss", seconds, "-i", str(src),
                  "-frames:v", "1", "-vf", f"scale='min({size},iw)':-2", "-q:v", "4", "-y", str(out)],

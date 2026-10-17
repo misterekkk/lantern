@@ -97,7 +97,8 @@ the indexed data.
 | mlx-whisper | weights through huggingface_hub | loaded from the local copy (`local_files_only`); **measured: 0 connection attempts** while transcribing (`-m model` test) |
 | SigLIP 2 (transformers + torch in the worker, MLX in the daemon) | weights through huggingface_hub | `local_files_only` + offline variables; **measured: 0 connection attempts** while loading and embedding photos and queries (`-m model` test) |
 | Pillow, `sips` (photos) | no network traffic; read the photo file | HEIC through `sips` into a temporary file that is deleted right away |
-| ffmpeg | no network traffic; reads the input file, output goes to a pipe | run with `-nostdin`, no output files |
+| lantern-media (AVFoundation, part of macOS) | no network traffic; reads the input file, audio goes to a pipe, key frames to a temporary folder | frames deleted after reading, like ffmpeg's |
+| ffmpeg (optional, MKV/WebM) | no network traffic; reads the input file, output goes to a pipe | run with `-nostdin`, no output files |
 | Ollama (**not used**) | its server periodically fetches "model recommendations" from ollama.com (visible in its log) | not part of Lantern |
 | Homebrew (installation) | Homebrew analytics during `brew install` | `install.sh` runs brew with `HOMEBREW_NO_ANALYTICS=1`; for your own brew calls: `brew analytics off` |
 

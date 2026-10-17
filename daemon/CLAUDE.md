@@ -38,12 +38,15 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
 ## Pipeline (`lantern/indexer.py`)
 
 scan (`scanner/diff.py`) enqueues jobs → `run_queue` stage 1 (`index` jobs): text/code files are extracted + chunked,
-their chunks embedded together, one transaction per file; audio/video files are streamed by ffmpeg into 30 s windows
-(25 s hop) and embedded by the audio tower, then a `transcribe` job is queued → stage 2 (`transcribe` jobs): Whisper →
+their chunks embedded together, one transaction per file; audio/video files are streamed by `lantern-media`
+(AVFoundation; ffmpeg fallback for MKV/WebM, `media._decoder`) into 30 s windows (25 s hop) and embedded by the audio tower, then a `transcribe` job is queued → stage 2 (`transcribe` jobs): Whisper →
 ~20 s transcript chunks → text embeddings + FTS. The audio tower and Whisper are never loaded at the same time;
 `replace_file_chunks(kinds=...)` lets each stage replace only its own chunk kinds. Data-like files (CSV/TSV, mostly numbers) are indexed head-only;
 lockfiles are excluded (`config.py`). **Bump the kind's entry in `PIPELINE_VERSIONS` (`indexer.py`) whenever
 its chunking rules or prompt formats change**: files store `pipeline_version` and `model_id`, and `run_queue` re-queues mismatches automatically.
+
+- Media decoding: `find_media_helper()` (LANTERN_MEDIA from the app, `off` forces ffmpeg; tests run both ways with
+  `LANTERN_MEDIA=off uv run pytest`). Never bump a pipeline version for a decoder change unless vectors change.
 
 ## Search (`lantern/search/`)
 
@@ -80,8 +83,8 @@ with their video. Every search is logged to `search_events` (features only, neve
 - Two models per photo: EmbeddingGemma 2 vision tower (`IMAGE_TOKENS = 140`) and SigLIP 2 base (`embedding/siglip.py`:
   torch fp16 image tower in the worker, MLX 8-bit text tower in the daemon, loaded on demand and released after
   `QUERY_MODEL_IDLE_S`). Their vectors go to `vec_images_<model_id>` tables, never into the text tables.
-- `extractors/image.py` (Pillow, HEIC via `sips`), `extractors/frames.py` (ffmpeg scene select + 30 s floor, dHash +
-  colour signature dedup). Key frames also go through OCR (`vision.frame_text`): `screen` chunks (text vectors,
+- `extractors/image.py` (Pillow, HEIC via `sips`), `extractors/frames.py` (`lantern-media frames`: AVFoundation, scene
+  score ×2 calibrated to ffmpeg's select; ffmpeg fallback; 30 s floor, dHash + colour signature dedup). Key frames also go through OCR (`vision.frame_text`): `screen` chunks (text vectors,
   frame moment, repeated text merged), searched with the files. Both models are optional at runtime: without SigLIP downloaded, EG2 alone is used.
 
 ## Service (`lantern/service/`, Phase 5)

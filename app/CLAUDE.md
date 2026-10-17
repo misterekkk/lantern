@@ -52,6 +52,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   registered; `build.sh` builds `integrations/alfred` into Resources (`Lantern.alfredworkflow`).
 - Search results come in sections (`SearchResponse.sections`: photos and files, order decided by the daemon); the
   panel keeps one flat selection index across sections.
+- `Sources/LanternMedia` — the `lantern-media` helper (AVFoundation: `audio`, `frames`, `still`), copied into
+  Contents/MacOS by build.sh and signed before the bundle; DaemonSupervisor passes its path as LANTERN_MEDIA.
 - `Resources/Info.plist.template` — bundle id `com.lantern.app`, `LSUIElement`, privacy usage strings (Polish),
   `LanternPython` (filled by build.sh).
 

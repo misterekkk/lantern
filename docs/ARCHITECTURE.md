@@ -39,7 +39,7 @@ All logic lives in the daemon. Clients only call the API.
 - **Job queue** in SQLite: idempotent, resumable; one failing file never blocks the rest.
 - **Embedders behind an interface**, a `model_id` on every vector, vectors of different models never mixed.
 - **Hybrid search:** vectors alone miss function names and error messages, so they are fused with BM25 through RRF.
-- **Audio:** ffmpeg to 16 kHz mono, 30 s windows with a 25 s hop, timestamps. Two tracks: audio embeddings and
+- **Audio:** AVFoundation (`lantern-media`, ffmpeg for MKV/WebM) to 16 kHz mono, 30 s windows with a 25 s hop, timestamps. Two tracks: audio embeddings and
   transcripts (words, previews). Rationale: DECISIONS.md, H1–H4.
 - **Photos:** files and photos are different kinds of results, so they are not fused into one ranking; results come
   in sections and the section with the more confident list goes first (DECISIONS.md, Phase 7).

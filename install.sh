@@ -82,7 +82,7 @@ ok "macOS $(sw_vers -productVersion), $(sysctl -n machdep.cpu.brand_string)"
 xcode-select -p >/dev/null 2>&1 || fail "Command Line Tools are missing. Run: xcode-select --install  (then this script again)"
 ok "Command Line Tools"
 
-step "Homebrew, uv, ffmpeg"
+step "Homebrew, uv, ffmpeg (MKV/WebM; other formats are decoded by macOS)"
 export HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1  # only for this script's brew calls
 if ! command -v brew >/dev/null 2>&1; then
   if [[ -x /opt/homebrew/bin/brew ]]; then

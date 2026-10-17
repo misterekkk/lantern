@@ -1118,8 +1118,18 @@ M4A, MP3, MOV and Ogg Opus.
   later 99.0%, 0.1% quieter 99.2%, **another resampler filter 77.6%**. Whisper's text depends on the high-band filter
   of the resampler, whichever decoder; neither transcript is "the right one" (both miss the same unclear names).
 - **Conclusion (hypothesis, 7 files):** AVFoundation decodes audio as well as ffmpeg for the formats it reads. For a
-  downloadable app: AVFoundation first, ffmpeg (if installed) for MKV/WebM. Video frames (ffmpeg's scene filter
-  today) need their own check before switching.
+  downloadable app: AVFoundation first, ffmpeg (if installed) for MKV/WebM.
+- **Video frames** (`lantern-media frames`, `spikes/phase14/compare_frames.py`): every frame decoded (VideoToolbox),
+  ffmpeg's scene score (min of the mean absolute difference and its change) on a 96×54 grid of every channel. The grid
+  gives half of ffmpeg's value (median ratio 0.49–0.56 over 9,400 frames of three videos, correlation 0.97–0.98), so it
+  is doubled: then the same cuts at the same frames (a test video with cuts at 8 / 20 / 70 s: identical; the user's
+  214 s talk: 7 of 8 frames identical, the last a borderline cut 201.4 s vs ffmpeg's 30 s floor at 209.1 s). Rotated
+  phone video upright like ffmpeg's autorotate. EG2 image vectors of the same frames: cos 0.977–0.993 (scaler, JPEG).
+  Speed on the 214 s talk: 7.6 s wall, 1.9 s CPU (ffmpeg 4.5 s wall, 13.3 s CPU): slower but far less CPU, which the
+  background indexer prefers. Audio: 0.14 s (ffmpeg 0.20 s).
+- **Shipped:** `lantern-media` (app/Sources/LanternMedia, inside Lantern.app) decodes audio, key frames and the Raycast
+  thumbnails; ffmpeg is the fallback for MKV/WebM and becomes optional. Already indexed files keep their vectors (no
+  pipeline bump: vectors differ by less than between two ffmpeg resampler settings).
 
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
