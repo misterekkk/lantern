@@ -3,7 +3,7 @@
 ## Overview
 
 ```
-Swift app (menu bar)            CLI / scripts
+Swift app (menu bar)    CLI / scripts    Raycast extension · Alfred workflow (integrations/)
           └──── Unix socket (0600, user only) ───────────┐
                                                          ▼
 Daemon (LaunchAgent or child of the app; text model in memory for search, ~490 MB)
@@ -63,9 +63,10 @@ All logic lives in the daemon. Clients only call the API.
 | 7 | search in photos and video frames (ffmpeg → frames → EG2 vision tower + SigLIP 2), preceded by a quality and speed test; photos section in the panel | done |
 | 8 | precise code search: tree-sitter symbol table (name, kind, signature, line), correct names in C/C++/Go and methods of small classes, "Definitions" section, opening at the line in the default editor | done |
 | 9 | settings and media (plan below): folder tree with search, ignored extensions, Performance pane, audio/video switch, ⌘Y preview, recordings from the timestamp, settings window like System Settings | done |
-| 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | ready in `site/`; goes live when the repository is public |
+| 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | done: https://misterekkk.github.io/lantern/ (Astro site with docs) |
 | 11 | PDFs (PDFKit, page by page; scanned pages via OCR) and text in images (Apple Vision OCR with a cheap gate); exact numbers and codes matched as phrases | done |
 | 12 | Spotlight replacement: apps and System Settings, instant answers, dictionary, shortcuts, clipboard, menu items and windows, web row, filter icons, music (Apple Music; opt-in Spotify sync), spelling, learned choices, one-letter search by macOS's launch counts, text on video frames, Whisper noise filter | done (DECISIONS.md, entries of 2026-10-16/17) |
+| 13 | Raycast and Alfred as front ends: a Raycast extension (results, previews, thumbnails made by the daemon, the panel's filters and keys) and an Alfred workflow, both clients of the socket; Settings → General → Search from | Raycast done (tested by the user); Alfred untested in Alfred |
 
 ### Phase 9 plan (agreed with the user, 2026-10-16)
 

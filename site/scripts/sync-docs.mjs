@@ -37,6 +37,7 @@ page("install", "Install", "Requirements and installation, step by step.", text(
 page("app", "The app", "The menu bar app and the search panel: keys, filters, previews.", text("The app"));
 page("search", "How search works", "Meaning and words together; PDFs, code, photos and recordings.", text("How search works"));
 page("folders", "Folders and exclusions", "What gets indexed and how to leave things out.", text("Folders and exclusions"));
+page("launchers", "Raycast and Alfred", "Search with Lantern from Raycast or Alfred, step by step.", text("Use with Raycast or Alfred"));
 page("daemon", "Background daemon", "How Lantern runs in the background and saves battery.", text("Background daemon"));
 page("limitations", "Known limitations", "What Lantern does not do yet.", text("Known limitations"));
 

@@ -55,6 +55,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     once a day and on "Sync Now"; during sign-in a listener waits on 127.0.0.1 (never other interfaces) for the one
     redirect back. Read: playlist names, song titles, artists, albums. The refresh token and the Client ID are kept in
     your login keychain. Searching and playing work offline from the local copy. Switching it off or signing out deletes the list.
+    To play Liked Songs (which have no playlist address), Lantern reads one value from the Spotify app's local prefs
+    file, the signed-in account name (`autologin.canonical_username`), when you play them; it is not stored or sent.
 16. **Spelling:** guesses come from macOS's spell checker (NSSpellChecker, on the Mac); Lantern never teaches it
     words and sends nothing out. The daemon only compares the guesses with the index.
 17. **Search history** (`search_events`) is local only: queries, result positions and the row you

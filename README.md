@@ -32,6 +32,8 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
   Settings, code definitions, photos, files and music; the section that fits the query best comes first. One letter
   answers at once with the apps you use most (macOS's own launch counts), and a query you keep answering with the
   same result ("d" → Discord) puts it first. Coming from Alfred? Settings → Privacy imports the choices it learned.
+- **Works with Raycast and Alfred:** keep your launcher and search with Lantern inside it ("Search Lantern" in
+  Raycast with previews, thumbnails and filters; a workflow for Alfred). See [Use with Raycast or Alfred](#use-with-raycast-or-alfred).
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
   `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).
@@ -225,23 +227,58 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 
 ## Use with Raycast or Alfred
 
-Prefer Raycast or Alfred? Keep it and let Lantern do the searching: Settings → General → **Search from: Raycast /
-Alfred** turns Lantern's own shortcut off, and that launcher shows Lantern's results (definitions, files with the
-line or moment, photos). Lantern keeps running in the menu bar, indexing and answering in the background; your choices
-there teach it as in its own panel.
+Prefer Raycast or Alfred? Keep it and let Lantern do the searching. Lantern keeps running in the menu bar, indexing and
+answering in the background, and that launcher shows Lantern's results: code definitions, files with the line, page
+or moment, photos and video frames, recordings, your music and Shortcuts. Your choices there teach Lantern as in its
+own panel.
 
-- **Raycast:** the "Search Lantern" command in [integrations/raycast](integrations/raycast) (not in the Raycast Store
-  yet: `npm install && npm run dev` once adds it to Raycast). Give it a hotkey or an alias in Raycast's settings
-  (sidebar → Lantern); Raycast's own hotkey is also ⌥Space by default.
-- **Alfred** (Powerpack): Settings → General → *Install the Alfred Workflow…*, then type `l` and your query, or give
-  the workflow a hotkey. Source in [integrations/alfred](integrations/alfred). Not tested inside Alfred yet: feedback welcome.
+### Raycast, step by step
 
-Raycast can also offer Lantern under every query of its own: Raycast's settings → Fallback Commands → add "Search
-Lantern"; ↩ on it shows Lantern's results for what you typed.
+The extension is not in the Raycast Store yet, so it is added once from this repository (needs Node.js:
+`brew install node`).
 
-In both: ↩ opens at the line or moment, ⌘↩ shows in Finder, ⌘Y (Alfred: ⇧) Quick Look. Searches go to Lantern over
-its local socket and never leave the Mac; what the launcher itself does is up to it (Raycast and Alfred have their own
-privacy policies).
+1. Install and open [Raycast](https://www.raycast.com), and have the Lantern app running.
+2. Add the extension:
+
+   ```bash
+   cd integrations/raycast
+   npm ci
+   npm run dev        # adds "Search Lantern" to Raycast; when it says "ready", Ctrl+C (the command stays)
+   ```
+
+3. In Lantern: Settings → General → **Search from: Raycast**. Lantern's own shortcut turns off.
+4. Choose how to open it, in Raycast's settings (sidebar → **Lantern** → Search Lantern):
+   - **a hotkey**, e.g. ⌥Space. Raycast itself opens on ⌥Space by default: move Raycast's own hotkey first (sidebar →
+     Raycast → Raycast Hotkey), for example to ⌘Space instead of Spotlight;
+   - **an alias**, e.g. `l`: type `l`, a space and your query in Raycast;
+   - **a fallback**: Raycast's settings → Fallback Commands → add "Search Lantern". It then appears under every query
+     in Raycast, and ↩ on it shows Lantern's results for what you typed.
+
+Keys in "Search Lantern":
+
+| Key | Action |
+|---|---|
+| ↩ | open at the line (VS Code, VSCodium, Cursor, Xcode, JetBrains), play from the moment (QuickTime), play a song |
+| ⌥↩ | open from the start (a recording from 0:00) |
+| ⌘↩ | show in Finder (a song: in Music or Spotify) |
+| ⌘Y | preview at the place: the code around the line, the whole passage with your words in bold; a video in QuickTime, paused at the moment |
+| ⇧⌘Y | Quick Look of the whole file |
+| ⌃1 … ⌃0 | filter by kind, the panel's digits (Raycast keeps ⌘1 … ⌘9 for opening the Nth result); the same again for all kinds |
+
+The pane beside the results shows the code around a result (its lines marked ▶), the passage with your words in bold
+and thumbnails of photos and video frames. Raycast never reads your folders, so it asks for no access to them: the
+text comes from Lantern, and the thumbnails are made by Lantern into its cache, deleted after 10 minutes (see
+[PRIVACY.md](docs/PRIVACY.md)). Details: [integrations/raycast](integrations/raycast).
+
+### Alfred
+
+Alfred runs workflows with its paid Powerpack. In Lantern: Settings → General → **Search from: Alfred** → *Install
+the Alfred Workflow…*; then type `l` and your query in Alfred, or give the workflow a hotkey. ↩ opens at the line or
+moment, ⌥↩ from the start, ⌘↩ shows in Finder, ⇧ Quick Look. The workflow is not tested inside Alfred yet: feedback
+welcome. Details: [integrations/alfred](integrations/alfred).
+
+Searches go to Lantern over its local socket and never leave the Mac; what the launcher itself does is up to it
+(Raycast and Alfred have their own privacy policies).
 
 ## Command line
 

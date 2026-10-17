@@ -17,7 +17,7 @@ export default defineConfig({
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/misterekkk/lantern" }],
       sidebar: [
         { label: "Start", items: [{ slug: "docs/install" }, { slug: "docs/app" }] },
-        { label: "Using Lantern", items: [{ slug: "docs/search" }, { slug: "docs/folders" }, { slug: "docs/cli" }] },
+        { label: "Using Lantern", items: [{ slug: "docs/search" }, { slug: "docs/folders" }, { slug: "docs/launchers" }, { slug: "docs/cli" }] },
         { label: "Under the hood", items: [{ slug: "docs/privacy" }, { slug: "docs/daemon" }, { slug: "docs/architecture" }, { slug: "docs/limitations" }] },
       ],
       pagefind: true,

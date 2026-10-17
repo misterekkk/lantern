@@ -1088,6 +1088,13 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   brackets, parentheses or `$` (HTML entities instead).
 - Raycast runs only the selected row's action shortcuts: every empty state (nothing typed, nothing of the chosen kind,
   an error) carries the filter actions, or ⌃1…⌃0 beeped once a filter left no rows.
+- **Type icons without reading files:** Raycast's `fileIcon` of a file in Downloads asked for folder access; an empty
+  sample file per extension in the extension's support folder gives the same Finder icon (`typeIcon` in search.tsx).
+  Music, Shortcuts and System Settings rows show their app's icon.
+- **Spotify Liked Songs never played** (panel and Raycast): the row had no playlist URI and the command was skipped.
+  Tested silently (Spotify muted, state restored): `play track "spotify:collection:tracks"` and `spotify:collection`
+  do nothing; `spotify:user:<account>:collection` plays them. The account comes from Spotify's local prefs
+  (`autologin.canonical_username`), read when playing; without it the Liked Songs view opens.
 - Raycast: tested by the user (search, previews, thumbnails, filters). Alfred: not tested inside Alfred (the Powerpack
   is paid); the script is tested against the daemon.
 - Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
