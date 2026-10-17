@@ -501,3 +501,16 @@ kbd {
 .scope-icon.unfolding { animation: unfold 0.28s var(--ease) both; animation-delay: calc(var(--i) * 30ms); }
 @keyframes unfold { from { opacity: 0; transform: translateX(18px) scale(0.4); } }
 @media (prefers-reduced-motion: reduce) { .scope-icon.unfolding { animation: none; } }
+
+/* Trademark note under the desktop: small, out of the way, never over the tour. */
+.legal {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  color: rgba(31, 35, 40, 0.55);
+  pointer-events: none;
+}

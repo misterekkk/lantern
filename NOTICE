@@ -7,3 +7,10 @@ Lantern does not include model weights. Users download them separately; each mod
 - EmbeddingGemma 2 (google/embeddinggemma-2; MLX conversion mlx-community/embeddinggemma-2-8bit): Apache License 2.0
 - SigLIP 2 (google/siglip2-base-patch16-224; MLX conversion mlx-community/siglip2-base-patch16-224-8bit): Apache License 2.0
 - Whisper large-v3-turbo (OpenAI; MLX conversion mlx-community/whisper-large-v3-turbo): MIT License
+
+The website (site/) bundles two fonts, each under the SIL Open Font License, Version 1.1:
+- Atkinson Hyperlegible Next, Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors
+- Instrument Sans, Copyright 2022 The Instrument Sans Project Authors
+
+Apple, Mac, macOS, Finder and Spotlight are trademarks of Apple Inc. Spotify, Alfred, Raycast and Discord are
+trademarks of their respective owners. Lantern is an independent project, not affiliated with or endorsed by them.

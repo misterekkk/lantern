@@ -123,6 +123,7 @@ const faq = [
     summary::after { content: "+"; color: var(--muted); font-weight: 400; }
     details[open] summary::after { content: "–"; }
     details p { color: var(--muted); margin: 10px 0 0; max-width: 46em; }
+    footer .legal { flex-basis: 100%; margin: 0; font-size: 12.5px; line-height: 1.5; max-width: 72ch; }
     footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
     @media (max-width: 900px) {
       .hero { grid-template-columns: minmax(0, 1fr); gap: 36px; padding-block: 24px 48px; }
@@ -233,6 +234,9 @@ const faq = [
     <footer>
       <span>Lantern · Apache 2.0</span>
       <span><a href={`${base}docs/install/`}>Docs</a> · <a href={`${base}docs/privacy/`}>Privacy</a> · <a href={repo}>GitHub</a></span>
+      <p class="legal">Apple, Mac, macOS, Finder and Spotlight are trademarks of Apple Inc. Spotify, Alfred, Raycast,
+        Discord and other names belong to their owners. Lantern is an independent project, not affiliated with or
+        endorsed by any of them. Fonts: Atkinson Hyperlegible Next and Instrument Sans (SIL Open Font License 1.1).</p>
     </footer>
   </div>
 
