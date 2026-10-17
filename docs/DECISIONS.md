@@ -1100,6 +1100,27 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
 - Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
   (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
 
+## Phase 14 spike: AVFoundation instead of ffmpeg for audio (2026-10-17)
+
+Question: a downloadable app should not need Homebrew's ffmpeg. Does decoding with AVFoundation (macOS itself) change
+what Lantern indexes? Scripts in `spikes/phase14/` (`avdecode.swift`: first audio track → 16 kHz mono float32, as
+ffmpeg's `-ac 1 -ar 16000`); files: the 7 recordings and videos of the user's index plus a speech fixture converted to
+M4A, MP3, MOV and Ogg Opus.
+
+- **Formats:** AVFoundation read WAV, MP3, M4A/AAC, MP4, MOV and Ogg Opus; it cannot read **MKV** (1 of the user's 7
+  files) or WebM.
+- **Signal:** mono 16 kHz sources decode identically (SNR 44–86 dB). Stereo 44.1/48 kHz sources looked different at
+  first (corr 0.93–0.99): the two resamplers place the output one source sample apart (20.8 µs / 22.7 µs) and filter
+  differently near 8 kHz. After that sub-millisecond shift the speech band (0–4 kHz) matches at SNR 37–82 dB;
+  4–7 kHz at 15–32 dB. Stereo is mixed to mono the same way (average of the channels).
+- **EmbeddingGemma 2 audio vectors** of the same windows: cos 0.985–0.9999 (mean 0.998 on the 214 s talk).
+- **Whisper** on the 214 s talk: 80.5% of the words the same as with ffmpeg. Baseline with ffmpeg itself: one sample
+  later 99.0%, 0.1% quieter 99.2%, **another resampler filter 77.6%**. Whisper's text depends on the high-band filter
+  of the resampler, whichever decoder; neither transcript is "the right one" (both miss the same unclear names).
+- **Conclusion (hypothesis, 7 files):** AVFoundation decodes audio as well as ffmpeg for the formats it reads. For a
+  downloadable app: AVFoundation first, ffmpeg (if installed) for MKV/WebM. Video frames (ffmpeg's scene filter
+  today) need their own check before switching.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
