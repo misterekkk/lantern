@@ -236,6 +236,13 @@ there teach it as in its own panel.
 - **Alfred** (Powerpack): Settings → General → *Install the Alfred Workflow…*, then type `l` and your query, or give
   the workflow a hotkey. Source in [integrations/alfred](integrations/alfred).
 
+Raycast can also offer Lantern under every query of its own: Raycast's settings → Fallback Commands → add "Search
+Lantern"; ↩ on it shows Lantern's results for what you typed.
+
+The other way round works too: Lantern's panel lists the commands of your Raycast extensions and the keywords of your
+Alfred workflows in the **Commands** section (with your Shortcuts); ↩ opens the command in Raycast, or Alfred with the
+keyword typed. Lantern reads only their names and keywords.
+
 In both: ↩ opens at the line or moment, ⌘↩ shows in Finder, ⌘Y (Alfred: ⇧) Quick Look. Searches go to Lantern over
 its local socket and never leave the Mac; what the launcher itself does is up to it (Raycast and Alfred have their own
 privacy policies).

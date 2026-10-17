@@ -65,7 +65,10 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 18. **Raycast and Alfred** (integrations/, off unless you choose them in Settings → General): the extension or
     workflow sends your query to Lantern's local socket (user-only, mode `0600`) and shows the results; nothing goes
     over the network. The query and the results pass through that launcher's own process, so its privacy policy
-    applies to them (Raycast has accounts and cloud features; Alfred is local).
+    applies to them (Raycast has accounts and cloud features; Alfred is local). The other way, Lantern's panel lists
+    Raycast and Alfred commands: it reads the names in each Raycast extension's `package.json` and the keywords and
+    titles in each Alfred workflow's `info.plist` (nothing else: no snippets, no settings), keeps them in memory only
+    and re-reads them every 2 minutes. Opening an Alfred keyword asks macOS once whether Lantern may control Alfred.
 
 ## Where the data is
 
