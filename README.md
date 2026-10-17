@@ -30,7 +30,9 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 ## Features
 
 - **A quick search panel** (⌥Space, or ⌘Space instead of Spotlight) with sections for applications, System
-  Settings, code definitions, photos and files; the section that fits the query best comes first.
+  Settings, code definitions, photos, files and music; the section that fits the query best comes first. One letter
+  answers at once with the apps you use most (macOS's own launch counts), and a query you keep answering with the
+  same result ("d" → Discord) puts it first.
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
   `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).
@@ -46,7 +48,7 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
   `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
   dictionaries of macOS for a single word; your shortcuts (Shortcuts app); and a last row that opens the web search
   in your default browser (Google, DuckDuckGo, Bing or Ecosia, or off); it moves to the top when nothing on the Mac
-  contains the query's words. Lantern itself makes no network request.
+  contains the query's words. That row only opens your browser; Lantern itself sends nothing.
 - **Clipboard history** (off by default, Settings → Privacy): text you copied in the last 30 minutes or 8 hours,
   kept in memory only; ↩ copies it again.
 - **Menu items and windows** (off by default, Settings → Privacy, needs the Accessibility permission): commands from
@@ -166,9 +168,10 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
     Shortcuts… → Spotlight); Lantern says so and opens that page, but never changes system settings itself.
 - **Filter icons** beside the query field, like Spotlight's mode buttons (round glass buttons; hover shows the name,
   choosing one puts it in the field with its ⌘ shortcut). Kinds: Applications, System Settings, Shortcuts, Clipboard,
-  Code, Documents, PDFs, Photos, Recordings and videos, Music — folded into one filter button that unfolds when you point at it; once you type, up to three matching kinds show directly. Tab / ⇧Tab
-  move between them, ⌘1…⌘9 pick one, a click works too; a long query folds them into one filter button (pointing
-  at it unfolds them); ⌫ in an empty field takes the chosen one out. Esc removes the filter first, then closes the panel; the panel opens empty.
+  Code, Documents, PDFs, Photos, Recordings and videos, Music. They are folded into one filter button that unfolds
+  when you point at it (once you type, up to three matching kinds show directly; a long query folds them again).
+  ⌘1…⌘9 and ⌘0 pick one, Tab / ⇧Tab move between them, ⌫ in an empty field takes the chosen one out. Esc removes
+  the filter first, then closes the panel; the panel opens empty.
 - **Spelling:** after a short pause in typing, words that none of your languages knows get the spelling guesses of
   macOS (on the Mac), and Lantern searches again with the first guess its index knows (a word in your files, an app
   or a setting): "faktrua za prad" shows "Showing results for faktura za prad · Search for “faktrua za prad”
@@ -308,7 +311,7 @@ uv run lantern clear-history               # delete the local search history
 
 ## Folders and exclusions
 
-- Add folders in the app (Add Folder…) or with `lantern index <folder>`. You can add your whole home folder:
+- Add folders in Settings → Folders (Add Folder…, with a tree to choose what to skip) or with `lantern index <folder>`. You can add your whole home folder:
   `lantern index ~ --dry-run` first counts files and estimates the time without reading or writing anything.
 - **Home folder rules** (always on): `~/Library` is skipped (mail, caches, app data) except **iCloud Drive**;
   `~/Applications`, the Apple Music library and all macOS packages (`*.app`, `*.photoslibrary`, iWork documents,

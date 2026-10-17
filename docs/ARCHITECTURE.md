@@ -19,8 +19,13 @@ Daemon (LaunchAgent or child of the app; text model in memory for search, ~490 M
         + symbols (code definitions)
         ▲
   Search: definitions (symbol table) | files (vectors + BM25 → RRF) | photos (EG2 + SigLIP, z-scores)
-          → sections → search_events
+          | apps, System Settings, shortcuts, music (names, words, meaning) | answers, dictionary
+          → sections on one 0..1 scale → learned choices → search_events
 ```
+
+The app adds its own sections on the same scale (clipboard, menu items and windows, the web row) and sends the
+music libraries it reads (Apple Music through iTunesLibrary; Spotify through its Web API, the one opt-in network
+connection, see PRIVACY.md).
 
 All logic lives in the daemon. Clients only call the API.
 
@@ -60,6 +65,7 @@ All logic lives in the daemon. Clients only call the API.
 | 9 | settings and media (plan below): folder tree with search, ignored extensions, Performance pane, audio/video switch, ⌘Y preview, recordings from the timestamp, settings window like System Settings | done |
 | 10 | GitHub Pages demo: an interactive macOS desktop in the browser that walks through Lantern (plan below) | ready in `site/`; goes live when the repository is public |
 | 11 | PDFs (PDFKit, page by page; scanned pages via OCR) and text in images (Apple Vision OCR with a cheap gate); exact numbers and codes matched as phrases | done |
+| 12 | Spotlight replacement: apps and System Settings, instant answers, dictionary, shortcuts, clipboard, menu items and windows, web row, filter icons, music (Apple Music; opt-in Spotify sync), spelling, learned choices, one-letter search by macOS's launch counts, text on video frames, Whisper noise filter | done (DECISIONS.md, entries of 2026-10-16/17) |
 
 ### Phase 9 plan (agreed with the user, 2026-10-16)
 
