@@ -1,0 +1,276 @@
+---
+// Landing page: what Lantern is, a live miniature of the panel, examples, privacy, install, questions.
+// Fonts come from the site itself (fontsource); no analytics, no third-party requests.
+import "@fontsource-variable/atkinson-hyperlegible-next";
+import "@fontsource-variable/instrument-sans";
+
+const base = import.meta.env.BASE_URL;
+const repo = "https://github.com/misterekkk/lantern";
+const install = `git clone ${repo}.git\ncd lantern\n./install.sh`;
+
+const examples = [
+  { query: "dog on the beach", kind: "Photo", what: "A photo, found by what is in it. No tags, no file name needed." },
+  { query: "error 0x80070002", kind: "Screenshot", what: "The screenshot that shows this error, read with the Mac's own text recognition." },
+  { query: "when we talked about the match", kind: "Recording · 1:48", what: "The moment in a video where it is said. ↩ plays it from there." },
+  { query: "def add_two", kind: "Code · line 200", what: "The definition itself, opened at its line in your editor." },
+  { query: "electricity invoice october", kind: "PDF · page 2", what: "The page of the PDF, scanned pages included." },
+  { query: "24 hour", kind: "System Settings", what: "Use a 24-hour clock in the menu bar: the single setting, not just its pane." },
+  { query: "d", kind: "App", what: "Discord, because it is the one you use. One letter, ↩, done." },
+];
+
+const faq = [
+  { q: "Does anything leave my Mac?", a: "No. The models run on your Mac after a one-time download, Lantern sends no telemetry and only reads your files. The single exception is the Spotify library sync, which is off unless you switch it on with your own key." },
+  { q: "Can it replace Spotlight?", a: "Yes. It opens on ⌥Space or on ⌘Space instead of Spotlight, and finds apps, System Settings, quick answers, dictionary entries, shortcuts and your music next to your files." },
+  { q: "Which languages does it understand?", a: "The search model is multilingual, so a Polish question finds an English document and the other way round. The app is in English and Polish and follows the language of macOS." },
+  { q: "What Mac do I need?", a: "A Mac with Apple Silicon. It is developed on an M4 with 16 GB of memory; the search model needs about half a gigabyte while it runs, and indexing pauses on battery and when the Mac is hot." },
+  { q: "Can I use it on company code?", a: "Yes, that is what it was built for: everything stays in one local file in Application Support, secrets such as .env and keys are skipped, and deleting a folder from the index really erases it." },
+  { q: "Coming from Alfred?", a: "Settings → Privacy imports the choices Alfred learned, so a letter and ↩ open the same app on day one." },
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lantern</title>
+  <meta name="description" content="Search your Mac by what is inside: files, code, photos, recordings and apps, found by meaning, entirely on your Mac.">
+  <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml">
+  <style>
+    /* Layout: a sky-coloured opening band (the Mist of the demo) with the text left and a live panel right, then quiet
+       full-width sections on paper; the amber of the icon's sparkle is the only colour, used as light, sparingly. */
+    :root {
+      --sky: #dfe6ee;
+      --sky-top: #f3f6fa;
+      --paper: #fbfcfd;
+      --ink: #1c1f24;
+      --muted: #5b6470;
+      --line: #dfe4ea;
+      --graphite: #1f2126;
+      --amber: #f2b84b;
+      --amber-ink: #8a5a00;
+      --panel: rgba(255, 255, 255, 0.78);
+      --display: "Instrument Sans Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      --body: "Atkinson Hyperlegible Next Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --sky: #141b22; --sky-top: #1d2732; --paper: #111418; --ink: #eceff2; --muted: #9aa3ae; --line: #262c33;
+        --graphite: #e9ecef; --amber-ink: #f2b84b; --panel: rgba(28, 32, 38, 0.82); color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --sky: #141b22; --sky-top: #1d2732; --paper: #111418; --ink: #eceff2; --muted: #9aa3ae; --line: #262c33;
+      --graphite: #e9ecef; --amber-ink: #f2b84b; --panel: rgba(28, 32, 38, 0.82); color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; font-variant-emoji: text; overflow-x: clip; }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+    header.top { display: flex; align-items: center; justify-content: space-between; padding-block: 18px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--display); font-weight: 600; font-size: 19px; }
+    .brand img { width: 34px; height: 34px; }
+    nav.links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 18px; font-size: 15px; }
+    nav.links a { text-decoration: none; color: var(--muted); }
+    nav.links a:hover { color: var(--ink); }
+    .sky { background: radial-gradient(130% 90% at 50% 0%, var(--sky-top) 0%, var(--sky) 100%); border-bottom: 1px solid var(--line); }
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: center; padding-block: 48px 72px; }
+    h1 { font-family: var(--display); font-weight: 600; font-size: clamp(38px, 5.4vw, 64px); line-height: 1.04; letter-spacing: -0.03em; margin: 0 0 20px; text-wrap: balance; }
+    .lede { font-size: 19px; color: var(--muted); max-width: 34em; margin: 0 0 30px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font-weight: 600; font-size: 16px; text-decoration: none; border: 1px solid transparent; }
+    .btn.primary { background: var(--graphite); color: var(--paper); }
+    .btn.secondary { border-color: var(--line); background: var(--panel); }
+    .btn .spark { width: 14px; height: 14px; }
+    .meta { margin-top: 18px; font-size: 14px; color: var(--muted); }
+    /* the live miniature of the panel */
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 30px 60px -30px rgba(20, 30, 45, 0.35); backdrop-filter: blur(18px); overflow: hidden; }
+    .field { display: flex; align-items: center; gap: 12px; padding: 18px 22px; font-size: 22px; border-bottom: 1px solid var(--line); min-height: 68px; }
+    .field svg { flex: none; color: var(--muted); }
+    .typed { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .caret { width: 2px; height: 26px; background: #3b82f6; animation: blink 1.1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .results { padding: 10px; display: grid; gap: 4px; min-height: 236px; }
+    .section-name { font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 12px 2px; letter-spacing: 0.02em; }
+    .row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 16px; }
+    .row.selected { background: rgba(59, 130, 246, 0.14); }
+    .thumb { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; font-family: var(--mono); font-size: 13px; color: var(--muted); background: var(--line); }
+    .row strong { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row span.sub { display: block; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .key { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    section.band { padding-block: 72px; border-bottom: 1px solid var(--line); }
+    h2 { font-family: var(--display); font-weight: 600; font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 12px; text-wrap: balance; }
+    .intro { color: var(--muted); max-width: 40em; margin: 0 0 36px; }
+    .examples { display: grid; gap: 0; border-top: 1px solid var(--line); }
+    .example { display: grid; grid-template-columns: minmax(0, 0.9fr) 160px minmax(0, 1.4fr); gap: 20px; align-items: baseline; padding-block: 18px; border-bottom: 1px solid var(--line); }
+    .q { font-family: var(--mono); font-size: 15px; background: var(--sky); border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; justify-self: start; }
+    .k { font-size: 13px; font-weight: 700; color: var(--amber-ink); letter-spacing: 0.02em; }
+    .w { color: var(--muted); }
+    .pillars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px; }
+    .pillars h3 { font-family: var(--display); font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+    .pillars p { margin: 0; color: var(--muted); }
+    .start { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 48px; align-items: start; }
+    .start ul { margin: 0; padding-left: 20px; color: var(--muted); display: grid; gap: 6px; }
+    .code { position: relative; background: #161a1f; color: #e8ecef; border-radius: 16px; padding: 44px 24px 22px; font-family: var(--mono); font-size: 15px; line-height: 1.7; overflow-x: auto; }
+    .code pre { margin: 0; white-space: pre; }
+    .copy { position: absolute; top: 12px; right: 12px; background: rgba(255, 255, 255, 0.1); color: #e8ecef; border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+    .start .after { color: var(--muted); font-size: 15px; margin-top: 14px; }
+    details { border-bottom: 1px solid var(--line); padding-block: 16px; }
+    details:first-of-type { border-top: 1px solid var(--line); }
+    summary { cursor: pointer; font-weight: 700; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+    summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+    details[open] summary::after { content: "–"; }
+    details p { color: var(--muted); margin: 10px 0 0; max-width: 46em; }
+    footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: minmax(0, 1fr); gap: 36px; padding-block: 24px 48px; }
+      .example { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+      .pillars, .start { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+      nav.links a.hide-narrow { display: none; }
+      .field { font-size: 18px; padding: 14px 16px; }
+      .key { display: none; }
+      .row { grid-template-columns: 40px minmax(0, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) { .caret { animation: none; } html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <div class="sky">
+    <div class="wrap">
+      <header class="top">
+        <a class="brand" href={base}><img src={`${base}favicon.svg`} alt="" width="34" height="34">Lantern</a>
+        <nav class="links" aria-label="Site">
+          <a href={`${base}demo/`}>Demo</a>
+          <a href={`${base}docs/install/`}>Docs</a>
+          <a class="hide-narrow" href="#private">Privacy</a>
+          <a href={repo}>GitHub</a>
+        </nav>
+      </header>
+      <div class="hero">
+        <div>
+          <h1>Search your Mac by what is inside.</h1>
+          <p class="lede">Files, code, photos, recordings and apps, found by meaning in one panel. Everything runs on your Mac; nothing is uploaded.</p>
+          <div class="actions">
+            <a class="btn primary" href={`${base}demo/`}>
+              <svg class="spark" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 8 C54 36 64 46 92 50 C64 54 54 64 50 92 C46 64 36 54 8 50 C36 46 46 36 50 8 Z" fill="#f2b84b"/></svg>
+              Try the demo
+            </a>
+            <a class="btn secondary" href="#start">Install</a>
+          </div>
+          <p class="meta">Free and open source · macOS on Apple Silicon · English and Polish</p>
+        </div>
+        <div class="panel" aria-label="The search panel, showing an example">
+          <div class="field">
+            <svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true"><circle cx="43" cy="43" r="25" fill="none" stroke="currentColor" stroke-width="8"/><path d="M62 62 L80 80" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="M43 30 C44.6 38.5 47.5 41.4 56 43 C47.5 44.6 44.6 47.5 43 56 C41.4 47.5 38.5 44.6 30 43 C38.5 41.4 41.4 38.5 43 30 Z" fill="#f2b84b"/></svg>
+            <span class="typed" id="typed">when we talked about the match</span><span class="caret" aria-hidden="true"></span>
+          </div>
+          <div class="results" id="results">
+            <div class="section-name">Files</div>
+            <div class="row selected"><div class="thumb">▶</div><div><strong>vlog-october.mp4 · 1:48</strong><span class="sub">“…and then we talked about the match on Sunday…”</span></div><span class="key">play ↩</span></div>
+            <div class="row"><div class="thumb">txt</div><div><strong>notes-sunday.md</strong><span class="sub">~/Documents · the match, tickets, who drives</span></div><span class="key"></span></div>
+            <div class="section-name">Photos</div>
+            <div class="row"><div class="thumb">img</div><div><strong>IMG_2041.HEIC</strong><span class="sub">~/Pictures · stadium, evening</span></div><span class="key"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <section class="band" id="examples">
+      <div class="wrap">
+        <h2>Ask the way you remember it</h2>
+        <p class="intro">Lantern reads text, code, PDFs, photos and the sound of recordings, and matches what you mean as well as the exact words. These are real queries and what they find.</p>
+        <div class="examples">
+          {examples.map((e) => (
+            <div class="example"><span class="q">{e.query}</span><span class="k">{e.kind}</span><span class="w">{e.what}</span></div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="private">
+      <div class="wrap">
+        <h2>Private by design</h2>
+        <p class="intro">Built to be used on company code and personal files alike.</p>
+        <div class="pillars">
+          <div><h3>On your Mac</h3><p>The models download once and then run locally. The index is one file in Application Support, outside iCloud.</p></div>
+          <div><h3>Read only</h3><p>Lantern never changes, moves or deletes your files. Secrets such as .env files and keys are skipped.</p></div>
+          <div><h3>Nothing sent</h3><p>No telemetry, no accounts. The only connection, Spotify's library, is off until you switch it on.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="start">
+      <div class="wrap start">
+        <div>
+          <h2>Get started</h2>
+          <ul>
+            <li>A Mac with Apple Silicon</li>
+            <li>Homebrew and Xcode Command Line Tools</li>
+            <li>Xcode 26 for the menu bar app</li>
+            <li>1.2 GB for the search model, about 4 GB with transcripts and photo search</li>
+          </ul>
+        </div>
+        <div>
+          <div class="code"><button class="copy" type="button" id="copy">Copy</button><pre id="cmd">{install}</pre></div>
+          <p class="after">The script checks the Mac, installs what is missing, downloads the models and builds the app. Run it again any time. <a href={`${base}docs/install/`}>Step by step</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="faq">
+      <div class="wrap">
+        <h2>Questions</h2>
+        {faq.map((f) => (<details><summary>{f.q}</summary><p>{f.a}</p></details>))}
+      </div>
+    </section>
+  </main>
+
+  <div class="wrap">
+    <footer>
+      <span>Lantern · Apache 2.0</span>
+      <span><a href={`${base}docs/install/`}>Docs</a> · <a href={`${base}docs/privacy/`}>Privacy</a> · <a href={repo}>GitHub</a></span>
+    </footer>
+  </div>
+
+  <script is:inline>
+    // The miniature panel walks through a few real queries; it rests on the first one when motion is reduced.
+    const scenes = [
+      { q: "when we talked about the match", rows: [["Files", "▶", "vlog-october.mp4 · 1:48", "“…and then we talked about the match on Sunday…”", "play ↩"], ["", "txt", "notes-sunday.md", "~/Documents · the match, tickets, who drives", ""], ["Photos", "img", "IMG_2041.HEIC", "~/Pictures · stadium, evening", ""]] },
+      { q: "dog on the beach", rows: [["Photos", "img", "IMG_1188.HEIC", "~/Pictures/Hel 2025", "open ↩"], ["", "img", "IMG_1190.HEIC", "~/Pictures/Hel 2025", ""], ["Files", "txt", "holiday-plan.md", "~/Documents · beach, ferry, dog-friendly", ""]] },
+      { q: "def add_two", rows: [["Definitions", "{ }", "add_two · skrypt.py", "def add_two(x, y)  —  line 200", "open ↩"], ["Files", "py", "uzycie.py", "~/Projects/demo · lines 3–3", ""], ["", "py", "test_math.py", "~/Projects/demo · lines 18–24", ""]] },
+      { q: "d", rows: [["Applications", "app", "Discord", "Social Networking", "open ↩"], ["", "app", "DBeaver", "Developer Tools", ""], ["", "app", "Docker", "Developer Tools", ""]] },
+    ];
+    const typed = document.getElementById("typed");
+    const results = document.getElementById("results");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function render(scene) {
+      results.innerHTML = scene.rows.map(([section, thumb, title, sub, key], i) =>
+        (section ? `<div class="section-name">${section}</div>` : "") +
+        `<div class="row${i === 0 ? " selected" : ""}"><div class="thumb">${thumb}</div><div><strong>${title}</strong><span class="sub">${sub}</span></div><span class="key">${key}</span></div>`
+      ).join("");
+    }
+    let n = 0;
+    async function next() {
+      n = (n + 1) % scenes.length;
+      const scene = scenes[n];
+      for (let i = 1; i <= scene.q.length; i++) {
+        typed.textContent = scene.q.slice(0, i);
+        await new Promise((r) => setTimeout(r, 55));
+      }
+      render(scene);
+      setTimeout(next, 3200);
+    }
+    if (!reduce) setTimeout(next, 3200);
+    document.getElementById("copy").addEventListener("click", async (e) => {
+      const text = document.getElementById("cmd").textContent;
+      try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
+      catch { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); getSelection().removeAllRanges(); getSelection().addRange(r); }
+      setTimeout(() => (e.target.textContent = "Copy"), 1600);
+    });
+  </script>
+</body>
+</html>

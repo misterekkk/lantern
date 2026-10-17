@@ -1,0 +1,46 @@
+/* Docs theme: the colours of the icon (graphite, the amber sparkle) on Starlight; Atkinson Hyperlegible Next for
+   reading, Instrument Sans for headings. Starlight's dark theme is the bare :root, light is [data-theme="light"]. */
+:root {
+  --sl-font: "Atkinson Hyperlegible Next Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --sl-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --lantern-display: "Instrument Sans Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --sl-color-accent-low: #3a2d12;
+  --sl-color-accent: #f2b84b;
+  --sl-color-accent-high: #f8d58f;
+  --sl-color-white: #eef1f4;
+  --sl-color-gray-1: #d6dbe1;
+  --sl-color-gray-2: #b3bac3;
+  --sl-color-gray-3: #87909b;
+  --sl-color-gray-4: #545c66;
+  --sl-color-gray-5: #333a42;
+  --sl-color-gray-6: #1f2328;
+  --sl-color-black: #14171b;
+  --sl-line-height: 1.65;
+}
+:root[data-theme="light"] {
+  --sl-color-accent-low: #f6e7c4;
+  --sl-color-accent: #8a5a00;
+  --sl-color-accent-high: #4a3100;
+  --sl-color-white: #14171b;
+  --sl-color-gray-1: #1f2328;
+  --sl-color-gray-2: #333a42;
+  --sl-color-gray-3: #545c66;
+  --sl-color-gray-4: #87909b;
+  --sl-color-gray-5: #c9d1da;
+  --sl-color-gray-6: #e6ebf0;
+  --sl-color-gray-7: #f2f5f8;
+  --sl-color-black: #fbfcfd;
+}
+.sl-markdown-content :is(h1, h2, h3, h4),
+h1#_top,
+.site-title {
+  font-family: var(--lantern-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+body {
+  font-variant-emoji: text; /* ↩ ⌘ ⌥ as text, not colour emoji (the reading font lacks them) */
+}
+.sl-markdown-content table {
+  font-variant-numeric: tabular-nums;
+}

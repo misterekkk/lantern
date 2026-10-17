@@ -10,3 +10,7 @@ spikes/*/data/
 .DS_Store
 .venv-*/
 .vscode/
+site/node_modules/
+site/dist/
+site/.astro/
+site/src/content/docs/docs/

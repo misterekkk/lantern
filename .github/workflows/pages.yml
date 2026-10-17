@@ -1,12 +1,13 @@
-# Publishes the interactive demo in site/ to GitHub Pages.
+# Builds the website in site/ (Astro + Starlight: landing page, docs generated from README.md and docs/, the
+# interactive demo under /demo) and publishes it to GitHub Pages.
 # Needs a public repository (or a plan with Pages for private repos) and
 # Settings -> Pages -> Source: "GitHub Actions". Until then the workflow is inert.
-name: Deploy demo to GitHub Pages
+name: Deploy site to GitHub Pages
 
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "README.md", "docs/**", "brand/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,9 +27,18 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: site/dist
       - id: deployment
         uses: actions/deploy-pages@v4
