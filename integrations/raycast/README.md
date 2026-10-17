@@ -11,13 +11,13 @@ the Mac (Raycast's own features follow Raycast's privacy policy).
 | ⌘↩ | show in Finder (a song: in Music or Spotify) |
 | ⌘Y | preview at the place: 30 lines around the code, the whole passage with your words in bold; a video in QuickTime, paused at the moment |
 | ⇧⌘Y | Quick Look of the whole file |
-| ⌘1 … ⌘0 | filter by kind, the panel's keys: Applications, System Settings, Shortcuts, (⌘4 clipboard: only in the app), Code, Documents, PDFs, Photos, Recordings and Videos, Music; again for all kinds |
+| ⌃1 … ⌃0 | filter by kind, the panel's digits (Raycast keeps ⌘1 … ⌘9 for opening the Nth result): Applications, System Settings, Shortcuts, (4, the clipboard: only in the app), Code, Documents, PDFs, Photos, Recordings and Videos, Music; again for all kinds |
 | ⇧⌘C | copy the path |
 
 The preview on the right shows the lines around a code result (its lines marked ▶) or the passage with your words in
 bold, under a thumbnail for photos and videos.
 
-Preference: *Also show apps and System Settings* (off: Raycast finds those itself; ⌘1 / ⌘2 show them anyway).
+Preference: *Also show apps and System Settings* (off: Raycast finds those itself; ⌃1 / ⌃2 show them anyway).
 
 ## Install (until it is in the Raycast Store)
 

@@ -1,5 +1,6 @@
 // "Search Lantern": Lantern's results in Raycast's window, in the order the daemon decides, with the panel's keys:
-// ↩ opens at the line or moment, ⌥↩ from the start, ⌘↩ shows in Finder, ⌘Y previews at the place, ⌘1…⌘0 filter.
+// ↩ opens at the line or moment, ⌥↩ from the start, ⌘↩ shows in Finder, ⌘Y previews at the place, ⌃1…⌃0 filter
+// (the panel's digits; Raycast keeps ⌘1…⌘9 for "open the Nth result" and extensions cannot take them).
 // Raycast never reads the user's files: text, lines and thumbnails come from the daemon (lantern.ts).
 import { Action, ActionPanel, Detail, Icon, Keyboard, LaunchProps, List, getPreferenceValues, open } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
@@ -30,8 +31,8 @@ interface Preferences {
   includeApps: boolean;
 }
 
-/* The panel's filters with the panel's keys (search/hybrid.py CATEGORIES; ⌘4 is the clipboard, which lives only in
-   the Lantern app's memory). */
+/* The panel's filters on the panel's digits (search/hybrid.py CATEGORIES; 4 is the clipboard, which lives only in the
+   Lantern app's memory), with ⌃: Raycast reserves ⌘1…⌘9 for opening the Nth result. */
 const CATEGORIES: { value: string; title: string; icon: Icon; key?: Keyboard.KeyEquivalent }[] = [
   { value: "", title: "All Kinds", icon: Icon.MagnifyingGlass },
   { value: "apps", title: "Applications", icon: Icon.AppWindowGrid3x3, key: "1" },
@@ -94,7 +95,7 @@ export default function Command(props: LaunchProps) {
             <List.Dropdown.Item
               key={c.value}
               value={c.value}
-              title={c.key ? `${c.title}  ⌘${c.key}` : c.title}
+              title={c.key ? `${c.title}  ⌃${c.key}` : c.title}
               icon={c.icon}
             />
           ))}
@@ -120,7 +121,7 @@ function hasFiles(r: SearchReply): boolean {
   return r.results.length + r.photos.length + r.definitions.length > 0;
 }
 
-/** ⌘1…⌘0 pick a filter; the chosen one again goes back to all kinds, like the panel's chips. */
+/** ⌃1…⌃0 pick a filter; the chosen one again goes back to all kinds, like the panel's chips. */
 function FilterActions({ ctx }: { ctx: Ctx }) {
   return (
     <ActionPanel.Section title="Filter by Kind">
@@ -129,7 +130,7 @@ function FilterActions({ ctx }: { ctx: Ctx }) {
           key={c.value}
           title={ctx.category === c.value ? `All Kinds (Was ${c.title})` : c.title}
           icon={c.icon}
-          shortcut={{ modifiers: ["cmd"], key: c.key! }}
+          shortcut={{ modifiers: ["ctrl"], key: c.key! }}
           onAction={() => ctx.setCategory(ctx.category === c.value ? "" : c.value)}
         />
       ))}

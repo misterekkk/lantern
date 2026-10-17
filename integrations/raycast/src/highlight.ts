@@ -32,8 +32,16 @@ export function terms(query: string): string[] {
   return [...out];
 }
 
+/** Escapes markdown without backslashes before brackets, parentheses or $: Raycast's markdown reads \( \) \[ \] and
+ * $…$ as LaTeX math (passages turned into italic formulas), so those become HTML entities or stay as they are. */
 function escapeMarkdown(text: string): string {
-  return text.replace(/([\\`*_{}[\]()#+\-!|>~<])/g, "\\$1");
+  return text
+    .replace(/([\\`*_#|>~<])/g, "\\$1")
+    .replace(/\[/g, "&#91;")
+    .replace(/\]/g, "&#93;")
+    .replace(/\$/g, "&#36;")
+    .replace(/^(\s*)([-+])(\s)/gm, "$1\\$2$3") // a line starting like a list item stays text
+    .replace(/^(\s*\d+)\.(\s)/gm, "$1\\.$2");
 }
 
 /** Markdown with every whole word that starts with a query stem in bold; everything else escaped. */
