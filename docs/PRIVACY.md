@@ -62,6 +62,10 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     Keep search history switches it off. "Choices learned by Alfred · Import" (shown only when Alfred's
     database exists) reads that file once, read-only, and adds its app choices to this history.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
+18. **Raycast and Alfred** (integrations/, off unless you choose them in Settings → General): the extension or
+    workflow sends your query to Lantern's local socket (user-only, mode `0600`) and shows the results; nothing goes
+    over the network. The query and the results pass through that launcher's own process, so its privacy policy
+    applies to them (Raycast has accounts and cloud features; Alfred is local).
 
 ## Where the data is
 

@@ -223,6 +223,22 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   granted to Lantern with the usual "Lantern would like to access…" prompts. When the app quits or crashes, the
   daemon stops too. If a daemon from the LaunchAgent is already running, the app uses it.
 
+## Use with Raycast or Alfred
+
+Prefer Raycast or Alfred? Keep it and let Lantern do the searching: Settings → General → **Search from: Raycast /
+Alfred** turns Lantern's own shortcut off, and that launcher shows Lantern's results (definitions, files with the
+line or moment, photos). Lantern keeps running in the menu bar, indexing and answering in the background; your choices
+there teach it as in its own panel.
+
+- **Raycast:** the "Search Lantern" command in [integrations/raycast](integrations/raycast) (not in the Raycast Store
+  yet: `npm install && npm run dev` once adds it to Raycast). Give it a hotkey in Raycast's settings.
+- **Alfred** (Powerpack): Settings → General → *Install the Alfred Workflow…*, then type `l` and your query, or give
+  the workflow a hotkey. Source in [integrations/alfred](integrations/alfred).
+
+In both: ↩ opens at the line or moment, ⌘↩ shows in Finder, ⌘Y (Alfred: ⇧) Quick Look. Searches go to Lantern over
+its local socket and never leave the Mac; what the launcher itself does is up to it (Raycast and Alfred have their own
+privacy policies).
+
 ## Command line
 
 Full reference with every option, output format, environment variable, exit code and the socket API:

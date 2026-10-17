@@ -1047,6 +1047,24 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   empty quick phase is not shown (no flash of "No results"). Both are logged as one history row. The logic stays in
   the daemon, as the architecture requires.
 
+## Raycast and Alfred as front ends (2026-10-17, branch `development`)
+
+- Raycast and Alfred are launchers for automation; neither searches inside files. Both can show another program's
+  results: Raycast through an extension (TypeScript/React, `integrations/raycast`), Alfred through a Script Filter
+  workflow (`integrations/alfred`, macOS's python3 3.9, standard library only). Both talk to the daemon's Unix socket
+  directly (one JSON line each way), the same `search` and `opened` calls as the panel: no new API, no CLI in between.
+- They show what Lantern adds to a launcher: definitions, files (line, page, moment) and photos, in the daemon's
+  order. Apps and System Settings are left to the launcher (Raycast: an opt-in preference shows Lantern's too); music,
+  answers and the dictionary stay in Lantern's panel.
+- Opening matches the panel: the default app of the file, at the line for VS Code, VSCodium, Cursor, Xcode and
+  JetBrains IDEs, recordings in QuickTime at the moment, else a plain open. `opened` sends the panel's row id
+  (`kind|chunk|line|path|`), so learned choices are shared between the panel and the launcher.
+- Settings → General → **Search from** (`searchLauncher`: lantern | raycast | alfred). With a launcher, Lantern's
+  shortcut is not registered (the picker stays, dimmed); Alfred's workflow is built into the app's Resources by
+  build.sh and imported by opening it.
+- Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
+  (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1154,8 +1172,7 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 27. Line jumps in Cursor and JetBrains IDEs to verify live (VS Code verified); other editors (Zed, Sublime Text,
     BBEdit, Nova) to add once their mechanism is checked.
 28. The definitions section with many identical copies (e.g. "+4 copies") instead of filling every slot.
-29. GitHub Pages: enable Pages (source: GitHub Actions) once the repository is public; the workflow and the site are
-    ready in `.github/workflows/pages.yml` and `site/`.
+29. ~~GitHub Pages~~ — live at https://misterekkk.github.io/lantern/ (Astro site built by `.github/workflows/pages.yml`).
 30. PDF page jumps in viewers other than Preview (Skim, Acrobat) to verify; Preview cannot open a page.
 31. OCR on real libraries (phone photos of documents: perspective, blur) and on large screenshot folders; tuning the
     gate (two words of 3+ letters) if it lets through noise such as shirt numbers or shop signs.
@@ -1175,3 +1192,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     both ways.
 39. ~~Import other launchers' learned choices~~ — Alfred done (see "Importing Alfred's knowledge"). Still open: the
     exact form of Alfred's `knowledge.item` for apps (path or bundle id; both handled), LaunchBar's abbreviations.
+40. Raycast extension and Alfred workflow (integrations/) in the real launchers: to test by the user; then the
+    Raycast Store submission (needs `ray lint` with the store's ESLint config and a Raycast account) and an Alfred
+    Gallery entry.

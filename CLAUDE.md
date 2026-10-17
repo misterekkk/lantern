@@ -12,6 +12,7 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 4. Language: code, comments, identifiers, CLAUDE.md files, `README.md` and `docs/` in English (public repository).
    App UI strings: English keys with translations in `app/Resources/<lang>.lproj` (currently Polish).
 5. Keep README in sync with reality each phase; never document features that do not exist yet.
+   Note user-facing changes in `CHANGELOG.md` (newest first) when they land.
 6. Machine has 16 GB RAM: run at most one model process at a time; stop background servers you started.
 
 ## Hard privacy requirements
@@ -39,6 +40,8 @@ Current phase and decisions: `docs/DECISIONS.md`. Architecture: `docs/ARCHITECTU
 daemon/lantern/   api/ scanner/ queue/ extractors/ chunking/ embedding/ store/ search/ cli.py
 daemon/CLAUDE.md  daemon conventions (schema, queue, adding extractors/backends)
 app/              Swift menu-bar client (app/CLAUDE.md; build with app/build.sh)
+integrations/     Raycast extension and Alfred workflow (clients of the daemon socket, like the app)
+site/             website: Astro landing page, docs generated from README/docs, the demo (site/README.md)
 launchd/          LaunchAgent plist template
 spikes/phase0/    Phase 0 measurement scripts (not app code, excluded from ruff)
 tests/            pytest; tests needing the real model are marked `@pytest.mark.model`
