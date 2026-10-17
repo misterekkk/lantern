@@ -82,8 +82,8 @@ def music_search(
         hits = [hit(r, "kind", 0.8) for r in rows if r["kind"] == "playlist"]
         hits.sort(key=lambda h: -h.count)
         return hits[:limit]
-    if not content:
-        return []
+    if not any(t.isalpha() for t in content):
+        return []  # numbers only ("2+2*20", "2024"): not a song
     q = " ".join(content)
     for r in rows:
         if r["kind"] == "playlist":

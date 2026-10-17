@@ -109,3 +109,8 @@ def test_a_whole_artist_or_album_name_comes_before_files(conn):
     assert music_search(conn, "astroworld")[0].match == "album_exact"
     resp = search(conn, FakeEmbedder(), "travisa scotta", log=False)
     assert resp.section_scores["music"] > 0.72  # above files that contain the words and agree by meaning
+
+
+def test_numbers_alone_are_not_songs(conn):
+    stored(conn)
+    assert music_search(conn, "2+2*20") == [] and music_search(conn, "17") == []

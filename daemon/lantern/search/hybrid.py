@@ -381,12 +381,35 @@ def search(
     query_embedder=None,
     category: str | None = None,
     spelling: dict[str, list[str]] | None = None,
+    quick: bool = False,
 ) -> SearchResponse:
     """query_embedder: text side of the second photo model (SigLIP 2), when loaded; lang: system language, used to
     give short photo queries a language cue; category: only results of one CATEGORIES entry (filter pill);
     spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query
+    if quick and category in (None, "apps", "settings", "shortcuts", "music", "code"):
+        # The first phase of a search, a few ms: everything found by name or words, no model. The panel shows it at
+        # once and replaces it with the full search (files, photos, meaning) a moment later; ↩ acts on what is shown.
+        code_like = looks_like_code(query)
+        definitions = symbol_search(conn, query) if category in (None, "code") else []
+        apps = [] if code_like or category not in (None, "apps") else app_search(conn, query, None)
+        settings = [] if code_like or category not in (None, "settings") else settings_search(conn, query, None)
+        shortcuts = [] if code_like or category not in (None, "shortcuts") else shortcut_search(conn, query)
+        music = [] if code_like or category not in (None, "music") else music_search(conn, query, None)
+        answer = None if category else instant_answer(query)
+        scores = _section_scores(query, [], [], [], [], [], False, apps, settings, shortcuts, definitions, answer, None)
+        if music:
+            scores["music"] = _music_score(music[0], query)
+        scores.pop("files", None)
+        present = [n for n, found in (("apps", apps), ("settings", settings), ("shortcuts", shortcuts)) if found]
+        resp = SearchResponse([], None, 0.0, 0.0, definitions=definitions, apps=apps, apps_first=bool(apps),
+                              settings=settings, settings_first=bool(settings), shortcuts=shortcuts, answer=answer,
+                              music=music, categories=present + (["code"] if definitions else []) + (
+                                  ["music"] if music else []), category=category, section_scores=scores,
+                              settings_app_name=_settings_app_name(conn) if settings else None)  # fmt: skip
+        # logged like any search (↩ on a quick result teaches learned choices); the full search updates the row
+        return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     if len(query.strip()) == 1 and category in (None, "apps"):
         # One letter: apps only, by name and by how much they are used, no models (an answer at once, like Spotlight;
         # learned choices are added by the API). Any other kind of result for a letter would be noise.

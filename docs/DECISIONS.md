@@ -1035,6 +1035,17 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   keyword counts twice, enough for the learned-choice rule. Apps only (their row ids are stable). Read-only;
   importing again adds nothing. Raycast's database is encrypted (key in the keychain): not imported.
 
+## Two-phase search, not logic in Swift (2026-10-17)
+
+- A suggestion (Gemini) was to move name matching into the app because "IPC to Python adds visible lag". Measured
+  on the user's daemon: the Unix-socket round trip is 1–2 ms; the time goes to the models (query vector 80–95 ms,
+  photo query 30 ms), so a 2+ letter search took 135–200 ms and the apps found by name waited with it.
+- Now every query is answered twice: a quick phase without any model (apps, settings, shortcuts, music, code
+  definitions, answers; 7–17 ms, run on the API thread so it never queues behind a full search) and the full search
+  140 ms after typing stops. The panel shows the first and replaces it with the second; ↩ acts on what is shown; an
+  empty quick phase is not shown (no flash of "No results"). Both are logged as one history row. The logic stays in
+  the daemon, as the architecture requires.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

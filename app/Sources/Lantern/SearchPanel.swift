@@ -252,6 +252,7 @@ final class SearchModel: ObservableObject {
         spellCheck?.cancel()
         resultsStale = !query.trimmingCharacters(in: .whitespaces).isEmpty
         let first = query.trimmingCharacters(in: .whitespaces).count == 1  // a letter: answered without models
+        if !first && category != .clipboard { search(quick: true) }  // names at once; files follow
         pending = Task {
             try? await Task.sleep(nanoseconds: first ? 20_000_000 : 140_000_000)  // debounce typing
             guard !Task.isCancelled else { return }
@@ -279,7 +280,10 @@ final class SearchModel: ObservableObject {
         search()
     }
 
-    func search(spelling: [String: [String]]? = nil) {
+    /// The query whose full results are on screen: a late quick phase must not replace them.
+    private var fullShown: String?
+
+    func search(spelling: [String: [String]]? = nil, quick: Bool = false) {
         let q = query.trimmingCharacters(in: .whitespaces)
         if category == .clipboard {  // kept by the app, not the daemon: no request
             resultsStale = false
@@ -304,8 +308,12 @@ final class SearchModel: ObservableObject {
                 var params: [String: Any] = ["query": q, "limit": 8, "log": SearchHistory.enabled]
                 if let category { params["category"] = category.rawValue }
                 if let spelling { params["spelling"] = spelling }
+                if quick { params["quick"] = true }
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
                 guard q == query.trimmingCharacters(in: .whitespaces) else { return }  // a newer query is running
+                if quick && fullShown == q { return }  // the full results already came
+                if quick && resp.sections.isEmpty && resp.learned == nil { return }  // nothing by name: wait, no "No results"
+                if !quick { fullShown = q }
                 if spelling != nil && resp.correctedQuery == nil { return }  // no guess the index knows: keep these
                 let searched = resp.correctedQuery ?? q
                 let clipboard = category == nil ? ClipboardHistory.shared.section(for: searched, limit: 3) : nil
@@ -329,12 +337,12 @@ final class SearchModel: ObservableObject {
                     message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
                 }
                 if spelling == nil {
-                    resultsStale = false
+                    resultsStale = false  // ↩ acts on what is shown: the quick phase is enough for an app
                     if let waiting = waitingAction {
                         waitingAction = nil
                         act(waiting)
                     }
-                    scheduleSpelling(q)
+                    if !quick { scheduleSpelling(q) }
                 }
             } catch {
                 guard spelling == nil else { return }  // the second, corrected search is optional (older daemons)
@@ -348,6 +356,7 @@ final class SearchModel: ObservableObject {
 
     /// A fresh panel: no query, no filter, no preview.
     func reset() {
+        fullShown = nil
         resultsStale = false
         waitingAction = nil
         pending?.cancel()

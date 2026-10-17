@@ -171,3 +171,10 @@ def test_one_letter_answers_with_apps_only_and_used_ones_first(conn, application
     resp = search(conn, FakeEmbedder(), "d", log=False)
     assert resp.apps[0].name == "Discord"  # used, although "Dictionary" is just as good a match
     assert resp.results == [] and resp.photos == [] and resp.settings == [] and resp.sections()[0][0] == "apps"
+
+
+def test_the_quick_phase_answers_by_name_without_files(conn, applications):
+    stored(conn, FakeEmbedder())
+    resp = search(conn, FakeEmbedder(), "kalkul", log=False, quick=True)
+    assert resp.apps[0].name == "Kalkulator" and resp.results == [] and resp.photos == []
+    assert resp.sections()[0][0] == "apps"
