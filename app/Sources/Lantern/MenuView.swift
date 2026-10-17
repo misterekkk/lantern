@@ -1,7 +1,9 @@
 import LanternCore
 import SwiftUI
 
-/// Content of the menu bar window: state, approval, progress, quick actions.
+/// Content of the menu bar window, laid out like macOS's own menu extras (Battery): the name and a status dot with
+/// its word, the numbers in one quiet line, progress while indexing, cards when a decision is needed, and
+/// "Lantern Settings…" at the bottom. Pause / resume appears only while it means something. Quitting is in Settings.
 struct MenuView: View {
     @EnvironmentObject var state: AppState
 
@@ -23,7 +25,10 @@ struct MenuView: View {
                 if s.worker.running {
                     progress(s.worker).transition(.opacity)
                 }
-                stats(s)
+                Text(statsLine(s))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
                 if let warning = s.warnings.last {
                     Label(warning, systemImage: "exclamationmark.circle")
                         .font(.caption)
@@ -35,7 +40,10 @@ struct MenuView: View {
                 Text(message).font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            actions
+            MenuRow(title: "Lantern Settings…") {
+                MenuBarMenu.close()
+                SettingsWindowController.shared.show()
+            }
         }
         .padding(16)
         .frame(width: 320)
@@ -46,21 +54,34 @@ struct MenuView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkle.magnifyingglass")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.tint)
-                .symbolEffect(.pulse, options: .repeating, isActive: state.phase == .indexing)
+        HStack(spacing: 8) {
             Text("Lantern").font(.headline)
             Spacer()
+            if state.phase == .indexing || state.status?.paused == "manual" {
+                let paused = state.status?.paused == "manual"
+                Button {
+                    paused ? state.resume() : state.pause()
+                } label: {
+                    Image(systemName: paused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .help(paused ? Text("Resume Indexing") : Text("Pause Indexing"))
+                .transition(.opacity)
+            }
+            Circle().fill(phaseColor).frame(width: 8, height: 8)
             Text(phaseLabel)
                 .contentTransition(.opacity)
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(phaseColor.opacity(0.18)))
-                .foregroundStyle(phaseColor)
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
+        .animation(.smooth(duration: 0.25), value: state.phase)
+    }
+
+    private func statsLine(_ s: DaemonStatus) -> String {
+        String(localized: "\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) chunks · \(s.memoryMb) MB")
     }
 
     private var phaseLabel: LocalizedStringKey {
@@ -80,13 +101,14 @@ struct MenuView: View {
         }
     }
 
+    /// Apple's status colours (as in System Settings → Network): green ready, yellow busy or waiting for you, grey
+    /// inactive, red not working.
     private var phaseColor: Color {
         switch state.phase {
-        case .starting, .offline: .secondary
-        case .paused: .orange
-        case .awaitingApproval: .blue
-        case .indexing: .purple
         case .idle: .green
+        case .indexing, .awaitingApproval: .yellow
+        case .starting, .paused: .gray
+        case .offline: .red
         }
     }
 
@@ -146,39 +168,6 @@ struct MenuView: View {
         }
     }
 
-    private func stats(_ s: DaemonStatus) -> some View {
-        HStack(spacing: 18) {
-            Stat(value: Format.count(s.indexedFiles), label: "files")
-            Stat(value: Format.count(s.chunks), label: "chunks")
-            Stat(value: "\(s.memoryMb) MB", label: "memory")
-        }
-    }
-
-    private var actions: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            MenuButton(title: "Search…", systemImage: "magnifyingglass", shortcut: state.shortcut.label) {
-                MenuBarMenu.close()
-                SearchPanelController.shared.show()
-            }
-            if state.status?.paused == "manual" {
-                MenuButton(title: "Resume Indexing", systemImage: "play.fill") { state.resume() }
-            } else {
-                MenuButton(title: "Pause Indexing", systemImage: "pause.fill") { state.pause() }
-                    .disabled(state.status == nil)
-            }
-            MenuButton(title: "Add Folder…", systemImage: "folder.badge.plus") {
-                MenuBarMenu.close()
-                state.chooseFolder()
-            }
-                .disabled(state.status == nil)
-            MenuButton(title: "Settings…", systemImage: "gearshape") {
-                MenuBarMenu.close()
-                SettingsWindowController.shared.show()
-            }
-            MenuButton(title: "Quit Lantern", systemImage: "power") { NSApp.terminate(nil) }
-        }
-    }
-
     private func kindLabel(_ kind: String) -> String {
         // Same names as the panel's filter pills, capitalised like other labels in the menu.
         ["code": String(localized: "Code"), "text": String(localized: "Documents"), "pdf": String(localized: "PDFs"),
@@ -187,37 +176,17 @@ struct MenuView: View {
     }
 }
 
-private struct Stat: View {
-    let value: String
-    let label: LocalizedStringKey
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(value)
-                .font(.system(.callout, design: .rounded).weight(.semibold))
-                .contentTransition(.numericText())
-                .animation(.snappy, value: value)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct MenuButton: View {
+/// A plain row at the bottom, like "Battery Settings…" in macOS's Battery menu.
+private struct MenuRow: View {
     let title: LocalizedStringKey
-    let systemImage: String
-    var shortcut: String? = nil
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .frame(width: 20, alignment: .center)  // equal icon column: titles line up
-                    .foregroundStyle(.secondary)
+            HStack {
                 Text(title)
                 Spacer()
-                if let shortcut { Text(shortcut).foregroundStyle(.secondary).font(.caption) }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -225,6 +194,7 @@ private struct MenuButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, -8)  // the text lines up with the rest; the hover highlight reaches a little wider
         .onHover { hovering = $0 }
     }
 }

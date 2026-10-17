@@ -817,6 +817,17 @@ private struct AboutPane: View {
                     LabeledContent("Daemon") { Text("pid \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }
                 }
             }
+            Section {
+                // Lantern has no Dock icon or menu bar menu of its own, so quitting lives here (⌘Q works too while a
+                // Lantern window is in front). A plain button: macOS keeps red for actions that destroy data.
+                HStack {
+                    Spacer()
+                    Button("Quit Lantern") { NSApp.terminate(nil) }
+                        .keyboardShortcut("q", modifiers: .command)
+                }
+            } footer: {
+                Text("Search stops until you open Lantern again.").font(.caption)
+            }
         }
     }
 }

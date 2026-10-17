@@ -1,5 +1,6 @@
 import AppKit
 import iTunesLibrary
+import LanternCore
 
 /// The user's Apple Music library, read on the Mac through Apple's iTunesLibrary framework: songs (title, artist,
 /// album, track number) and the user's playlists with the songs in them. Read-only; it does not start the Music app.
@@ -215,6 +216,7 @@ enum MusicPlayer {
             guard proc.terminationStatus != 0 else { return }
             let message = String(data: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
             NSLog("Lantern: %@ script failed: %@", app, message)
+            AppLog.write("\(app) script failed: \(message.trimmingCharacters(in: .whitespacesAndNewlines))")
             if message.contains("-1743") {
                 Task { @MainActor in MusicPlayer.askForAutomation(app) }
             }
@@ -231,6 +233,25 @@ enum MusicPlayer {
         if alert.runModal() == .alertFirstButtonReturn,
            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
             NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+/// logs/app.log in Lantern's data folder: errors of the app itself (scripts), next to the daemon's log. No content of
+/// files or searches is written.
+enum AppLog {
+    static func write(_ line: String) {
+        let folder = URL(fileURLWithPath: DaemonClient.dataDirectory).appendingPathComponent("logs")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("app.log")
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let data = Data("\(stamp) \(line)\n".utf8)
+        if let handle = try? FileHandle(forWritingTo: file) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: file)
         }
     }
 }

@@ -363,3 +363,6 @@
 "Allow it in System Settings → Privacy & Security → Automation → Lantern → %@." = "Zezwól na to w Ustawieniach systemowych → Prywatność i ochrona → Automatyzacja → Lantern → %@.";
 "Change…" = "Zmień…";
 "Save" = "Zapisz";
+"Lantern Settings…" = "Ustawienia Lantern…";
+"%@ files · %@ chunks · %lld MB" = "Pliki: %1$@ · fragmenty: %2$@ · %3$lld MB";
+"Search stops until you open Lantern again." = "Wyszukiwanie nie działa, dopóki ponownie nie otworzysz Lanterna.";
