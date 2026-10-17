@@ -46,7 +46,8 @@ final class AppState: ObservableObject {
 
     /// (Re)registers the search shortcut chosen in Settings → General.
     func registerShortcut() {
-        hotKey = nil  // unregisters the old one first
+        hotKey?.invalidate()  // releases the old one first
+        hotKey = nil
         shortcut = SearchShortcut.current
         guard SearchLauncher.current == .lantern else {  // Raycast or Alfred opens instead and shows Lantern's results
             shortcutNeedsRetry = false

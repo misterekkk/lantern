@@ -377,7 +377,7 @@
 "Lantern’s panel" = "Panel Lanterna";
 "Raycast is not installed" = "Raycast nie jest zainstalowany";
 "Alfred is not installed" = "Alfred nie jest zainstalowany";
-"Lantern’s shortcut is off. In Raycast, run “Search Lantern” (give it a hotkey in Raycast’s settings); Lantern keeps indexing and answers in the background." = "Skrót Lanterna jest wyłączony. W Raycaście uruchom „Search Lantern” (skrót nadasz w ustawieniach Raycasta); Lantern dalej indeksuje i odpowiada w tle.";
+"Lantern’s shortcut is off. In Raycast, type “Lantern” to find “Search Lantern”, or give it a hotkey or an alias in Raycast’s settings; Lantern keeps indexing and answers in the background." = "Skrót Lanterna jest wyłączony. W Raycaście wpisz „Lantern”, żeby znaleźć „Search Lantern”, albo nadaj mu skrót lub alias w ustawieniach Raycasta; Lantern dalej indeksuje i odpowiada w tle.";
 "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack." = "Skrót Lanterna jest wyłączony. W Alfredzie wpisz l i zapytanie (albo nadaj workflow skrót); Lantern dalej indeksuje i odpowiada w tle. Workflow wymagają Powerpacka Alfreda.";
 "Install the Alfred Workflow…" = "Zainstaluj workflow Alfreda…";
-"Get the Raycast Extension…" = "Pobierz rozszerzenie Raycasta…";
+"How to Install the Raycast Extension…" = "Jak zainstalować rozszerzenie Raycasta…";

@@ -25,13 +25,19 @@ final class HotKey {
         guard status == noErr else { return nil }
         let hotKeyID = EventHotKeyID(signature: OSType(0x4C4E5452), id: id)  // 'LNTR'
         guard RegisterEventHotKey(keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref) == noErr else {
+            if let handler { RemoveEventHandler(handler) }
             return nil
         }
         HotKey.instances[id] = self
     }
 
-    deinit {
+    /// Releases the shortcut. Needed explicitly: `instances` keeps every hotkey alive (the C callback looks them up
+    /// there), so dropping the last reference elsewhere never reaches deinit and the old shortcut kept working.
+    func invalidate() {
         if let ref { UnregisterEventHotKey(ref) }
         if let handler { RemoveEventHandler(handler) }
+        ref = nil
+        handler = nil
+        HotKey.instances = HotKey.instances.filter { $0.value !== self }
     }
 }

@@ -130,16 +130,42 @@ function where(h: FileHit): string {
   return "";
 }
 
+/* Icons by kind, never read from the file: Raycast reading files in Downloads or Documents would make macOS ask for
+   access to those folders, and Lantern already has it. Thumbnails and contents stay in Lantern; the text shown here
+   is the preview the daemon sends. */
+const KIND_ICONS: Record<string, Icon> = {
+  code: Icon.Code,
+  pdf: Icon.Document,
+  image: Icon.Image,
+  ocr: Icon.Image,
+  audio: Icon.Microphone,
+  transcript: Icon.Microphone,
+  frame: Icon.Video,
+  screen: Icon.Video,
+};
+const VIDEO = new Set([".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"]);
+
+function kindIcon(h: FileHit, photo: boolean): Icon {
+  if (photo) return Icon.Image;
+  if (h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase())) return Icon.Video;
+  return KIND_ICONS[h.kind] ?? Icon.Document;
+}
+
 function FileItem({ h, eventId, photo = false }: { h: FileHit; eventId: number | null; photo?: boolean }) {
   const at = where(h);
-  const markdown = photo
-    ? `![](${encodeURI(`file://${h.path}`)})`
-    : (h.kind === "code" ? "```\n" + h.preview + "\n```" : h.preview.replace(/([*_`#>[\]])/g, "\\$1")) || " ";
+  const text = h.preview.trim();
+  const markdown = text
+    ? h.kind === "code"
+      ? "```\n" + text + "\n```"
+      : text.replace(/([*_`#>[\]])/g, "\\$1")
+    : photo
+      ? "_A photo found by what is in it. ⌘Y shows it._"
+      : " ";
   return (
     <List.Item
       title={path.basename(h.path)}
       subtitle={at}
-      icon={photo ? { source: h.path } : { fileIcon: h.path }}
+      icon={kindIcon(h, photo)}
       quickLook={{ path: h.path, name: path.basename(h.path) }}
       detail={
         <List.Item.Detail
@@ -222,7 +248,7 @@ function AppItem({ a, eventId }: { a: AppHit; eventId: number | null }) {
   return (
     <List.Item
       title={a.name}
-      icon={{ fileIcon: a.path }}
+      icon={{ fileIcon: a.path }} // apps live in /Applications: no folder permission involved
       actions={
         <ActionPanel>
           <Action

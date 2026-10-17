@@ -269,7 +269,7 @@ private struct LauncherRow: View {
                     .foregroundStyle(.orange)
             }
             Text(launcher == .raycast
-                 ? "Lantern’s shortcut is off. In Raycast, run “Search Lantern” (give it a hotkey in Raycast’s settings); Lantern keeps indexing and answers in the background."
+                 ? "Lantern’s shortcut is off. In Raycast, type “Lantern” to find “Search Lantern”, or give it a hotkey or an alias in Raycast’s settings; Lantern keeps indexing and answers in the background."
                  : "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -279,7 +279,7 @@ private struct LauncherRow: View {
                     Button("Install the Alfred Workflow…") { NSWorkspace.shared.open(workflow) }
                 }
                 if launcher == .raycast {
-                    Button("Get the Raycast Extension…") { NSWorkspace.shared.open(SearchLauncher.raycastGuide) }
+                    Button("How to Install the Raycast Extension…") { NSWorkspace.shared.open(SearchLauncher.raycastGuide) }
                 }
             }
             .disabled(!launcher.isInstalled)
