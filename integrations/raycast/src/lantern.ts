@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import type { MusicHit } from "./music";
 
 export const SOCKET = path.join(os.homedir(), "Library", "Application Support", "Lantern", "lantern.sock");
 
@@ -78,6 +79,10 @@ export interface SettingHit {
   url: string;
   is_pane: boolean;
 }
+export interface ShortcutHit {
+  id: string;
+  name: string;
+}
 export interface SearchReply {
   event_id: number | null;
   order: string[];
@@ -86,11 +91,33 @@ export interface SearchReply {
   definitions: DefinitionHit[];
   apps: AppHit[];
   settings: SettingHit[];
+  shortcuts: ShortcutHit[];
+  music: MusicHit[];
   corrected_query: string | null;
 }
 
 export function search(query: string, category?: string): Promise<SearchReply> {
   return call<SearchReply>("search", { query, limit: 20, ...(category ? { category } : {}) });
+}
+
+/** The whole indexed passage of a result (the search reply has an excerpt): text from the index, not the file. */
+export interface Passage {
+  text: string;
+  kind: string;
+  page: number | null;
+  start_line: number | null;
+  end_line: number | null;
+  start_ms: number | null;
+}
+export function passage(chunkId: number): Promise<Passage> {
+  return call<Passage>("passage", { chunk_id: chunkId }, 5000);
+}
+
+/** Lines of an indexed text or code file around a result, read by the daemon (Raycast reads no files). */
+export function lines(file: string, start: number, end: number | null, context: number): Promise<[number, string][]> {
+  return call<{ lines: [number, string][] }>("preview", { path: file, start_line: start, end_line: end, context }, 5000).then(
+    (r) => r.lines,
+  );
 }
 
 /**
@@ -104,7 +131,7 @@ export async function thumbnail(file: string, startMs: number | null): Promise<s
 
 /** Records the opened result, so Lantern learns your choices as it does from its own panel. */
 export function opened(eventId: number | null, chunkId: number | null, key?: string): void {
-  if (eventId == null || chunkId == null) return;
+  if (eventId == null || chunkId == null || chunkId < 0) return;
   call("opened", { event_id: eventId, chunk_id: chunkId, ...(key ? { key } : {}) }, 3000).catch(() => undefined);
 }
 
@@ -149,7 +176,7 @@ const QUICKTIME = `on run argv
     set d to open f
     if d is missing value then set d to document 1
     set current time of d to t
-    play d
+    if (item 3 of argv) is "play" then play d
   end tell
 end run`;
 
@@ -160,9 +187,10 @@ const QUICKTIME_TYPES = new Set([".mp4", ".mov", ".m4v", ".m4a", ".mp3", ".wav",
  * app does (app/Sources/LanternCore/Editors.swift): VS Code, Cursor, Xcode and JetBrains at the line; recordings in
  * QuickTime at the moment; anything else opens normally.
  */
-export async function openAt(file: string, line: number | null, ms: number | null): Promise<void> {
+export async function openAt(file: string, line: number | null, ms: number | null, play = true): Promise<void> {
   if (ms != null && QUICKTIME_TYPES.has(path.extname(file).toLowerCase())) {
-    if (await run("/usr/bin/osascript", ["-e", QUICKTIME, file, String(Math.floor(ms / 1000))])) return;
+    const args = ["-e", QUICKTIME, file, String(Math.floor(ms / 1000)), play ? "play" : "pause"];
+    if (await run("/usr/bin/osascript", args)) return;
   }
   if (line != null) {
     const app = await getDefaultApplication(file).catch(() => undefined);

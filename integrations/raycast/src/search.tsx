@@ -1,9 +1,11 @@
-// "Search Lantern": Lantern's results in Raycast's window, in the order the daemon decides. ↩ opens at the line or
-// moment, ⌘↩ shows in Finder, ⌘Y Quick Look; the choice is recorded so Lantern keeps learning.
-import { Action, ActionPanel, Icon, LaunchProps, List, getPreferenceValues, open } from "@raycast/api";
+// "Search Lantern": Lantern's results in Raycast's window, in the order the daemon decides, with the panel's keys:
+// ↩ opens at the line or moment, ⌥↩ from the start, ⌘↩ shows in Finder, ⌘Y previews at the place, ⌘1…⌘0 filter.
+// Raycast never reads the user's files: text, lines and thumbnails come from the daemon (lantern.ts).
+import { Action, ActionPanel, Detail, Icon, Keyboard, LaunchProps, List, getPreferenceValues, open } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import path from "node:path";
 import { useState } from "react";
+import { around, highlight } from "./highlight";
 import {
   AppHit,
   DefinitionHit,
@@ -11,17 +13,43 @@ import {
   NotRunning,
   SearchReply,
   SettingHit,
+  ShortcutHit,
   clock,
+  lines,
   openAt,
   opened,
+  passage,
   reveal,
   search,
   shortPath,
   thumbnail,
 } from "./lantern";
+import { MusicHit, play, show } from "./music";
 
 interface Preferences {
   includeApps: boolean;
+}
+
+/* The panel's filters with the panel's keys (search/hybrid.py CATEGORIES; ⌘4 is the clipboard, which lives only in
+   the Lantern app's memory). */
+const CATEGORIES: { value: string; title: string; icon: Icon; key?: Keyboard.KeyEquivalent }[] = [
+  { value: "", title: "All Kinds", icon: Icon.MagnifyingGlass },
+  { value: "apps", title: "Applications", icon: Icon.AppWindowGrid3x3, key: "1" },
+  { value: "settings", title: "System Settings", icon: Icon.Gear, key: "2" },
+  { value: "shortcuts", title: "Shortcuts", icon: Icon.Layers, key: "3" },
+  { value: "code", title: "Code", icon: Icon.Code, key: "5" },
+  { value: "docs", title: "Documents", icon: Icon.Document, key: "6" },
+  { value: "pdf", title: "PDFs", icon: Icon.Document, key: "7" },
+  { value: "photos", title: "Photos", icon: Icon.Image, key: "8" },
+  { value: "media", title: "Recordings and Videos", icon: Icon.Video, key: "9" },
+  { value: "music", title: "Music", icon: Icon.Music, key: "0" },
+];
+
+interface Ctx {
+  query: string;
+  eventId: number | null;
+  category: string;
+  setCategory: (c: string) => void;
 }
 
 // As a Fallback Command (Raycast settings → Fallback Commands) it opens with the text typed in Raycast's root search.
@@ -33,6 +61,7 @@ export default function Command(props: LaunchProps) {
     async (q: string, c: string) => (q.trim() ? search(q.trim(), c || undefined) : undefined),
     [query, category],
   );
+  const ctx: Ctx = { query: query.trim(), eventId: data?.event_id ?? null, category, setCategory };
 
   if (error instanceof NotRunning) {
     return (
@@ -60,47 +89,64 @@ export default function Command(props: LaunchProps) {
       isShowingDetail={!!data && hasFiles(data)}
       searchBarPlaceholder="Search Lantern by what is inside"
       searchBarAccessory={
-        <List.Dropdown tooltip="Kind" storeValue onChange={setCategory}>
-          {CATEGORIES.map(([value, title, icon]) => (
-            <List.Dropdown.Item key={value} value={value} title={title} icon={icon} />
+        <List.Dropdown tooltip="Kind" value={category} onChange={setCategory}>
+          {CATEGORIES.map((c) => (
+            <List.Dropdown.Item
+              key={c.value}
+              value={c.value}
+              title={c.key ? `${c.title}  ⌘${c.key}` : c.title}
+              icon={c.icon}
+            />
           ))}
         </List.Dropdown>
       }
     >
       {!query.trim() ? (
-        <List.EmptyView icon="icon.png" title="Search your Mac by what is inside" description="Files, code, photos and recordings, found by meaning." />
+        <List.EmptyView
+          icon="icon.png"
+          title="Search your Mac by what is inside"
+          description="Files, code, photos and recordings, found by meaning."
+        />
       ) : error ? (
         <List.EmptyView icon={Icon.Warning} title="Lantern could not search" description={String(error.message)} />
       ) : data ? (
-        sections(data, includeApps)
+        sections(data, includeApps, ctx)
       ) : null}
     </List>
   );
 }
 
-/* The panel's filters (search/hybrid.py CATEGORIES) that apply to what this extension shows. */
-const CATEGORIES: [string, string, Icon][] = [
-  ["", "All Kinds", Icon.MagnifyingGlass],
-  ["code", "Code", Icon.Code],
-  ["docs", "Documents", Icon.Document],
-  ["pdf", "PDFs", Icon.Document],
-  ["photos", "Photos", Icon.Image],
-  ["media", "Recordings and Videos", Icon.Video],
-];
-
 function hasFiles(r: SearchReply): boolean {
   return r.results.length + r.photos.length + r.definitions.length > 0;
 }
 
-function sections(r: SearchReply, includeApps: boolean) {
-  const order = [...r.order, "definitions", "files", "photos"].filter((name, i, all) => all.indexOf(name) === i);
+/** ⌘1…⌘0 pick a filter; the chosen one again goes back to all kinds, like the panel's chips. */
+function FilterActions({ ctx }: { ctx: Ctx }) {
+  return (
+    <ActionPanel.Section title="Filter by Kind">
+      {CATEGORIES.filter((c) => c.key).map((c) => (
+        <Action
+          key={c.value}
+          title={ctx.category === c.value ? `All Kinds (Was ${c.title})` : c.title}
+          icon={c.icon}
+          shortcut={{ modifiers: ["cmd"], key: c.key! }}
+          onAction={() => ctx.setCategory(ctx.category === c.value ? "" : c.value)}
+        />
+      ))}
+    </ActionPanel.Section>
+  );
+}
+
+function sections(r: SearchReply, includeApps: boolean, ctx: Ctx) {
+  const chosen = (kind: string) => ctx.category === kind; // a chosen filter shows its kind even if hidden by default
+  const order = [...r.order, "definitions", "files", "photos", "music"].filter((n, i, all) => all.indexOf(n) === i);
   return order.map((name) => {
     switch (name) {
       case "definitions":
         return r.definitions.length ? (
           <List.Section key={name} title="Definitions">
             {r.definitions.map((d) => (
-              <DefinitionItem key={`${d.path}:${d.line}`} d={d} eventId={r.event_id} />
+              <DefinitionItem key={`${d.path}:${d.line}`} d={d} ctx={ctx} />
             ))}
           </List.Section>
         ) : null;
@@ -108,7 +154,7 @@ function sections(r: SearchReply, includeApps: boolean) {
         return r.results.length ? (
           <List.Section key={name} title="Files">
             {r.results.map((h) => (
-              <FileItem key={h.chunk_id} h={h} eventId={r.event_id} />
+              <FileItem key={h.chunk_id} h={h} ctx={ctx} />
             ))}
           </List.Section>
         ) : null;
@@ -116,47 +162,50 @@ function sections(r: SearchReply, includeApps: boolean) {
         return r.photos.length ? (
           <List.Section key={name} title="Photos">
             {r.photos.map((h) => (
-              <FileItem key={h.chunk_id} h={h} eventId={r.event_id} photo />
+              <FileItem key={h.chunk_id} h={h} ctx={ctx} photo />
             ))}
           </List.Section>
         ) : null;
       case "apps":
-        return includeApps && r.apps.length ? (
+        return (includeApps || chosen("apps")) && r.apps.length ? (
           <List.Section key={name} title="Applications">
             {r.apps.map((a) => (
-              <AppItem key={a.path} a={a} eventId={r.event_id} />
+              <AppItem key={a.path} a={a} ctx={ctx} />
             ))}
           </List.Section>
         ) : null;
       case "settings":
-        return includeApps && r.settings.length ? (
+        return (includeApps || chosen("settings")) && r.settings.length ? (
           <List.Section key={name} title="System Settings">
             {r.settings.map((s) => (
-              <SettingItem key={s.key} s={s} eventId={r.event_id} />
+              <SettingItem key={s.key} s={s} ctx={ctx} />
+            ))}
+          </List.Section>
+        ) : null;
+      case "shortcuts":
+        return r.shortcuts?.length ? (
+          <List.Section key={name} title="Shortcuts">
+            {r.shortcuts.map((s) => (
+              <ShortcutItem key={s.id} s={s} ctx={ctx} />
+            ))}
+          </List.Section>
+        ) : null;
+      case "music":
+        return r.music?.length ? (
+          <List.Section key={name} title="Music">
+            {r.music.map((m) => (
+              <MusicItem key={`${m.id}:${m.playlist_id ?? ""}`} m={m} ctx={ctx} />
             ))}
           </List.Section>
         ) : null;
       default:
-        return null; // music, answers, dictionary: the Lantern panel has them; Raycast has its own
+        return null; // answers and the dictionary: Raycast has its own calculator and dictionary
     }
   });
 }
 
-/** The id the Lantern app gives the same row (LanternCore SearchResult.id), so its history stays one. */
-function fileKey(h: FileHit): string {
-  return `${h.kind}|${h.chunk_id}|${h.start_line ?? -1}|${h.path}|`;
-}
+/* ---------- files ---------- */
 
-function where(h: FileHit): string {
-  if (h.start_ms != null) return clock(h.start_ms);
-  if (h.page != null) return `page ${h.page}`;
-  if (h.start_line != null) return h.end_line && h.end_line !== h.start_line ? `lines ${h.start_line}–${h.end_line}` : `line ${h.start_line}`;
-  return "";
-}
-
-/* Never read from the user's files: Raycast reading files in Downloads or Documents would make macOS ask for access
-   to those folders, and permissions cannot be passed on from Lantern. Icons by kind, the preview text the daemon
-   sends, and thumbnails the daemon writes to its own cache (thumbnail() in lantern.ts). */
 const KIND_ICONS: Record<string, Icon> = {
   code: Icon.Code,
   pdf: Icon.Document,
@@ -168,116 +217,219 @@ const KIND_ICONS: Record<string, Icon> = {
   screen: Icon.Video,
 };
 const VIDEO = new Set([".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"]);
+const FENCE: Record<string, string> = {
+  py: "python",
+  js: "javascript",
+  ts: "typescript",
+  rs: "rust",
+  kt: "kotlin",
+  rb: "ruby",
+  sh: "bash",
+  md: "markdown",
+  h: "c",
+  hpp: "cpp",
+  cc: "cpp",
+  cs: "csharp",
+  m: "objectivec",
+};
+
+function isVideo(h: FileHit): boolean {
+  return h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase());
+}
 
 function kindIcon(h: FileHit, photo: boolean): Icon {
   if (photo) return Icon.Image;
-  if (h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase())) return Icon.Video;
+  if (isVideo(h)) return Icon.Video;
   return KIND_ICONS[h.kind] ?? Icon.Document;
 }
 
-function FileItem({ h, eventId, photo = false }: { h: FileHit; eventId: number | null; photo?: boolean }) {
-  const at = where(h);
-  const video = h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase());
-  const { data: thumb } = usePromise(
+function where(h: FileHit): string {
+  if (h.start_ms != null) return clock(h.start_ms);
+  if (h.page != null) return `page ${h.page}`;
+  if (h.start_line != null)
+    return h.end_line && h.end_line !== h.start_line ? `lines ${h.start_line}–${h.end_line}` : `line ${h.start_line}`;
+  return "";
+}
+
+/** The id the Lantern app gives the same row (LanternCore SearchResult.id), so its history stays one. */
+function fileKey(h: FileHit): string {
+  return `${h.kind}|${h.chunk_id}|${h.start_line ?? -1}|${h.path}|`;
+}
+
+function useThumbnail(h: FileHit, photo: boolean): string | null | undefined {
+  const { data } = usePromise(
     async (file: string, ms: number | null, wanted: boolean) => (wanted ? thumbnail(file, ms) : null),
-    [h.path, h.start_ms, photo || video],
-    { onError: () => undefined }, // no thumbnail (an older daemon, an unreadable file): the kind icon stays
+    [h.path, h.start_ms, photo || isVideo(h)],
+    { onError: () => undefined }, // no thumbnail (older daemon, unreadable file): the kind icon stays
   );
-  const text = h.preview.trim();
-  const body = text
-    ? h.kind === "code"
-      ? "```\n" + text + "\n```"
-      : text.replace(/([*_`#>[\]])/g, "\\$1")
-    : h.start_ms != null
-      ? `_A recording. ↩ plays it from ${clock(h.start_ms)}._`
-      : photo
-        ? "_A photo found by what is in it._"
-        : " ";
-  const markdown = thumb ? `![](${encodeURI(`file://${thumb}`)})\n\n${text ? body : ""}` : body;
+  return data;
+}
+
+/** Code: the lines around the result, its own lines marked ▶. */
+function codeMarkdown(file: string, rows: [number, string][], from: number, to: number): string {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  const width = String(rows[rows.length - 1]?.[0] ?? 0).length;
+  const body = rows
+    .map(([n, text]) => `${n >= from && n <= to ? "▶" : " "} ${String(n).padStart(width)}  ${text}`)
+    .join("\n");
+  return "```" + (FENCE[ext] ?? ext) + "\n" + body + "\n```";
+}
+
+/**
+ * The preview: lines of code around the result, or the whole indexed passage with the query in bold (a window
+ * around the first match on the right, all of it behind ⌘Y), under the thumbnail of a photo or video. All of it
+ * comes from the daemon.
+ */
+function usePreviewMarkdown(h: FileHit, ctx: Ctx, photo: boolean, thumb: string | null | undefined, large: boolean) {
+  const code = h.kind === "code" && h.start_line != null;
+  const { data: rows } = usePromise(
+    async (file: string, a: number, b: number | null, context: number) => lines(file, a, b, context),
+    [h.path, h.start_line ?? 1, h.end_line, large ? 30 : 8],
+    { execute: code, onError: () => undefined },
+  );
+  const { data: whole } = usePromise(async (id: number) => passage(id), [h.chunk_id], {
+    execute: !code && h.chunk_id >= 0,
+    onError: () => undefined,
+  });
+  const image = thumb ? `![](${encodeURI(`file://${thumb}`)})\n\n` : "";
+  if (code && rows?.length) return codeMarkdown(h.path, rows, h.start_line!, h.end_line ?? h.start_line!);
+  const text = (whole?.text ?? h.preview).trim();
+  if (text) return image + highlight(large ? text : around(text, ctx.query), ctx.query);
+  if (h.start_ms != null) return image + `_A recording. ↩ plays it from ${clock(h.start_ms)}._`;
+  return image + (photo ? "_A photo found by what is in it._" : " ");
+}
+
+function FileDetail({ h, ctx, photo, thumb }: { h: FileHit; ctx: Ctx; photo: boolean; thumb?: string | null }) {
+  const markdown = usePreviewMarkdown(h, ctx, photo, thumb, false);
+  const at = where(h);
   return (
-    <List.Item
-      title={path.basename(h.path)}
-      subtitle={at}
-      icon={thumb ? { source: thumb } : kindIcon(h, photo)}
-      quickLook={{ path: h.path, name: path.basename(h.path) }}
-      detail={
-        <List.Item.Detail
-          markdown={markdown}
-          metadata={
-            <List.Item.Detail.Metadata>
-              <List.Item.Detail.Metadata.Label title="Folder" text={shortPath(path.dirname(h.path))} />
-              {at ? <List.Item.Detail.Metadata.Label title="Where" text={at} /> : null}
-              {h.symbol ? <List.Item.Detail.Metadata.Label title="In" text={h.symbol} /> : null}
-            </List.Item.Detail.Metadata>
-          }
-        />
-      }
-      actions={
-        <ActionPanel>
-          <Action
-            title={h.start_ms != null ? "Play from Here" : h.start_line != null ? "Open at Line" : "Open"}
-            icon={h.start_ms != null ? Icon.Play : Icon.ArrowRight}
-            onAction={() => {
-              opened(eventId, h.chunk_id, fileKey(h));
-              openAt(h.path, h.start_line, h.start_ms);
-            }}
-          />
-          <Action
-            title="Show in Finder"
-            icon={Icon.Finder}
-            shortcut={{ modifiers: ["cmd"], key: "return" }}
-            onAction={() => {
-              opened(eventId, h.chunk_id, fileKey(h));
-              reveal(h.path);
-            }}
-          />
-          <Action.ToggleQuickLook shortcut={{ modifiers: ["cmd"], key: "y" }} />
-          <Action.CopyToClipboard title="Copy Path" content={h.path} shortcut={{ modifiers: ["cmd", "shift"], key: "c" }} />
-        </ActionPanel>
+    <List.Item.Detail
+      markdown={markdown}
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title="Folder" text={shortPath(path.dirname(h.path))} />
+          {at ? <List.Item.Detail.Metadata.Label title="Where" text={at} /> : null}
+          {h.symbol ? <List.Item.Detail.Metadata.Label title="In" text={h.symbol} /> : null}
+        </List.Item.Detail.Metadata>
       }
     />
   );
 }
 
-function DefinitionItem({ d, eventId }: { d: DefinitionHit; eventId: number | null }) {
+/** ⌘Y: the preview at the place, larger (30 lines around, the whole passage). */
+function PreviewView({ h, ctx, photo, thumb }: { h: FileHit; ctx: Ctx; photo: boolean; thumb?: string | null }) {
+  const markdown = usePreviewMarkdown(h, ctx, photo, thumb, true);
+  return (
+    <Detail
+      navigationTitle={`${path.basename(h.path)}${where(h) ? " · " + where(h) : ""}`}
+      markdown={markdown}
+      actions={<ActionPanel>{openActions(h, ctx, photo, thumb, false)}</ActionPanel>}
+    />
+  );
+}
+
+function openActions(h: FileHit, ctx: Ctx, photo: boolean, thumb: string | null | undefined, withPreview: boolean) {
+  const media = h.start_ms != null;
+  return (
+    <>
+      <ActionPanel.Section>
+        <Action
+          title={media ? "Play from Here" : h.start_line != null ? "Open at Line" : "Open"}
+          icon={media ? Icon.Play : Icon.ArrowRight}
+          onAction={() => {
+            opened(ctx.eventId, h.chunk_id, fileKey(h));
+            openAt(h.path, h.start_line, h.start_ms);
+          }}
+        />
+        <Action
+          title={media ? "Play from the Start" : "Open from the Start"}
+          icon={Icon.ArrowCounterClockwise}
+          shortcut={{ modifiers: ["opt"], key: "return" }}
+          onAction={() => {
+            opened(ctx.eventId, h.chunk_id, fileKey(h));
+            openAt(h.path, null, null);
+          }}
+        />
+        <Action
+          title="Show in Finder"
+          icon={Icon.Finder}
+          shortcut={{ modifiers: ["cmd"], key: "return" }}
+          onAction={() => {
+            opened(ctx.eventId, h.chunk_id, fileKey(h));
+            reveal(h.path);
+          }}
+        />
+        {withPreview && media && isVideo(h) ? (
+          <Action
+            title="Preview at the Moment"
+            icon={Icon.Eye}
+            shortcut={{ modifiers: ["cmd"], key: "y" }}
+            onAction={() => openAt(h.path, null, h.start_ms, false)} // QuickTime, paused at the moment
+          />
+        ) : withPreview ? (
+          <Action.Push
+            title="Preview Here"
+            icon={Icon.Eye}
+            shortcut={{ modifiers: ["cmd"], key: "y" }}
+            target={<PreviewView h={h} ctx={ctx} photo={photo} thumb={thumb} />}
+          />
+        ) : null}
+        <Action.ToggleQuickLook title="Quick Look the File" shortcut={{ modifiers: ["cmd", "shift"], key: "y" }} />
+        <Action.CopyToClipboard
+          title="Copy Path"
+          content={h.path}
+          shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+        />
+      </ActionPanel.Section>
+      <FilterActions ctx={ctx} />
+    </>
+  );
+}
+
+function FileItem({ h, ctx, photo = false }: { h: FileHit; ctx: Ctx; photo?: boolean }) {
+  const thumb = useThumbnail(h, photo);
+  return (
+    <List.Item
+      title={path.basename(h.path)}
+      subtitle={where(h)}
+      icon={thumb ? { source: thumb } : kindIcon(h, photo)}
+      quickLook={{ path: h.path, name: path.basename(h.path) }}
+      detail={<FileDetail h={h} ctx={ctx} photo={photo} thumb={thumb} />}
+      actions={<ActionPanel>{openActions(h, ctx, photo, thumb, true)}</ActionPanel>}
+    />
+  );
+}
+
+/* ---------- definitions ---------- */
+
+function DefinitionItem({ d, ctx }: { d: DefinitionHit; ctx: Ctx }) {
+  const asHit: FileHit = {
+    chunk_id: d.chunk_id ?? -1,
+    path: d.path,
+    kind: "code",
+    preview: d.signature,
+    start_line: d.line,
+    end_line: d.line,
+    start_ms: null,
+    end_ms: null,
+    page: null,
+    symbol: d.parent,
+  };
   return (
     <List.Item
       title={d.parent ? `${d.parent}.${d.name}` : d.name}
       subtitle={`line ${d.line}`}
       icon={Icon.Code}
       quickLook={{ path: d.path, name: path.basename(d.path) }}
-      detail={
-        <List.Item.Detail
-          markdown={"```\n" + d.signature + "\n```"}
-          metadata={
-            <List.Item.Detail.Metadata>
-              <List.Item.Detail.Metadata.Label title="File" text={shortPath(d.path)} />
-              <List.Item.Detail.Metadata.Label title="Kind" text={d.kind} />
-              <List.Item.Detail.Metadata.Label title="Line" text={String(d.line)} />
-            </List.Item.Detail.Metadata>
-          }
-        />
-      }
-      actions={
-        <ActionPanel>
-          <Action
-            title="Open at Line"
-            icon={Icon.ArrowRight}
-            onAction={() => {
-              opened(eventId, d.chunk_id);
-              openAt(d.path, d.line, null);
-            }}
-          />
-          <Action title="Show in Finder" icon={Icon.Finder} shortcut={{ modifiers: ["cmd"], key: "return" }} onAction={() => reveal(d.path)} />
-          <Action.ToggleQuickLook shortcut={{ modifiers: ["cmd"], key: "y" }} />
-          <Action.CopyToClipboard title="Copy Path" content={d.path} shortcut={{ modifiers: ["cmd", "shift"], key: "c" }} />
-        </ActionPanel>
-      }
+      detail={<FileDetail h={asHit} ctx={ctx} photo={false} />}
+      actions={<ActionPanel>{openActions(asHit, ctx, false, null, true)}</ActionPanel>}
     />
   );
 }
 
-function AppItem({ a, eventId }: { a: AppHit; eventId: number | null }) {
+/* ---------- apps, settings, shortcuts, music ---------- */
+
+function AppItem({ a, ctx }: { a: AppHit; ctx: Ctx }) {
   return (
     <List.Item
       title={a.name}
@@ -288,18 +440,24 @@ function AppItem({ a, eventId }: { a: AppHit; eventId: number | null }) {
             title="Open"
             icon={Icon.AppWindow}
             onAction={() => {
-              opened(eventId, 0, `app|0|-1|${a.path}|`); // the app's row id: both learn from the same choices
+              opened(ctx.eventId, 0, `app|0|-1|${a.path}|`); // the app's row id: both learn from the same choices
               open(a.path);
             }}
           />
-          <Action title="Show in Finder" icon={Icon.Finder} shortcut={{ modifiers: ["cmd"], key: "return" }} onAction={() => reveal(a.path)} />
+          <Action
+            title="Show in Finder"
+            icon={Icon.Finder}
+            shortcut={{ modifiers: ["cmd"], key: "return" }}
+            onAction={() => reveal(a.path)}
+          />
+          <FilterActions ctx={ctx} />
         </ActionPanel>
       }
     />
   );
 }
 
-function SettingItem({ s, eventId }: { s: SettingHit; eventId: number | null }) {
+function SettingItem({ s, ctx }: { s: SettingHit; ctx: Ctx }) {
   return (
     <List.Item
       title={s.title}
@@ -311,10 +469,74 @@ function SettingItem({ s, eventId }: { s: SettingHit; eventId: number | null }) 
             title="Open"
             icon={Icon.Gear}
             onAction={() => {
-              opened(eventId, 0, `setting|0|-1|${s.url}|${s.title}`);
+              opened(ctx.eventId, 0, `setting|0|-1|${s.url}|${s.title}`);
               open(s.url);
             }}
           />
+          <FilterActions ctx={ctx} />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
+function ShortcutItem({ s, ctx }: { s: ShortcutHit; ctx: Ctx }) {
+  const url = `shortcuts://run-shortcut?name=${encodeURIComponent(s.name)}`;
+  return (
+    <List.Item
+      title={s.name}
+      subtitle="Shortcut"
+      icon={Icon.Layers}
+      actions={
+        <ActionPanel>
+          <Action
+            title="Run Shortcut"
+            icon={Icon.Play}
+            onAction={() => {
+              opened(ctx.eventId, 0, `shortcut|0|-1|${url}|`);
+              open(url);
+            }}
+          />
+          <FilterActions ctx={ctx} />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
+function MusicItem({ m, ctx }: { m: MusicHit; ctx: Ctx }) {
+  const subtitle =
+    m.kind === "playlist"
+      ? m.count > 0
+        ? `Playlist · ${m.count} songs`
+        : "Playlist"
+      : [m.artist, m.album].filter(Boolean).join(" · ") +
+        (m.playlist_name ? `  ·  from playlist “${m.playlist_name}”` : "");
+  // the app's row id for the same song (LanternCore MusicResult: path music:<source>:<kind>:<id>[:<playlist>])
+  const key = `${m.kind}|0|-1|music:${m.source}:${m.kind}:${m.id}${m.playlist_id ? ":" + m.playlist_id : ""}|`;
+  return (
+    <List.Item
+      title={m.title}
+      subtitle={subtitle}
+      icon={m.kind === "playlist" ? Icon.List : Icon.Music}
+      accessories={[{ text: m.source === "spotify" ? "Spotify" : "Music" }]}
+      actions={
+        <ActionPanel>
+          <Action
+            title="Play"
+            icon={Icon.Play}
+            onAction={() => {
+              opened(ctx.eventId, 0, key);
+              play(m).catch(() => undefined);
+            }}
+          />
+          <Action
+            title={m.source === "spotify" ? "Show in Spotify" : "Show in Music"}
+            icon={Icon.Eye}
+            shortcut={{ modifiers: ["cmd"], key: "return" }}
+            onAction={() => show(m).catch(() => undefined)}
+          />
+          <FilterActions ctx={ctx} />
         </ActionPanel>
       }
     />

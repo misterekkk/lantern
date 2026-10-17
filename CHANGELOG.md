@@ -9,8 +9,9 @@ What changed for people using Lantern, newest first. Lantern has no numbered rel
   extension) or Alfred (a workflow built into the app). Lantern's shortcut turns off; it keeps indexing and answers
   in the background, and your choices there teach it as in its own panel.
 - Raycast can show "Search Lantern" under any query (Fallback Commands).
-- In Raycast: filters by kind, thumbnails of photos and video frames, and the transcript of a recording's moment,
-  without Raycast asking for access to your folders.
+- In Raycast: the panel's filters on the panel's keys (⌘1 … ⌘0), a preview beside the results (the code around the
+  line, the passage with your words in bold, thumbnails of photos and video frames), ⌘Y to preview at the place,
+  ⌥↩ to open from the start, music and Shortcuts, all without Raycast asking for access to your folders.
 - **Fixed:** changing the search shortcut (or handing it to Raycast or Alfred) left the old one working.
 
 ## 2026-10-17

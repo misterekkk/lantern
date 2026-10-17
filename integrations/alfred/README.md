@@ -7,6 +7,7 @@ Unix socket with macOS's own `python3` (standard library only), and nothing leav
 | Key | Action |
 |---|---|
 | ↩ | open at the line (VS Code, VSCodium, Cursor, Xcode, JetBrains) or play from the moment (QuickTime) |
+| ⌥↩ | open from the start |
 | ⌘↩ | show in Finder |
 | ⇧ / ⌘Y | Quick Look |
 

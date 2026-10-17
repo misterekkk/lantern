@@ -5,6 +5,7 @@ Runs with macOS's own python3 (Command Line Tools), standard library only; nothi
     python3 lantern_alfred.py search "<query>"   # Alfred Script Filter JSON on stdout
     python3 lantern_alfred.py open '<arg>'       # ↩: open at the line / moment
     python3 lantern_alfred.py reveal '<arg>'     # ⌘↩: show in Finder
+    python3 lantern_alfred.py start '<arg>'      # ⌥↩: open from the start
 """
 
 from __future__ import annotations  # macOS ships python3 3.9
@@ -78,7 +79,10 @@ def item(path: str, title: str, subtitle: str, payload: dict, icon: dict | None 
         "type": "file:skipcheck",
         "quicklookurl": path,
         "icon": icon or {"type": "fileicon", "path": path},
-        "mods": {"cmd": {"arg": arg, "subtitle": "Show in Finder"}},
+        "mods": {
+            "cmd": {"arg": arg, "subtitle": "Show in Finder"},
+            "alt": {"arg": arg, "subtitle": "Open from the start"},
+        },
     }
 
 
@@ -228,6 +232,8 @@ def main(argv: list[str]) -> int:
     opened(payload)
     if mode == "reveal":
         run("/usr/bin/open", "-R", payload["path"])
+    elif mode == "start":  # ⌥↩: the file from its beginning (a recording from 0:00)
+        run("/usr/bin/open", payload["path"])
     else:
         open_at(payload["path"], payload.get("line"), payload.get("ms"))
     return 0

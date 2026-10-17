@@ -716,6 +716,22 @@ class Daemon:
         self._scan_all_soon()  # apply now
         return {"exclude": list(self.settings.exclude)}
 
+    def api_passage(self, chunk_id: int) -> dict:
+        """The whole indexed passage of a result (the search reply carries only an excerpt), for previews in clients
+        such as the Raycast extension. Text from the index only; the file itself is not read."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                "SELECT c.text, c.kind, c.page, c.start_line, c.end_line, c.start_ms, c.end_ms, f.path "
+                "FROM chunks c JOIN files f ON f.id = c.file_id WHERE c.id = ?",
+                (int(chunk_id),),
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            raise ValueError("no such passage")
+        return dict(row)
+
     def api_thumbnail(self, path: str, start_ms: int | None = None, size: int = 320) -> dict:
         """A small JPEG of an indexed photo, or of a video's frame at start_ms, for clients without access to the
         user's folders (the Raycast extension). Written to a user-only cache, deleted after 10 minutes

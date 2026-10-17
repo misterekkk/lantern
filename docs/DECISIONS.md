@@ -1075,8 +1075,14 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   `thumbnail` (lantern/thumbnails.py) writes a JPEG of an indexed photo or a video frame at the moment to
   `~/Library/Caches/Lantern/thumbnails` (not a protected folder), deleted after 10 minutes and on daemon start.
   Icons by kind otherwise, text from the daemon's preview; only Quick Look (⌘Y) reads the file itself.
-- Raycast gets the panel's filters as a dropdown beside the search field (code, documents, PDFs, photos, recordings
-  and videos; the daemon's `category`).
+- Raycast gets the panel's filters on the panel's keys (⌘1 apps … ⌘0 music; ⌘4, the clipboard, exists only in the
+  app's memory), as actions and a dropdown beside the search field (the daemon's `category`); the chosen key again
+  returns to all kinds, like the panel's chips.
+- ⌘Y in Raycast is Lantern's own preview, not Quick Look: Quick Look cannot open a file at a line, page or moment.
+  Code: 30 lines around the result from the daemon (`preview`), the result's lines marked; text, PDFs and transcripts:
+  the whole indexed passage (`passage`, new: the reply carries only an excerpt) with the query in bold, ported from
+  `QueryHighlight` (stems, whole words, folded letters); videos: QuickTime paused at the moment. Quick Look stays on
+  ⇧⌘Y. The same preview, shorter, fills the detail pane beside the results.
 - Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
   (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
 
