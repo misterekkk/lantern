@@ -144,10 +144,11 @@ def test_ocr_and_pdf_open_no_network_connection(tmp_path, monkeypatch):
 def test_text_on_video_frames_is_searchable_at_its_moment(conn, tmp_path):
     import subprocess
 
-    from lantern.extractors.media import find_ffmpeg
+    from lantern.extractors.media import FFmpegMissing, find_ffmpeg
 
-    ffmpeg = find_ffmpeg()
-    if ffmpeg is None:
+    try:
+        ffmpeg = find_ffmpeg()
+    except FFmpegMissing:
         pytest.skip("ffmpeg not installed")
     slide = text_image(tmp_path / "slide.png", ["Kwartalny raport sprzedazy", "Przychod wzrosl o 18 procent"])
     scene = photo(tmp_path / "scene.png")
