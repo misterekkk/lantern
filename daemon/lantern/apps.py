@@ -9,10 +9,12 @@ text index) lets a description ("komunikator") find an app; names are matched as
 
 import ctypes
 import json
+import math
 import os
 import plistlib
 import sqlite3
 import subprocess
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -148,37 +150,81 @@ def _keywords(value) -> list[str]:
     return []
 
 
-def spotlight_category(app: Path) -> str | None:
-    """The App Store category as Spotlight names it, in the system language ("Muzyka"): MDItem through ctypes."""
+def _spotlight(app: Path, names: list[str]) -> dict:
+    """Spotlight metadata of a bundle (MDItem through ctypes): strings, numbers and dates (as Unix time)."""
     from lantern.dictionary import _UTF8, _frameworks
 
     if (fw := _frameworks()) is None:
-        return None
+        return {}
     cs, cf = fw
     cs.MDItemCreate.restype, cs.MDItemCreate.argtypes = ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_void_p]
     cs.MDItemCopyAttribute.restype = ctypes.c_void_p
     cs.MDItemCopyAttribute.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     cf.CFGetTypeID.restype, cf.CFGetTypeID.argtypes = ctypes.c_ulong, [ctypes.c_void_p]
-    cf.CFStringGetTypeID.restype = ctypes.c_ulong
-    refs = [cf.CFStringCreateWithCString(None, str(app).encode(), _UTF8),
-            cf.CFStringCreateWithCString(None, b"kMDItemAppStoreCategory", _UTF8)]  # fmt: skip
+    for fn in ("CFStringGetTypeID", "CFNumberGetTypeID", "CFDateGetTypeID"):
+        getattr(cf, fn).restype = ctypes.c_ulong
+    cf.CFNumberGetValue.restype = ctypes.c_bool
+    cf.CFNumberGetValue.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    cf.CFDateGetAbsoluteTime.restype, cf.CFDateGetAbsoluteTime.argtypes = ctypes.c_double, [ctypes.c_void_p]
+    out: dict = {}
+    path = cf.CFStringCreateWithCString(None, str(app).encode(), _UTF8)
+    item = cs.MDItemCreate(None, path) if path else None
     try:
-        if not all(refs) or not (item := cs.MDItemCreate(None, refs[0])):
-            return None
-        refs.append(item)
-        if not (value := cs.MDItemCopyAttribute(item, refs[1])):
-            return None
-        refs.append(value)
-        if cf.CFGetTypeID(value) != cf.CFStringGetTypeID():
-            return None
-        buf = ctypes.create_string_buffer(cf.CFStringGetLength(value) * 4 + 1)
-        if not cf.CFStringGetCString(value, buf, len(buf), _UTF8):
-            return None
-        return buf.value.decode().strip() or None
+        for name in names if item else []:
+            key = cf.CFStringCreateWithCString(None, name.encode(), _UTF8)
+            value = cs.MDItemCopyAttribute(item, key) if key else None
+            try:
+                if not value:
+                    continue
+                kind = cf.CFGetTypeID(value)
+                if kind == cf.CFStringGetTypeID():
+                    buf = ctypes.create_string_buffer(cf.CFStringGetLength(value) * 4 + 1)
+                    if cf.CFStringGetCString(value, buf, len(buf), _UTF8):
+                        out[name] = buf.value.decode().strip()
+                elif kind == cf.CFNumberGetTypeID():
+                    number = ctypes.c_int64()
+                    if cf.CFNumberGetValue(value, 4, ctypes.byref(number)):  # kCFNumberSInt64Type
+                        out[name] = number.value
+                elif kind == cf.CFDateGetTypeID():
+                    out[name] = cf.CFDateGetAbsoluteTime(value) + 978307200  # 2001-01-01 -> Unix time
+            finally:
+                for ref in (value, key):
+                    if ref:
+                        cf.CFRelease(ref)
     finally:
-        for ref in refs:
+        for ref in (item, path):
             if ref:
                 cf.CFRelease(ref)
+    return out
+
+
+def spotlight_category(app: Path) -> str | None:
+    """The App Store category as Spotlight names it, in the system language ("Muzyka")."""
+    return _spotlight(app, ["kMDItemAppStoreCategory"]).get("kMDItemAppStoreCategory") or None
+
+
+# How much each app is used, as macOS counts it (kMDItemUseCount / kMDItemLastUsedDate, the data behind Spotlight's
+# own ranking): ties between name matches go to the app actually used, from the first day ("d" -> Discord, not the
+# shortest name starting with d). Read every few minutes in the control loop; kept in memory only.
+_usage: dict[str, float] = {}
+
+
+def refresh_usage(paths: list[str]) -> None:
+    now = time.time()
+    fresh = {}
+    for path in paths:
+        meta = _spotlight(Path(path), ["kMDItemUseCount", "kMDItemLastUsedDate"])
+        count, last = meta.get("kMDItemUseCount") or 0, meta.get("kMDItemLastUsedDate")
+        if count and last:
+            days = max(0.0, (now - last) / 86400)
+            fresh[path] = min(1.0, math.log10(1 + count) / 4) * 0.5 ** (days / 30)  # 30-day half-life
+    _usage.clear()
+    _usage.update(fresh)
+
+
+def usage(path: str) -> float:
+    """0..1: how much an app is used now (log of launches, halved every 30 days without use)."""
+    return _usage.get(path, 0.0)
 
 
 def read_app(app: Path, languages: list[str]) -> AppInfo | None:

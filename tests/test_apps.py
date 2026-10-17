@@ -158,3 +158,16 @@ def test_one_letter_lists_apps_starting_with_it(conn, applications):
     hits = app_search(conn, "d")
     assert hits and hits[0].name == "Discord" and hits[0].match == "letter"
     assert name_match("d", ["Discord"], []) is None  # only the app search takes one letter (not settings panes)
+
+
+def test_one_letter_answers_with_apps_only_and_used_ones_first(conn, applications, monkeypatch):
+    from lantern import apps as apps_mod
+
+    stored(conn, FakeEmbedder())
+    make_app(applications, "Dictionary", {"CFBundleName": "Dictionary"})
+    stored(conn, FakeEmbedder())
+    used = next(r[0] for r in conn.execute("SELECT path FROM apps WHERE name = 'Discord'"))
+    monkeypatch.setattr(apps_mod, "_usage", {used: 0.5})
+    resp = search(conn, FakeEmbedder(), "d", log=False)
+    assert resp.apps[0].name == "Discord"  # used, although "Dictionary" is just as good a match
+    assert resp.results == [] and resp.photos == [] and resp.settings == [] and resp.sections()[0][0] == "apps"

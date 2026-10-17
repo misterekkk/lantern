@@ -15,7 +15,7 @@ from lantern.answers import Answer, instant_answer
 from lantern.dictionary import Definition as WordDefinition
 from lantern.dictionary import define
 from lantern.embedding.base import Embedder
-from lantern.search.apps import AppHit, ShortcutHit, app_search, shortcut_search
+from lantern.search.apps import APP_SECTION_SIZE, AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.music import MusicHit, music_search
 from lantern.search.settings import SettingHit, settings_search
@@ -387,6 +387,14 @@ def search(
     spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query
+    if len(query.strip()) == 1 and category in (None, "apps"):
+        # One letter: apps only, by name and by how much they are used, no models (an answer at once, like Spotlight;
+        # learned choices are added by the API). Any other kind of result for a letter would be noise.
+        apps = app_search(conn, query, None, limit=limit if category else APP_SECTION_SIZE)
+        resp = SearchResponse([], None, 0.0, 0.0, apps=apps, apps_first=bool(apps),
+                              categories=["apps"] if apps else [], category=category,
+                              section_scores={"apps": _NAME_SCORES["letter"]} if apps else {})  # fmt: skip
+        return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     t0 = time.perf_counter()
     vector = vector_search(conn, embedder, query, CANDIDATES)
     t1 = time.perf_counter()

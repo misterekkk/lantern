@@ -242,11 +242,18 @@ final class SearchModel: ObservableObject {
     /// "Search for … instead" was chosen for this query: no correction for it.
     private var keepAsTyped: String?
 
+    /// The shown results are not yet for the query in the field (typed, request on its way).
+    private var resultsStale = false
+    /// ↩ pressed before the results for the typed query came: done as soon as they do (one letter + ↩ at once).
+    private var waitingAction: OpenAction?
+
     private func scheduleSearch() {
         pending?.cancel()
         spellCheck?.cancel()
+        resultsStale = !query.trimmingCharacters(in: .whitespaces).isEmpty
+        let first = query.trimmingCharacters(in: .whitespaces).count == 1  // a letter: answered without models
         pending = Task {
-            try? await Task.sleep(nanoseconds: 140_000_000)  // debounce typing
+            try? await Task.sleep(nanoseconds: first ? 20_000_000 : 140_000_000)  // debounce typing
             guard !Task.isCancelled else { return }
             search()
         }
@@ -275,6 +282,7 @@ final class SearchModel: ObservableObject {
     func search(spelling: [String: [String]]? = nil) {
         let q = query.trimmingCharacters(in: .whitespaces)
         if category == .clipboard {  // kept by the app, not the daemon: no request
+            resultsStale = false
             sections = ClipboardHistory.shared.section(for: q, limit: 20).map { [$0] } ?? []
             message = sections.isEmpty ? String(localized: "Nothing copied matches.") : nil
             selection = 0
@@ -320,9 +328,18 @@ final class SearchModel: ObservableObject {
                     preview = nil
                     message = sections.isEmpty ? String(localized: "No results for “\(q)”.") : nil
                 }
-                if spelling == nil { scheduleSpelling(q) }
+                if spelling == nil {
+                    resultsStale = false
+                    if let waiting = waitingAction {
+                        waitingAction = nil
+                        act(waiting)
+                    }
+                    scheduleSpelling(q)
+                }
             } catch {
                 guard spelling == nil else { return }  // the second, corrected search is optional (older daemons)
+                resultsStale = false
+                waitingAction = nil
                 sections = []
                 message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             }
@@ -331,6 +348,8 @@ final class SearchModel: ObservableObject {
 
     /// A fresh panel: no query, no filter, no preview.
     func reset() {
+        resultsStale = false
+        waitingAction = nil
         pending?.cancel()
         spellCheck?.cancel()
         keepAsTyped = nil
@@ -381,6 +400,10 @@ final class SearchModel: ObservableObject {
 
     /// One entry point for every shortcut and click (OpenAction): same meaning for code, text and recordings.
     func act(_ action: OpenAction) {
+        if resultsStale && action != .preview {  // results for an older query are on screen: wait for the new ones
+            waitingAction = action
+            return
+        }
         guard let hit = selected else { return }
         let url = URL(fileURLWithPath: hit.path)
         if let music = MusicResult.parse(hit.path) {

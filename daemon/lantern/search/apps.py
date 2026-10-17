@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lantern.apps import CATEGORY_NAMES
+from lantern.apps import CATEGORY_NAMES, usage
 from lantern.embedding.base import format_query
 from lantern.store import db
 from lantern.textnorm import fold
@@ -140,7 +140,8 @@ def app_search(conn: sqlite3.Connection, query: str, embedder=None, limit: int =
         elif q in category_words(r["category"], keywords):  # "muzyka": Spotify beside the app named Muzyka
             hits.append(AppHit(r["path"], r["name"], r["category"], r["bundle_id"], "category", 0.5))
     if hits:
-        hits.sort(key=lambda h: (-h.score, len(h.name), h.name))
+        # among equal matches the app actually used comes first (Spotlight's own counts)
+        hits.sort(key=lambda h: (-(h.score + 0.08 * usage(h.path)), len(h.name), h.name))
         return hits[:limit]
     # No name matches: perhaps a description of what the app does.
     if embedder is None or len(query.split()) > 6:

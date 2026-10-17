@@ -1011,6 +1011,17 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   user type on and the choice was logged under "discord", never under "d" (the simulation had assumed otherwise).
   Choices of all queries starting with the typed text now count ("d" learns from "di", "disc", "discord").
 
+## One letter as fast as Spotlight (2026-10-17)
+
+- Spotlight ranks apps by how much they are used from the first day. macOS keeps that for every bundle
+  (`kMDItemUseCount`, `kMDItemLastUsedDate`; Discord 59 launches today, DBeaver 1698 but last in June). Lantern reads
+  them every 2 minutes in the control loop (~5 ms per app, memory only) and breaks ties between equal name matches
+  with `min(1, log10(1 + count) / 4) × 0.5^(days since last use / 30)`.
+- One letter skips every model: apps only, by name and use (3–7 ms); the panel waits 20 ms instead of 140 ms after a
+  first letter, and ↩ pressed before the results of the typed query arrive is carried out when they do.
+- Open question 39: importing what other launchers learned (Alfred's knowledge.alfdb is SQLite; Raycast's database
+  is encrypted with a key in the keychain, so not readable). Not installed here, so not verified.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1137,3 +1148,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 38. Spotify sign-in and sync (SpotifyLibrary.swift) are written against the documented API but untested until the
     user registers a Client ID; the response shape of `/playlists/{id}/items` (`item` vs `track` per row) is handled
     both ways.
+39. Import other launchers' learned choices for a faster switch: Alfred (`~/Library/Application Support/Alfred/
+    Databases/knowledge.alfdb`, SQLite, format unverified), LaunchBar (abbreviations); Raycast keeps an encrypted
+    database (key in the keychain), so it stays out. Needs a Mac with them installed to verify.

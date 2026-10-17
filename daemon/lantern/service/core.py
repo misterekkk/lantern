@@ -632,6 +632,11 @@ class Daemon:
             return
         self._apps_checked = now
         shortcuts = apps_mod.scan_shortcuts()  # cheap (~30 ms) and they change often: every check
+        usage_conn = self._conn()
+        try:  # how much each app is used (Spotlight's counts): name-match ties go to the used one
+            apps_mod.refresh_usage([r[0] for r in usage_conn.execute("SELECT path FROM apps")])
+        finally:
+            usage_conn.close()
         conn = self._conn()
         try:
             apps_mod.store_shortcuts(conn, shortcuts)
