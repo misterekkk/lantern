@@ -12,6 +12,7 @@
   --glass-strong: rgba(255, 255, 255, 0.8);
   --stroke: rgba(255, 255, 255, 0.75);
   --highlight: rgba(255, 255, 255, 0.9);
+  --on-dark-2: rgba(232, 236, 240, 0.72);  /* secondary text on graphite (the guide, code previews) */
   --radius-panel: 26px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -406,7 +407,7 @@ kbd {
 .code-preview { font-family: var(--mono); font-size: 12px; line-height: 1.75; border-radius: 10px; background: #1e2228; color: rgba(255, 255, 255, 0.9); padding: 8px 0; }
 .code-preview div { display: flex; gap: 14px; padding: 0 12px; white-space: pre; }
 .code-preview div.hit { background: rgba(59, 130, 246, 0.2); }
-.code-preview .ln { color: var(--text-3); width: 34px; text-align: right; flex: none; }
+.code-preview .ln { color: var(--on-dark-2); width: 34px; text-align: right; flex: none; }
 .tok-k { color: #ff7ab2; } .tok-f { color: #67b7ff; } .tok-s { color: #fc6a5d; } .tok-c { color: #7f8c98; } .tok-n { color: #d9c97c; }
 
 /* ---------- notification ---------- */
@@ -468,8 +469,9 @@ kbd {
 /* final card */
 .finale { text-align: center; max-width: 420px !important; padding: 26px 28px !important; }
 .finale .app-icon { margin-bottom: 8px; }
-.finale h2 { margin: 0 0 6px; font-size: 22px; }
-.finale p { color: var(--text-2); font-size: 14px; }
+.finale h2 { margin: 0 0 6px; font-size: 22px; color: #fff; }
+.finale p { color: var(--on-dark-2); font-size: 14px; }
+.finale p b, .finale p strong { color: #fff; }
 .finale .hint-actions { justify-content: center; }
 .finale a.btn { display: inline-block; text-decoration: none; }
 
@@ -507,7 +509,7 @@ kbd {
   position: fixed;
   inset: auto 0 0;
   margin: 0;
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   font-size: 11px;
   line-height: 1.35;
   text-align: center;

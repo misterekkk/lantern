@@ -13,7 +13,7 @@ const examples = [
   { query: "error 0x80070002", kind: "Screenshot", what: "The screenshot that shows this error, read with the Mac's own text recognition." },
   { query: "when we talked about the match", kind: "Recording · 1:48", what: "The moment in a video where it is said. ↩ plays it from there." },
   { query: "def add_two", kind: "Code · line 200", what: "The definition itself, opened at its line in your editor." },
-  { query: "electricity invoice october", kind: "PDF · page 2", what: "The page of the PDF, scanned pages included." },
+  { query: "electricity invoice october", kind: "PDF · page 10", what: "The page of the PDF, scanned pages included." },
   { query: "24 hour", kind: "System Settings", what: "Use a 24-hour clock in the menu bar: the single setting, not just its pane." },
   { query: "d", kind: "App", what: "Discord, because it is the one you use. One letter, ↩, done." },
 ];
@@ -21,10 +21,10 @@ const examples = [
 const faq = [
   { q: "Does anything leave my Mac?", a: "No. The models run on your Mac after a one-time download, Lantern sends no telemetry and only reads your files. The single exception is the Spotify library sync, which is off unless you switch it on with your own key." },
   { q: "Can it replace Spotlight?", a: "Yes. It opens on ⌥Space or on ⌘Space instead of Spotlight, and finds apps, System Settings, quick answers, dictionary entries, shortcuts and your music next to your files." },
-  { q: "Which languages does it understand?", a: "The search model is multilingual, so a Polish question finds an English document and the other way round. The app is in English and Polish and follows the language of macOS." },
+  { q: "Which languages does it understand?", a: "Search is tested in English and Polish: a question in one finds documents in the other. The search model is multilingual, but other languages have not been tested yet. The app itself is in English and Polish and follows the language of macOS; on a Mac in another language it is in English." },
   { q: "What Mac do I need?", a: "A Mac with Apple Silicon. It is developed on an M4 with 16 GB of memory; the search model needs about half a gigabyte while it runs, and indexing pauses on battery and when the Mac is hot." },
   { q: "Can I use it on company code?", a: "Yes, that is what it was built for: everything stays in one local file in Application Support, secrets such as .env and keys are skipped, and deleting a folder from the index really erases it." },
-  { q: "Coming from Alfred?", a: "Settings → Privacy imports the choices Alfred learned, so a letter and ↩ open the same app on day one." },
+  { q: "Coming from Spotlight or Alfred?", a: "Your habits come with you. From the first day Lantern ranks apps by how often and how recently you opened them, read from the usage macOS already records on your Mac, the same data Spotlight ranks by. If you used Alfred, Settings → Privacy imports the choices it learned, so a letter and ↩ open the same app as before. Both are read on your Mac and stay there." },
 ];
 ---
 <!doctype html>
@@ -35,8 +35,9 @@ const faq = [
   <title>Lantern</title>
   <meta name="description" content="Search your Mac by what is inside: files, code, photos, recordings and apps, found by meaning, entirely on your Mac.">
   <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml">
-  <style>
-    /* Layout: a sky-coloured opening band (the Mist of the demo) with the text left and a live panel right, then quiet
+  <style is:global>
+    /* Global on purpose: the miniature's rows are rendered by the script, which Astro's scoped styles miss.
+       Layout: a sky-coloured opening band (the Mist of the demo) with the text left and a live panel right, then quiet
        full-width sections on paper; the amber of the icon's sparkle is the only colour, used as light, sparingly. */
     :root {
       --sky: #dfe6ee;
@@ -119,9 +120,17 @@ const faq = [
     .start .after { color: var(--muted); font-size: 15px; margin-top: 14px; }
     details { border-bottom: 1px solid var(--line); padding-block: 16px; }
     details:first-of-type { border-top: 1px solid var(--line); }
-    summary { cursor: pointer; font-weight: 700; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
-    summary::after { content: "+"; color: var(--muted); font-weight: 400; }
-    details[open] summary::after { content: "–"; }
+    summary { cursor: pointer; font-weight: 700; font-size: 18px; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; transition: color 0.2s; }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { color: var(--amber-ink); }
+    /* + turns into − : the vertical bar rotates flat, the sign turns a quarter and lights up in amber */
+    .sign { position: relative; flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s, border-color 0.3s; }
+    .sign::before, .sign::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; margin: -1px 0 0 -6px; border-radius: 1px; background: var(--muted); transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s; }
+    .sign::after { transform: rotate(90deg); }
+    details[open]:not(.closing) .sign { transform: rotate(180deg); background: var(--amber); border-color: var(--amber); }
+    details[open]:not(.closing) .sign::before, details[open]:not(.closing) .sign::after { background: #1c1f24; }
+    details[open]:not(.closing) .sign::after { transform: rotate(0deg); }
+    .answer { overflow: hidden; }
     details p { color: var(--muted); margin: 10px 0 0; max-width: 46em; }
     footer .legal { flex-basis: 100%; margin: 0; font-size: 12.5px; line-height: 1.5; max-width: 72ch; }
     footer { padding-block: 36px 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
@@ -134,7 +143,7 @@ const faq = [
       .key { display: none; }
       .row { grid-template-columns: 40px minmax(0, 1fr); }
     }
-    @media (prefers-reduced-motion: reduce) { .caret { animation: none; } html { scroll-behavior: auto; } }
+    @media (prefers-reduced-motion: reduce) { .caret { animation: none; } html { scroll-behavior: auto; } .sign, .sign::before, .sign::after { transition: none; } }
   </style>
 </head>
 <body>
@@ -225,7 +234,7 @@ const faq = [
     <section class="band" id="faq">
       <div class="wrap">
         <h2>Questions</h2>
-        {faq.map((f) => (<details><summary>{f.q}</summary><p>{f.a}</p></details>))}
+        {faq.map((f) => (<details><summary>{f.q}<span class="sign" aria-hidden="true"></span></summary><div class="answer"><p>{f.a}</p></div></details>))}
       </div>
     </section>
   </main>
@@ -244,8 +253,8 @@ const faq = [
     // The miniature panel walks through a few real queries; it rests on the first one when motion is reduced.
     const scenes = [
       { q: "when we talked about the match", rows: [["Files", "▶", "vlog-october.mp4 · 1:48", "“…and then we talked about the match on Sunday…”", "play ↩"], ["", "txt", "notes-sunday.md", "~/Documents · the match, tickets, who drives", ""], ["Photos", "img", "IMG_2041.HEIC", "~/Pictures · stadium, evening", ""]] },
-      { q: "dog on the beach", rows: [["Photos", "img", "IMG_1188.HEIC", "~/Pictures/Hel 2025", "open ↩"], ["", "img", "IMG_1190.HEIC", "~/Pictures/Hel 2025", ""], ["Files", "txt", "holiday-plan.md", "~/Documents · beach, ferry, dog-friendly", ""]] },
-      { q: "def add_two", rows: [["Definitions", "{ }", "add_two · skrypt.py", "def add_two(x, y)  —  line 200", "open ↩"], ["Files", "py", "uzycie.py", "~/Projects/demo · lines 3–3", ""], ["", "py", "test_math.py", "~/Projects/demo · lines 18–24", ""]] },
+      { q: "dog on the beach", rows: [["Photos", "img", "IMG_1188.HEIC", "~/Pictures/Seaside 2025", "open ↩"], ["", "img", "IMG_1190.HEIC", "~/Pictures/Seaside 2025", ""], ["Files", "txt", "holiday-plan.md", "~/Documents · beach, ferry, dog-friendly", ""]] },
+      { q: "def add_two", rows: [["Definitions", "{ }", "add_two · math_utils.py", "def add_two(x, y)  —  line 200", "open ↩"], ["Files", "py", "calculator.py", "~/Projects/calc · lines 12–14", ""], ["", "py", "test_math_utils.py", "~/Projects/calc · lines 18–24", ""]] },
       { q: "d", rows: [["Applications", "app", "Discord", "Social Networking", "open ↩"], ["", "app", "DBeaver", "Developer Tools", ""], ["", "app", "Docker", "Developer Tools", ""]] },
     ];
     const typed = document.getElementById("typed");
@@ -269,6 +278,28 @@ const faq = [
       setTimeout(next, 3200);
     }
     if (!reduce) setTimeout(next, 3200);
+    // Questions open and close with motion: the answer slides down and fades in, then folds back up.
+    const ease = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+    for (const d of document.querySelectorAll("#faq details")) {
+      const answer = d.querySelector(".answer");
+      let running = null;
+      d.querySelector("summary").addEventListener("click", (e) => {
+        if (reduce) return;
+        e.preventDefault();
+        const opening = !d.open || d.classList.contains("closing");
+        const from = answer.getBoundingClientRect().height;
+        running?.cancel();
+        if (opening) { d.classList.remove("closing"); d.open = true; }
+        else d.classList.add("closing");
+        const to = opening ? answer.scrollHeight : 0;
+        running = answer.animate(
+          opening
+            ? [{ height: `${from}px`, opacity: from ? 1 : 0, transform: "translateY(-8px)" }, { height: `${to}px`, opacity: 1, transform: "none" }]
+            : [{ height: `${from}px`, opacity: 1 }, { height: "0px", opacity: 0 }],
+          { duration: opening ? 420 : 300, easing: ease });
+        running.onfinish = () => { running = null; if (!opening) { d.open = false; d.classList.remove("closing"); } };
+      });
+    }
     document.getElementById("copy").addEventListener("click", async (e) => {
       const text = document.getElementById("cmd").textContent;
       try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }

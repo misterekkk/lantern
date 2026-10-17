@@ -82,11 +82,11 @@ const SCENARIOS = [
     blurb: "Photos come first because that’s what you meant — Lantern looks at what is <b>in</b> the picture, not its file name.",
     sections: [
       ["Photos", [
-        { thumb: ART.beachDog, title: "IMG_2041.heic", sub: "~/Pictures/Hel 2025", source: "image", cat: "photos",
+        { thumb: ART.beachDog, title: "IMG_2041.heic", sub: "~/Pictures/Seaside 2025", source: "image", cat: "photos",
           show: { kind: "image", art: ART.beachDog } },
         { thumb: ART.parkDog, title: "rex_park.jpg", sub: "~/Pictures/Rex", source: "image", cat: "photos",
           show: { kind: "image", art: ART.parkDog } },
-        { thumb: ART.sunset, title: "IMG_2077.heic", sub: "~/Pictures/Hel 2025", source: "image", cat: "photos",
+        { thumb: ART.sunset, title: "IMG_2077.heic", sub: "~/Pictures/Seaside 2025", source: "image", cat: "photos",
           show: { kind: "image", art: ART.sunset } },
       ]],
       ["Files", [
@@ -203,15 +203,15 @@ const SCENARIOS = [
     ],
   },
   {
-    id: "music", label: "a song", phrase: "skeletons", complete: 4,
+    id: "music", label: "a song", phrase: "fog over the pier", complete: 4,
     typeHint: "Your Apple Music songs and playlists, by title, artist or album.",
-    blurb: "Songs and playlists of your library come up by name or artist (“travisa scotta” works too); ↩ plays.",
+    blurb: "Songs and playlists of your library come up by name or artist (“low tide club” works too); ↩ plays.",
     sections: [
       ["Music", [
-        { icon: ICON.music, title: "SKELETONS", sub: "Travis Scott · ASTROWORLD  ·  from playlist “Gym”", cat: "music",
-          source: "", action: "play", enterHint: "In Lantern, ↩ plays <b>SKELETONS</b> in Music; ⌘↩ shows it there." },
-        { icon: ICON.music, title: "Gym", sub: "Playlist · 34 songs", cat: "music", source: "", action: "play",
-          enterHint: "In Lantern, ↩ plays the playlist <b>Gym</b>." },
+        { icon: ICON.music, title: "Fog over the Pier", sub: "Low Tide Club · Salt & Static  ·  from playlist “Evening walk”", cat: "music",
+          source: "", action: "play", enterHint: "In Lantern, ↩ plays <b>Fog over the Pier</b> in Music; ⌘↩ shows it there." },
+        { icon: ICON.music, title: "Evening walk", sub: "Playlist · 34 songs", cat: "music", source: "", action: "play",
+          enterHint: "In Lantern, ↩ plays the playlist <b>Evening walk</b>." },
       ]],
     ],
   },
@@ -338,7 +338,10 @@ function tickClock() {
 
 function fitStage() {
   const desktop = $("#desktop");
-  const s = Math.min((innerWidth * 0.96) / 1440, (innerHeight * 0.96) / 900, 1.25);
+  // the trademark note sits under the desktop, never over it: the desktop fits the space above the note
+  const stage = $(".stage");
+  stage.style.bottom = `${$(".legal").offsetHeight}px`;
+  const s = Math.min((innerWidth * 0.96) / 1440, (stage.clientHeight * 0.96) / 900, 1.25);
   desktop.style.transform = `translate(-50%, -50%) scale(${s})`;
   const small = innerWidth < 760 && !document.body.dataset.anyway;
   $("#smallScreen").hidden = !small;

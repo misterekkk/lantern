@@ -33,7 +33,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     so private text in screenshots (passwords, banking) becomes searchable: OCR can be switched off in Settings → File
     Types. PDFs are only opened for reading, never saved.
 11. **Applications and System Settings:** only the bundles' own descriptions are read (Info.plist, translations,
-    keywords, the search terms of System Settings); nothing is launched, and opening a pane uses macOS's
+    keywords, the search terms of System Settings), plus the launch count and last-use date macOS's Spotlight keeps
+    for each app on the Mac (kept in memory, used to rank apps); nothing is launched, and opening a pane uses macOS's
     x-apple.systempreferences links. The ⌘Space option reads whether Spotlight's shortcut is on; it never writes
     system settings.
 12. **Clipboard history** (off by default; Settings → Privacy: 30 minutes or 8 hours): copied text is kept in the
