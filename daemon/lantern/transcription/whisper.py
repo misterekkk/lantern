@@ -81,7 +81,7 @@ class WhisperTranscriber:
 
     def transcribe(self, samples: np.ndarray) -> list[Segment]:
         """The raw soundtrack, without an initial prompt: tested on a real recording, a prompt from the file name
-        blended names ("Jones" -> "Smones", "Average" -> "Outreach"), and loudness normalisation or denoising added
+        blended names into its words ("Average" -> "Outreach"), and loudness normalisation or denoising added
         invented words; file names often have nothing to do with the recording anyway (docs/DECISIONS.md)."""
         import mlx_whisper
 

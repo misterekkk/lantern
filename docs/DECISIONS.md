@@ -877,11 +877,11 @@ Measured on the test index (local queries vs web-like ones):
   the frame's moment and a text vector, so it joins the files list like the transcript (filter: recordings and
   videos). Pipeline video v6.
 - **Whisper without a prompt, on the raw sound.** Tested on a real 214 s recording (Polish, names at a quiet,
-  unclear start; whisper-large-v3-turbo), five variants. The file-name prompt blended names ("Adama Jonesa" →
-  "Smones", "Average" → "Outreach"); loudness normalisation (`dynaudnorm`) added invented words ("Ashes", "Casses,
+  unclear start; whisper-large-v3-turbo), five variants. The file-name prompt blended names (a guest's surname
+  turned into a word from the file name, "Average" → "Outreach"); loudness normalisation (`dynaudnorm`) added invented words ("Ashes", "Casses,
   Rain"); denoising (`afftdn` + band-pass) distorted others ("daszbordzik" → "też portzik", "wybrać" → "brać");
-  `loudnorm` changed nothing that matters. The raw sound without a prompt was best; the unclear "Adama
-  Smitha" stays "Adwa Smytha" in every variant (the limit is the audio). File names also often have
+  `loudnorm` changed nothing that matters. The raw sound without a prompt was best; the speaker's unclear name
+  at the start stays wrong in every variant (the limit is the audio). File names also often have
   nothing to do with the recording, and the file name is searchable anyway (FTS path column). Pipeline audio v4 /
   video v5 re-transcribe without the prompt.
   Decoding options suggested elsewhere, tested on the same recording: `temperature=0.0` (no fallback),
@@ -1014,7 +1014,8 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
 ## One letter as fast as Spotlight (2026-10-17)
 
 - Spotlight ranks apps by how much they are used from the first day. macOS keeps that for every bundle
-  (`kMDItemUseCount`, `kMDItemLastUsedDate`; Discord 59 launches today, DBeaver 1698 but last in June). Lantern reads
+  (`kMDItemUseCount`, `kMDItemLastUsedDate`; e.g. one app launched 59 times and used today, another 1698 times but
+  last in June). Lantern reads
   them every 2 minutes in the control loop (~5 ms per app, memory only) and breaks ties between equal name matches
   with `min(1, log10(1 + count) / 4) × 0.5^(days since last use / 30)`.
 - One letter skips every model: apps only, by name and use (3–7 ms); the panel waits 20 ms instead of 140 ms after a
