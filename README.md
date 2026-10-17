@@ -234,7 +234,7 @@ there teach it as in its own panel.
   yet: `npm install && npm run dev` once adds it to Raycast). Give it a hotkey or an alias in Raycast's settings
   (sidebar → Lantern); Raycast's own hotkey is also ⌥Space by default.
 - **Alfred** (Powerpack): Settings → General → *Install the Alfred Workflow…*, then type `l` and your query, or give
-  the workflow a hotkey. Source in [integrations/alfred](integrations/alfred).
+  the workflow a hotkey. Source in [integrations/alfred](integrations/alfred). Not tested inside Alfred yet: feedback welcome.
 
 Raycast can also offer Lantern under every query of its own: Raycast's settings → Fallback Commands → add "Search
 Lantern"; ↩ on it shows Lantern's results for what you typed.

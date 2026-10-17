@@ -63,6 +63,9 @@ export default function Command(props: LaunchProps) {
     [query, category],
   );
   const ctx: Ctx = { query: query.trim(), eventId: data?.event_id ?? null, category, setCategory };
+  // Raycast only runs the shortcuts of the selected row's actions: every empty state carries the filter actions too,
+  // or ⌃1…⌃0 would beep once a filter leaves nothing to select.
+  const rows = data && query.trim() ? sections(data, includeApps, ctx).filter(Boolean) : [];
 
   if (error instanceof NotRunning) {
     return (
@@ -107,11 +110,24 @@ export default function Command(props: LaunchProps) {
           icon="icon.png"
           title="Search your Mac by what is inside"
           description="Files, code, photos and recordings, found by meaning."
+          actions={<ActionPanel>{FilterActions({ ctx })}</ActionPanel>}
         />
       ) : error ? (
-        <List.EmptyView icon={Icon.Warning} title="Lantern could not search" description={String(error.message)} />
-      ) : data ? (
-        sections(data, includeApps, ctx)
+        <List.EmptyView
+          icon={Icon.Warning}
+          title="Lantern could not search"
+          description={String(error.message)}
+          actions={<ActionPanel>{FilterActions({ ctx })}</ActionPanel>}
+        />
+      ) : rows.length ? (
+        rows
+      ) : !isLoading ? (
+        <List.EmptyView
+          icon={Icon.MagnifyingGlass}
+          title={category ? "Nothing of this kind" : "No results"}
+          description={category ? "⌃ and the same digit again shows all kinds." : undefined}
+          actions={<ActionPanel>{FilterActions({ ctx })}</ActionPanel>}
+        />
       ) : null}
     </List>
   );

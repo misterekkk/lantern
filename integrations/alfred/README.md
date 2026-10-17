@@ -1,5 +1,8 @@
 # Lantern for Alfred
 
+> **Not tested inside Alfred yet** (workflows need Alfred's paid Powerpack). The script itself is tested against the
+> daemon; if the workflow does not import or behave in Alfred, please open an issue.
+
 A workflow (Alfred 5 with the Powerpack): type `l` and your query to see Lantern's results (code definitions, files
 at the line, page or moment, photos). The Lantern app must be running; the workflow asks its daemon over the local
 Unix socket with macOS's own `python3` (standard library only), and nothing leaves the Mac.

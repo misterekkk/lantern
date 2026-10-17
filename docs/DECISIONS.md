@@ -1086,6 +1086,10 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   ⇧⌘Y. The same preview, shorter, fills the detail pane beside the results.
 - Raycast's markdown renders `\(…\)`, `\[…\]` and `$…$` as LaTeX: passages are escaped without backslashes before
   brackets, parentheses or `$` (HTML entities instead).
+- Raycast runs only the selected row's action shortcuts: every empty state (nothing typed, nothing of the chosen kind,
+  an error) carries the filter actions, or ⌃1…⌃0 beeped once a filter left no rows.
+- Raycast: tested by the user (search, previews, thumbnails, filters). Alfred: not tested inside Alfred (the Powerpack
+  is paid); the script is tested against the daemon.
 - Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
   (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
 
