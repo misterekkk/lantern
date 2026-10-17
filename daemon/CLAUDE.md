@@ -80,9 +80,10 @@ with their video. Every search is logged to `search_events` (features only, neve
 
 ## Photos and video frames (Phase 7)
 
-- Two models per photo: EmbeddingGemma 2 vision tower (`IMAGE_TOKENS = 140`) and SigLIP 2 base (`embedding/siglip.py`:
-  torch fp16 image tower in the worker, MLX 8-bit text tower in the daemon, loaded on demand and released after
-  `QUERY_MODEL_IDLE_S`). Their vectors go to `vec_images_<model_id>` tables, never into the text tables.
+- Two models per photo: EmbeddingGemma 2 vision tower (`IMAGE_TOKENS = 140`, `embedding/processor.py` builds the
+  numpy/PIL processor without torch) and SigLIP 2 base (`embedding/siglip.py`: MLX fp16 image tower in the worker via
+  `siglip_vision.py`, MLX 8-bit text tower in the daemon, loaded on demand and released after `QUERY_MODEL_IDLE_S`).
+  Their vectors go to `vec_images_<model_id>` tables, never into the text tables.
 - `extractors/image.py` (Pillow, HEIC via `sips`), `extractors/frames.py` (`lantern-media frames`: AVFoundation, scene
   score ×2 calibrated to ffmpeg's select; ffmpeg fallback; 30 s floor, dHash + colour signature dedup). Key frames also go through OCR (`vision.frame_text`): `screen` chunks (text vectors,
   frame moment, repeated text merged), searched with the files. Both models are optional at runtime: without SigLIP downloaded, EG2 alone is used.

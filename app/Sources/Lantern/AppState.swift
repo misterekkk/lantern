@@ -23,6 +23,8 @@ final class AppState: ObservableObject {
 
     var phase: Phase {
         guard let status else { return connectionError == nil ? .starting : .offline }
+        if status.modelDownload?.running == true { return .indexing }
+        if status.modelsMissing == true { return .awaitingApproval }
         if status.paused != nil { return .paused }
         if status.awaitingApproval || status.waitingForSettings == true { return .awaitingApproval }
         if status.worker.running { return .indexing }
@@ -81,7 +83,8 @@ final class AppState: ObservableObject {
             // The open Settings window holds back new indexing (the daemon releases it when we stop saying so).
             let s = try await client.call("status", ["settings_open": SettingsWindowController.shared.isOpen],
                                           as: DaemonStatus.self, timeout: 5)
-            if status == nil {
+            let justGotModel = status?.modelsMissing == true && s.modelsMissing != true
+            if status == nil || justGotModel {
                 SearchPanelController.shared.daemonCameUp()  // a search made too early: again
                 MusicSync.shared.syncIfChanged(force: true)  // a new daemon may have an older copy of the library
             }
@@ -135,6 +138,7 @@ final class AppState: ObservableObject {
     func decline() { run("decline") }
     func pause() { run("pause") }
     func resume() { run("resume") }
+    func downloadModels(_ models: [String]) { run("download_models", ["models": models]) }
     func setConfig(_ key: String, _ value: String) { run("config_set", ["key": key, "value": value]) }
     func addExclude(_ pattern: String) { run("exclude", ["action": "add", "pattern": pattern]) }
     func removeExclude(_ pattern: String) { run("exclude", ["action": "remove", "pattern": pattern]) }

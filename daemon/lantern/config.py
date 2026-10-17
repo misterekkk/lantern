@@ -7,6 +7,7 @@ from pathlib import Path
 OFFLINE_ENV = {
     "HF_HUB_OFFLINE": "1",
     "TRANSFORMERS_OFFLINE": "1",
+    "TRANSFORMERS_NO_ADVISORY_WARNINGS": "1",
     "HF_HUB_DISABLE_TELEMETRY": "1",
     "DO_NOT_TRACK": "1",
 }

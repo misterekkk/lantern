@@ -14,9 +14,14 @@ final class DaemonSupervisor {
     private var restarts = 0
     private let client = DaemonClient()
 
-    /// Python of the project's virtual environment, baked into Info.plist by app/build.sh (LanternPython).
+    /// Python runtime: LANTERN_PYTHON override, then the standalone Python bundled inside Lantern.app
+    /// (Contents/Resources/python/bin/python3 in the downloadable .dmg), else the project's .venv from Info.plist.
     private var python: String? {
         if let env = ProcessInfo.processInfo.environment["LANTERN_PYTHON"], !env.isEmpty { return env }
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3").path,
+           FileManager.default.isExecutableFile(atPath: bundled) {
+            return bundled
+        }
         return Bundle.main.object(forInfoDictionaryKey: "LanternPython") as? String
     }
 

@@ -1,7 +1,7 @@
 """Index worker process: drains the job queue and exits.
 
-Started by the daemon (`python -m lantern.service.worker`) with background priority. Heavy models (audio tower,
-Whisper, the torch-based audio processor) live only in this process, so their memory is returned to the system
+Started by the daemon (`python -m lantern.service.worker`) with background priority. Heavy indexing models (audio and
+vision towers, SigLIP image tower, Whisper) live only in this process, so their memory is returned to the system
 when indexing ends and the daemon stays small. SIGTERM finishes the current file, returns the rest to the queue and
 exits. Progress is reported as JSON lines on stdout.
 """

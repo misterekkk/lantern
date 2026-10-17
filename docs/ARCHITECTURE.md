@@ -67,6 +67,7 @@ All logic lives in the daemon. Clients only call the API.
 | 11 | PDFs (PDFKit, page by page; scanned pages via OCR) and text in images (Apple Vision OCR with a cheap gate); exact numbers and codes matched as phrases | done |
 | 12 | Spotlight replacement: apps and System Settings, instant answers, dictionary, shortcuts, clipboard, menu items and windows, web row, filter icons, music (Apple Music; opt-in Spotify sync), spelling, learned choices, one-letter search by macOS's launch counts, text on video frames, Whisper noise filter | done (DECISIONS.md, entries of 2026-10-16/17) |
 | 13 | Raycast and Alfred as front ends: a Raycast extension (results, previews, thumbnails made by the daemon, the panel's filters and keys) and an Alfred workflow, both clients of the socket; Settings → General → Search from | Raycast done (tested by the user); Alfred untested in Alfred |
+| 14 | Self-contained `Lantern.dmg` without developer tools: `AVFoundation` decoding (`lantern-media`, `ffmpeg` optional for MKV/WebM only), SigLIP 2 image tower and EmbeddingGemma 2 processor on MLX without `torch`, first-launch model download in the menu bar and Settings → Performance, `app/build.sh --dmg` and `.github/workflows/release.yml` on `macos-26` | done |
 
 ### Phase 9 plan (agreed with the user, 2026-10-16)
 

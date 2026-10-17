@@ -95,7 +95,7 @@ the indexed data.
 | sentence-transformers (fallback backend) | as above | as above |
 | MLX / mlx-vlm | no traffic of their own; weights through huggingface_hub | `local_files_only`; **measured: 0 connection attempts** (`-m model` test) |
 | mlx-whisper | weights through huggingface_hub | loaded from the local copy (`local_files_only`); **measured: 0 connection attempts** while transcribing (`-m model` test) |
-| SigLIP 2 (transformers + torch in the worker, MLX in the daemon) | weights through huggingface_hub | `local_files_only` + offline variables; **measured: 0 connection attempts** while loading and embedding photos and queries (`-m model` test) |
+| SigLIP 2 (MLX: fp16 image tower in the worker, 8-bit text tower in the daemon) | weights through huggingface_hub | `local_files_only` + offline variables; **measured: 0 connection attempts** while loading and embedding photos and queries (`-m model` test) |
 | Pillow, `sips` (photos) | no network traffic; read the photo file | HEIC through `sips` into a temporary file that is deleted right away |
 | lantern-media (AVFoundation, part of macOS) | no network traffic; reads the input file, audio goes to a pipe, key frames to a temporary folder | frames deleted after reading, like ffmpeg's |
 | ffmpeg (optional, MKV/WebM) | no network traffic; reads the input file, output goes to a pipe | run with `-nostdin`, no output files |

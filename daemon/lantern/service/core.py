@@ -89,6 +89,9 @@ class Daemon:
         self.held_for_settings = False
         self.manual_pause = False
         self.auto_pause: str | None = None
+        self.models_missing = False  # True on first launch of the prebuilt .dmg until the required model is downloaded
+        self.downloader: subprocess.Popen | None = None
+        self.download_state: dict | None = None
         self.worker: subprocess.Popen | None = None
         self.worker_terminating = False
         self.worker_retry_at = 0.0
@@ -286,7 +289,7 @@ class Daemon:
         self._reap_worker()
         with self.lock:
             running = self.worker is not None
-            paused = self._paused() or self.stopping.is_set()
+            paused = self._paused() or self.stopping.is_set() or self.models_missing
             holding = self._holding()
             want = (self.approved or self.settings.index_mode == "auto") and not holding
         if running and (paused or holding):
@@ -346,6 +349,18 @@ class Daemon:
     def api_ping(self) -> dict:
         return {"ok": True, "pid": os.getpid()}
 
+    def _download_status(self) -> dict | None:
+        state = self.download_state
+        if state is None:
+            return None
+        out = dict(state)
+        repo = out.get("repo")
+        if out.get("running") and repo:
+            from lantern import models as models_mod
+
+            out["downloaded_mb"] = round(models_mod.blob_bytes(repo) / 2**20)
+        return out
+
     def api_status(self, settings_open: bool | None = None) -> dict:
         if settings_open is not None:  # only the app reports it (CLI calls leave it alone)
             with self.lock:
@@ -377,6 +392,7 @@ class Daemon:
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
+                "models_missing": self.models_missing, "model_download": self._download_status(),
                 "warnings": self.warnings[-5:],
             }  # fmt: skip
 
@@ -397,7 +413,7 @@ class Daemon:
                 spelling: dict | None = None, quick: bool = False):  # fmt: skip
         conn = self._conn()
         try:
-            if quick:  # no model: never waits for the photo model either
+            if quick or self.models_missing:  # no model: never waits for the photo model either
                 return search(conn, self.embedder, query, limit, log=log, lang=lang, category=category, quick=True)
             self._refresh_has_images(conn)
             return search(conn, self.embedder, query, limit, log=log, lang=lang, query_embedder=self._photo_model(),
@@ -599,6 +615,8 @@ class Daemon:
         list, vectors only for new or changed songs. clear: the source was switched off, forget its list."""
         if source not in ("apple", "spotify"):
             raise ValueError(f"unknown music source {source!r}")
+        if self.models_missing and not clear:
+            return {"songs": 0, "playlists": 0, "embedded": 0}
         from lantern import music as music_mod
         from lantern.embedding.base import format_document
 
@@ -665,6 +683,8 @@ class Daemon:
             apps_mod.store_shortcuts(conn, shortcuts)
         finally:
             conn.close()
+        if self.models_missing:  # until the required model is downloaded, only shortcuts can be stored
+            return
         signature = (apps_mod.folders_signature(), system_settings.signature())
         if not force and signature == self._apps_signature:
             return
@@ -770,12 +790,65 @@ class Daemon:
     def api_perf(self) -> dict:
         with self.lock:
             progress, worker = dict(self.progress), self.worker
-        loaded = ["embeddinggemma"] if self.embedder is not None else []
+        loaded = ["embeddinggemma"] if self.embedder is not None and not self.models_missing else []
         if getattr(self.query_embedder, "loaded", False):
             loaded.append("siglip_text")
         if worker is not None:
             self.perf.tick(worker.pid, progress)
         return self.perf.snapshot(progress, loaded, self.settings.index_video_frames)
+
+    def api_download_models(self, models: list[str] | None = None) -> dict:
+        """Start downloading models in a child process (`python -m lantern.models`) so this process stays offline."""
+        targets = [str(m) for m in (models or ["required"])]
+        with self.lock:
+            if self.downloader is not None and self.downloader.poll() is None:
+                return self._download_status() or {"running": True}
+            logs_dir().mkdir(parents=True, exist_ok=True)
+            log = open(logs_dir() / "models.log", "ab")  # noqa: SIM115
+            env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")}
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "lantern.models", *targets],
+                stdout=subprocess.PIPE, stderr=log, env=env, text=True, start_new_session=True,
+            )  # fmt: skip
+            log.close()
+            self.downloader = proc
+            self.download_state = {"running": True, "key": targets[0], "step": 1, "total": len(targets)}
+        threading.Thread(target=self._read_downloader, args=(proc,), daemon=True).start()
+        with self.lock:
+            return self._download_status() or {"running": True}
+
+    def _read_downloader(self, proc: subprocess.Popen) -> None:
+        for line in proc.stdout:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "ModelDownload":
+                with self.lock:
+                    self.download_state = {"running": True, **{k: v for k, v in event.items() if k != "event"}}
+        code = proc.wait()
+        self.perf._sizes = None  # refresh downloaded flags and sizes in Settings → Performance
+        if code != 0:
+            self._warn(f"model download failed (code {code}); see logs/models.log")
+            with self.lock:
+                self.downloader = None
+                self.download_state = {"running": False, "error": f"download failed (code {code}); see logs/models.log"}
+            return
+        from lantern.service.worker import make_query_embedder
+
+        if self.models_missing and hasattr(self.embedder, "load"):
+            try:
+                self.model_thread.submit(self.embedder.load).result()
+                with self.lock:
+                    self.models_missing = False
+                self._languages_changed()
+            except Exception as exc:  # noqa: BLE001
+                self._warn(f"could not load the downloaded model: {exc}")
+        with self.lock:
+            if self.query_embedder is None:
+                self.query_embedder = make_query_embedder()
+            self.downloader = None
+            self.download_state = None
 
     def api_compact(self) -> dict:
         with self.worker_suspended(), self.scan_lock:
@@ -810,7 +883,7 @@ class Daemon:
                     msg_id = msg.get("id")
                     result = daemon.handle(msg["method"], msg.get("params") or {})
                     protocol.write_message(self.request, {"id": msg_id, "result": result})
-                except Exception as exc:  # report to the client; never crash the server
+                except Exception as exc:  # report to the server client; never crash the server
                     try:
                         error = {"type": type(exc).__name__, "message": str(exc)}
                         protocol.write_message(self.request, {"id": msg_id, "error": error})
@@ -847,7 +920,12 @@ class Daemon:
 
             self.embedder = make_embedder()
         if hasattr(self.embedder, "load"):
-            self.model_thread.submit(self.embedder.load).result()  # warm model: first search is fast
+            from lantern.embedding.mlx_backend import ModelNotDownloaded
+
+            try:
+                self.model_thread.submit(self.embedder.load).result()  # warm model: first search is fast
+            except ModelNotDownloaded:
+                self.models_missing = True  # the app offers a one-click download on first launch
         if self.query_embedder is None:
             from lantern.service.worker import make_query_embedder
 

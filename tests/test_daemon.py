@@ -376,3 +376,33 @@ def test_import_reports_whether_alfred_is_there(start_daemon, monkeypatch, tmp_p
     start_daemon(mode="ask")
     assert protocol.call("import", {"source": "alfred", "check": True}) == {"available": False}
     assert protocol.call("import", {"source": "alfred"}) == {"imported": 0}
+
+
+def test_daemon_stays_up_when_models_are_missing_and_recovers(sock, lantern_home):
+    from lantern.embedding.mlx_backend import ModelNotDownloaded
+
+    ready = {"ok": False}
+
+    class DelayedEmbedder(FakeEmbedder):
+        def load(self):
+            if not ready["ok"]:
+                raise ModelNotDownloaded("not downloaded yet")
+
+    settings.save(settings.Settings(notify=False))
+    d = Daemon(embedder=DelayedEmbedder(), power_reader=lambda: PowerState(on_battery=False))
+    t = threading.Thread(target=d.run, daemon=True)
+    t.start()
+    try:
+        assert wait_until(lambda: protocol.running())
+        st = protocol.call("status")
+        assert st["models_missing"] is True
+        ans = protocol.call("search", {"query": "2+2", "quick": True})
+        assert ans["answer"]["copy"] == "4"
+        ready["ok"] = True
+        proc = subprocess.Popen([sys.executable, "-c", "pass"], stdout=subprocess.PIPE, text=True)
+        d._read_downloader(proc)
+        st2 = protocol.call("status")
+        assert st2["models_missing"] is False
+    finally:
+        d.stopping.set()
+        t.join(timeout=5)

@@ -108,6 +108,7 @@ struct PerformanceTab: View {
 }
 
 private struct ModelRow: View {
+    @EnvironmentObject var state: AppState
     let model: PerfSnapshot.Model
 
     var body: some View {
@@ -120,7 +121,15 @@ private struct ModelRow: View {
                 Spacer()
                 if model.loadedDaemon { Badge(text: String(localized: "Loaded in the daemon"), active: true) }
                 if model.loadedWorker { Badge(text: workerText, active: true) }
-                if !model.downloaded { Badge(text: String(localized: "Not downloaded"), active: false) }
+                if !model.downloaded {
+                    if state.status?.modelDownload?.running == true {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Badge(text: String(localized: "Not downloaded"), active: false)
+                        Button("Download") { state.downloadModels([model.key]) }
+                            .controlSize(.small)
+                    }
+                }
             }
             Text("\(model.repo) @ \(String(model.revision.prefix(8)))" + (model.sizeMb.map { " · \($0) MB" } ?? ""))
                 .font(.caption.monospaced())

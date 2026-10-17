@@ -10,11 +10,14 @@ import Testing
          "worker": {"running": true, "event": "progress", "stage": "index", "done": 3, "total": 10, "path": "/a/b.py"},
          "queued": {"code": 7, "audio": 1}, "failed_jobs": 0, "files": {"indexed": 120, "pending": 8},
          "chunks": 900, "roots": [{"path": "/Users/x/Projekty", "last_scan": 1760000000, "available": true}],
+         "models_missing": true, "model_download": {"running": true, "key": "embeddinggemma", "step": 1, "total": 2,
+          "downloaded_mb": 340, "approx_mb": 1200},
          "last_run": {}, "warnings": ["12:00:00 something"]}
         """
         let s = try DaemonClient.decoder.decode(DaemonStatus.self, from: Data(json.utf8))
         #expect(s.awaitingApproval && s.queuedTotal == 8 && s.indexedFiles == 120)
         #expect(s.worker.done == 3 && s.roots.first?.available == true && s.lastRun?.indexed == nil)
+        #expect(s.modelsMissing == true && s.modelDownload?.downloadedMb == 340 && s.modelDownload?.approxMb == 1200)
     }
 
     @Test func decodesSearchResponseWithMediaResult() throws {

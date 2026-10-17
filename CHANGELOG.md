@@ -5,6 +5,15 @@ What changed for people using Lantern, newest first. Lantern has no numbered rel
 
 ## 2026-10-17 (later)
 
+- **Install from `Lantern.dmg`:** a self-contained app built on GitHub Actions (`macos-26` Apple Silicon) with Python
+  3.12, MLX and the daemon bundled inside `Lantern.app` (`app/build.sh --dmg`, `.github/workflows/release.yml`). No
+  Xcode, Homebrew, `uv` or `ffmpeg` is needed to run the app; on first launch the menu bar (and Settings → Performance)
+  offers a one-click download for the required search model and optional Whisper and SigLIP 2 weights.
+- **No PyTorch (~750 MB smaller):** SigLIP 2's image tower now runs directly on MLX (`float16`, cosine similarity
+  `0.99999` vs the PyTorch reference; existing photo indexes do not re-index) and the EmbeddingGemma 2 processor is
+  built from its numpy/PIL parts without importing `torch`.
+- **Media decoded by macOS:** recordings and video frames (MP3, M4A, WAV, FLAC, MP4, MOV) are decoded with macOS's
+  `AVFoundation` (`lantern-media` inside the app bundle); `ffmpeg` is now optional and only needed for MKV and WebM.
 - **Use with Raycast or Alfred:** Settings → General → *Search from* hands searching to Raycast ("Search Lantern") or
   Alfred (a workflow built into the app). Lantern's shortcut turns off; it keeps indexing and answers in the
   background, and your choices there teach it as in its own panel. Step by step: README → Use with Raycast or Alfred.

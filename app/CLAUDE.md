@@ -60,7 +60,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
 ## Commands
 
 ```bash
-app/build.sh                                         # build + sign app/build/Lantern.app (Xcode toolchain)
+app/build.sh                                         # build + sign app/build/Lantern.app (Xcode toolchain, uses .venv)
+app/build.sh --dmg                                   # standalone Lantern.app (bundled Python 3.12) + app/build/Lantern.dmg
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
 # development: isolated daemon/index, panel kept open, open panel/menu/settings on launch
 LANTERN_HOME=/tmp/x LANTERN_SOCKET=/tmp/l.sock LANTERN_PANEL_PINNED=1 \

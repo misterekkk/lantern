@@ -1,7 +1,7 @@
 """SigLIP 2 base (224 px), the second photo model (DECISIONS.md, Phase 7).
 
-- SiglipImageEmbedder: image tower of the original google/siglip2-base-patch16-224 (fp16, torch on MPS). Used only in
-  the index worker, which exits after indexing (torch never stays resident in the daemon).
+- SiglipImageEmbedder: image tower of the original google/siglip2-base-patch16-224 in fp16 on MLX
+  (`siglip_vision.py`; until Phase 14 torch on MPS, vectors equal: cos >= 0.9998). Used only in the index worker.
 - SiglipQueryEmbedder: text tower of mlx-community/siglip2-base-patch16-224-8bit on MLX (no torch), loaded by the
   daemon on demand (~0.33 s, ~+340 MB) and released after inactivity. Vectors match the original (cos >= 0.999).
 Both report the same ModelInfo, because they produce vectors in the same space.
@@ -42,7 +42,6 @@ def available() -> bool:
 class SiglipImageEmbedder:
     def __init__(self):
         self._model = None
-        self._processor = None
 
     def model_info(self) -> ModelInfo:
         return INFO
@@ -50,38 +49,36 @@ class SiglipImageEmbedder:
     def _load(self) -> None:
         if self._model is not None:
             return
-        import torch
-        from transformers import AutoModel, AutoProcessor
+        from lantern.embedding import siglip_vision
 
         path = _snapshot(IMAGE_REPO, IMAGE_REVISION)
         if path is None:
             raise RuntimeError(f"{IMAGE_REPO} is not downloaded; see README")
-        self._model = AutoModel.from_pretrained(path, dtype=torch.float16).to("mps").eval()
-        self._processor = AutoProcessor.from_pretrained(path)
+        self._model = siglip_vision.load(path, dtype="float16")  # fp16 as the torch tower it replaced
 
     def embed_images(self, images: list) -> np.ndarray:
-        import torch
+        import mlx.core as mx
+
+        from lantern.embedding import siglip_vision
 
         self._load()
         out = []
-        with torch.no_grad():
-            for i in range(0, len(images), 16):
-                inputs = self._processor(images=images[i : i + 16], return_tensors="pt").to("mps")
-                inputs = {k: (v.half() if v.is_floating_point() else v) for k, v in inputs.items()}
-                feats = self._model.get_image_features(**inputs)
-                feats = feats if torch.is_tensor(feats) else feats.pooler_output
-                out.append(torch.nn.functional.normalize(feats.float(), dim=-1).cpu().numpy())
-        return np.concatenate(out) if out else np.zeros((0, DIM), dtype=np.float32)
+        for i in range(0, len(images), 16):
+            pixels = mx.array(siglip_vision.preprocess(images[i : i + 16])).astype(mx.float16)
+            feats = self._model(pixels).astype(mx.float32)
+            mx.eval(feats)
+            feats = np.array(feats)
+            out.append(feats / np.maximum(np.linalg.norm(feats, axis=-1, keepdims=True), 1e-12))
+        return np.concatenate(out).astype(np.float32) if out else np.zeros((0, DIM), dtype=np.float32)
 
     def unload(self) -> None:
-        self._model = self._processor = None
-        gc.collect()
-        try:
-            import torch
+        if self._model is None:
+            return
+        import mlx.core as mx
 
-            torch.mps.empty_cache()
-        except Exception:  # noqa: BLE001 - torch absent or no MPS: nothing to release
-            pass
+        self._model = None
+        gc.collect()
+        mx.clear_cache()
 
 
 class SiglipQueryEmbedder:

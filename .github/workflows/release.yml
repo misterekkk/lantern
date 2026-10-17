@@ -1,0 +1,61 @@
+# Builds a self-contained Lantern.dmg (Universal/Apple Silicon macOS 14+, with Python 3.12, MLX and lantern-media
+# bundled inside Lantern.app and ad-hoc signed) on GitHub's Apple Silicon macOS 26 runner.
+# Runs on every `v*` tag (attaching Lantern.dmg to the GitHub Release) and on manual workflow_dispatch (uploading
+# Lantern.dmg as a workflow artifact).
+name: Build Lantern.dmg
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.12 and dependencies
+        run: uv sync
+
+      - name: Fast Python and Swift tests
+        run: |
+          uv run pytest -q
+          DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
+
+      - name: Build standalone Lantern.app and Lantern.dmg
+        run: app/build.sh --dmg
+
+      - name: Verify bundle is self-contained without .venv
+        run: |
+          mv .venv .venv.hidden
+          PYTHONNOUSERSITE=1 app/build/Lantern.app/Contents/Resources/python/bin/python3 -c "
+          import sys
+          sys.modules['torch'] = None
+          import lantern, mlx.core, sqlite_vec, mlx_whisper, Vision, Quartz
+          from lantern.embedding import siglip_vision, processor
+          from lantern.models import status_list
+          assert len(status_list()) == 3
+          "
+          mv .venv.hidden .venv
+          codesign --verify --deep --strict app/build/Lantern.app
+          ls -lh app/build/Lantern.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lantern.dmg
+          path: app/build/Lantern.dmg
+
+      - name: Attach Lantern.dmg to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/Lantern.dmg
+          generate_release_notes: true

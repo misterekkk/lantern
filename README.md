@@ -70,6 +70,11 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 ## Requirements
 
+- **For the prebuilt app (`Lantern.dmg`):** a Mac with Apple Silicon (M1 or newer) and macOS 14 or newer. Python 3.12,
+  all packages and the `AVFoundation` media helper are inside `Lantern.app`; no Xcode, Homebrew, `uv` or `ffmpeg` is
+  needed (`brew install ffmpeg` is optional if you index `.mkv` or `.webm` videos).
+- **For building from source (`./install.sh`) and the `lantern` CLI:**
+
 | What | Why | Install |
 |---|---|---|
 | Mac with Apple Silicon (tested: M4, 16 GB) | MLX runs on Apple Silicon only | – |
@@ -80,8 +85,8 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 | Python 3.12 | the daemon; **installed by uv**, not the system Python | automatic with `uv sync` |
 | ffmpeg (optional) | MKV and WebM recordings only; everything else is decoded by macOS itself (AVFoundation) | `brew install ffmpeg` |
 
-`uv sync` installs everything else into the project's `.venv` (nothing global): MLX and a pinned `mlx-vlm` commit
-(EmbeddingGemma 2 support), `transformers`, `torch`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
+`uv sync` installs everything else into the project's `.venv` (nothing global, no PyTorch): MLX and a pinned `mlx-vlm`
+commit (EmbeddingGemma 2 support), `transformers`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
 `pathspec`, `charset-normalizer`, `mlx-whisper`, `pillow`, `soundfile`, `watchdog`, and `pyobjc-framework-Vision` /
 `pyobjc-framework-Quartz` (Python bindings for macOS's text recognition and PDFKit; no models to download).
 
@@ -90,7 +95,26 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 ## Installation
 
-### Quick install
+### Download the app (`Lantern.dmg`)
+
+1. Download **`Lantern.dmg`** from [Releases](https://github.com/misterekkk/lantern/releases) (or the latest artifact of
+    the *Build Lantern.dmg* workflow in Actions), open it and drag **Lantern** to **Applications**.
+2. Because the build is signed ad-hoc (without a paid Apple Developer ID), macOS Gatekeeper blocks the first launch of a
+   downloaded copy. Allow it once:
+   - either try to open **Lantern** in `/Applications`, then go to **System Settings → Privacy & Security** and click
+     **Open Anyway** at the bottom (or right-click **Lantern.app** in Finder → **Open**),
+   - or remove the quarantine attribute in Terminal:
+     ```bash
+     xattr -cr /Applications/Lantern.app
+     ```
+3. Click the Lantern icon in the menu bar and click **Download** to fetch the search model (~1.2 GB; optional checkboxes
+   add Whisper for recordings and SigLIP 2 for photos). Models can also be downloaded later in **Settings →
+   Performance**. Quick search (apps, System Settings, calculator, dictionary) works immediately while the model
+   downloads.
+
+### From source (`./install.sh`)
+
+For the `lantern` command-line tool, manual page, and building from a checkout:
 
 ```bash
 git clone https://github.com/misterekkk/lantern.git && cd lantern
@@ -139,7 +163,7 @@ uv run lantern --help
 uv run pytest
 
 # 5. Menu bar app
-app/build.sh --install        # builds, signs and copies Lantern.app to /Applications
+app/build.sh --install        # dev bundle (.venv), or app/build.sh --dmg for a self-contained Lantern.dmg
 open /Applications/Lantern.app
 ```
 
@@ -148,7 +172,7 @@ an automated test checks that loading and embedding open no network connection.
 
 **Building the app** needs Xcode 26 (the script selects it with `DEVELOPER_DIR`, without changing `xcode-select`).
 It signs with your "Apple Development" certificate if you have one (Xcode → Settings → Accounts → Manage
-Certificates); otherwise it signs ad hoc and macOS may ask for folder permissions again after every rebuild.
+Certificates); otherwise it signs ad hoc and macOS may ask for folder permissions again after every rebuild. `app/build.sh --dmg` bundles Python 3.12 and the daemon inside `Lantern.app` and creates `app/build/Lantern.dmg`.
 
 ## The app
 

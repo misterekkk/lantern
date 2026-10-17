@@ -144,37 +144,32 @@ def test_photo_matches_sentence_transformers_reference(mlx_embedder):
     assert float(vec @ ref) >= 0.999
 
 
-def test_siglip_query_encoder_on_mlx_matches_torch_and_needs_no_torch():
+def test_siglip_and_processor_on_mlx_match_torch_and_need_no_torch():
     import subprocess
     import sys
+    import tempfile
 
     code = (
         "import sys, numpy as np\n"
-        "from lantern.embedding.siglip import SiglipQueryEmbedder\n"
-        "q = SiglipQueryEmbedder(); v = q.embed_queries(['a house with a red roof', 'pies', 'zupa pomidorowa'])\n"
-        "assert 'torch' not in sys.modules, 'torch imported'\n"
-        "np.save(sys.argv[1], v)\n"
+        "for m in ('torch', 'torchvision', 'torchaudio'): sys.modules[m] = None\n"
+        "from PIL import Image\n"
+        "from lantern.embedding.siglip import SiglipImageEmbedder, SiglipQueryEmbedder\n"
+        "from lantern.embedding.processor import load_processor\n"
+        "from lantern.embedding.mlx_backend import MLXEmbedder\n"
+        "q = SiglipQueryEmbedder().embed_queries(['a house with a red roof', 'pies', 'zupa pomidorowa'])\n"
+        "img = Image.open('tests/data/photo.png').convert('RGB')\n"
+        "iv = SiglipImageEmbedder().embed_images([img])[0]\n"
+        "p = load_processor(MLXEmbedder()._snapshot())\n"
+        "_ = p(text=p.image_token, images=[img], return_tensors='np', images_kwargs={'max_soft_tokens': 140})\n"
+        "assert sys.modules.get('torch') is None, 'torch imported'\n"
+        "np.savez(sys.argv[1], text_vecs=q, image_vec=iv)\n"
     )
-    import tempfile
-
-    out = Path(tempfile.mkdtemp()) / "q.npy"
+    out = Path(tempfile.mkdtemp()) / "siglip.npz"
     subprocess.run([sys.executable, "-c", code, str(out)], check=True)
-    mlx_vecs = np.load(out)
-
-    import torch
-    from transformers import AutoModel, AutoProcessor
-
-    from lantern.embedding import siglip
-
-    path = siglip._snapshot(siglip.IMAGE_REPO, siglip.IMAGE_REVISION)
-    model = AutoModel.from_pretrained(path, dtype=torch.float32).eval()
-    proc = AutoProcessor.from_pretrained(path)
-    with torch.no_grad():
-        inp = proc(text=["a house with a red roof", "pies", "zupa pomidorowa"], padding="max_length", max_length=64,
-                   return_tensors="pt")  # fmt: skip
-        ref = model.get_text_features(**inp)
-        ref = torch.nn.functional.normalize(ref if torch.is_tensor(ref) else ref.pooler_output, dim=-1).numpy()
-    assert np.all((mlx_vecs * ref).sum(1) >= 0.999)
+    got = np.load(out)
+    ref = np.load(Path(__file__).parent / "data" / "siglip_torch_ref.npz")
+    assert np.all((got["text_vecs"] * ref["text_vecs"]).sum(1) >= 0.999)
+    assert float(got["image_vec"] @ ref["image_vec"]) >= 0.9998
 
 
 def test_photo_search_ranks_the_matching_photo_first(conn, tmp_path, mlx_embedder):

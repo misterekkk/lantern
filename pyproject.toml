@@ -10,10 +10,8 @@ dependencies = [
     # Embedding backend (ADR-001): MLX + pinned mlx-vlm branch with EmbeddingGemma 2.
     "mlx>=0.32.3",
     "mlx-vlm @ git+https://github.com/Blaizzy/mlx-vlm.git@3d87e88402f307efbf68e568971aa887ee7d9ed0",
-    # Preprocessing via the official HF processor (needs torch/torchvision/pillow for now, see ADR-001).
+    # Preprocessing via the model's numpy/PIL processor parts (embedding/processor.py; no torch).
     "transformers>=5.19",
-    "torch>=2.14",
-    "torchvision>=0.29",
     "pillow>=12",
     "numpy>=2",
     "soundfile>=0.14",
@@ -31,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Fallback backend behind the same Embedder interface.
-st = ["sentence-transformers>=6.1", "torchaudio", "soxr"]
+st = ["sentence-transformers>=6.1", "torch>=2.14", "torchvision>=0.29", "torchaudio", "soxr"]
 
 [project.scripts]
 lantern = "lantern.cli:main"
@@ -41,6 +39,8 @@ dev = ["pytest>=8", "ruff>=0.14"]
 # Phase 0 measurement scripts in spikes/phase0 (not part of the app).
 spike = [
     "sentence-transformers>=6.1",
+    "torch>=2.14",
+    "torchvision>=0.29",
     "torchaudio",
     "soxr",
     "psutil",
@@ -60,6 +60,21 @@ packages = ["daemon/lantern"]
 
 [tool.uv]
 default-groups = ["dev"]
+# mlx-whisper lists torch for its unused weight-conversion script; mlx-vlm lists opencv, server and audio packages for
+# its CLI/server, while Lantern loads only its model modules (embedding/mlx_loader.py).
+override-dependencies = [
+    "torch ; extra == 'st'",
+    "opencv-python ; sys_platform == 'never'",
+    "fastapi ; sys_platform == 'never'",
+    "uvicorn ; sys_platform == 'never'",
+    "starlette ; sys_platform == 'never'",
+    "websockets ; sys_platform == 'never'",
+    "python-multipart ; sys_platform == 'never'",
+    "mlx-audio ; sys_platform == 'never'",
+    "llguidance ; sys_platform == 'never'",
+    "miniaudio ; sys_platform == 'never'",
+    "sentencepiece ; sys_platform == 'never'",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -381,3 +381,10 @@
 "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack." = "Skrót Lanterna jest wyłączony. W Alfredzie wpisz l i zapytanie (albo nadaj workflow skrót); Lantern dalej indeksuje i odpowiada w tle. Workflow wymagają Powerpacka Alfreda.";
 "Install the Alfred Workflow…" = "Zainstaluj workflow Alfreda…";
 "How to Install the Raycast Extension…" = "Jak zainstalować rozszerzenie Raycasta…";
+"Downloading models…" = "Pobieranie modeli…";
+"Download the search model" = "Pobierz model wyszukiwania";
+"One-time download from Hugging Face (~1.2 GB); after that Lantern works completely offline." = "Jednorazowe pobranie z Hugging Face (~1,2 GB); potem Lantern działa całkowicie offline.";
+"Whisper — transcripts of recordings (~1.6 GB)" = "Whisper — transkrypcje nagrań (~1,6 GB)";
+"SigLIP 2 — better photo search (~1 GB)" = "SigLIP 2 — dokładniejsze wyszukiwanie zdjęć (~1 GB)";
+"Download" = "Pobierz";
+"%lld/%lld · %lld / ~%lld MB" = "%1$lld/%2$lld · %3$lld / ~%4$lld MB";

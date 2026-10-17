@@ -2,8 +2,8 @@
 
 The text tower stays loaded (~275 MB). The audio tower (~0.9 GB) and the vision tower (~0.35 GB) are loaded only
 for audio / image jobs and released with unload_audio() / unload_vision(). Text is tokenised with `tokenizers`
-(tokenizer.json); audio and images go through the model's own processor (audio mel features capped explicitly:
-the default silently truncates at 30 s).
+(tokenizer.json); audio and images go through the model's own processor, built without torch (`processor.py`; audio
+mel features capped explicitly: the default silently truncates at 30 s).
 Loading is strictly offline: the weights must already be in the Hugging Face cache (see README).
 """
 
@@ -116,9 +116,9 @@ class MLXEmbedder:
 
     def _ensure_processor(self) -> None:
         if self._processor is None:
-            from transformers import AutoProcessor
+            from lantern.embedding.processor import load_processor
 
-            self._processor = AutoProcessor.from_pretrained(self._snapshot())
+            self._processor = load_processor(self._snapshot())  # numpy/PIL parts only: no torch
 
     def embed_audio(self, windows: list[np.ndarray]) -> np.ndarray:
         import mlx.core as mx

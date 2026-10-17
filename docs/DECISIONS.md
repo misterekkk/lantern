@@ -1130,6 +1130,32 @@ M4A, MP3, MOV and Ogg Opus.
 - **Shipped:** `lantern-media` (app/Sources/LanternMedia, inside Lantern.app) decodes audio, key frames and the Raycast
   thumbnails; ffmpeg is the fallback for MKV/WebM and becomes optional. Already indexed files keep their vectors (no
   pipeline bump: vectors differ by less than between two ffmpeg resampler settings).
+- **Without torch** (~615 MB with its dependencies, plus ~140 MB of unused `mlx-vlm` server/opencv packages):
+  1. **EmbeddingGemma 2 processor** (`embedding/processor.py`): `AutoProcessor` picks transformers' torch image
+     processor and refuses to build without a video processor. Constructing `EmbeddingGemma2Processor` from its
+     numpy/PIL parts (`Gemma4AudioFeatureExtractor`, `Gemma4ImageProcessorPil`, no video processor) never imports
+     torch; measured on `speech_pl.wav` and `photo.png`, token ids, masks, audio features and image positions are
+     byte-for-byte equal, and pixel values match within $6 \times 10^{-8}$ (`embed_images` / `embed_audio` vs the ST
+     fp32 reference: cos 0.9999).
+  2. **SigLIP 2 image tower on MLX** (`embedding/siglip_vision.py`, `spikes/phase14/compare_siglip.py`): `mlx-vlm` has
+     only SigLIP's text tower, so the vision transformer + multihead attention pooling head of
+     `google/siglip2-base-patch16-224` was ported to MLX in float16 (same weights, same precision as the torch version).
+     Measured against the torch fp16 tower on 1,000 Flickr30k test photos and the 120 photos of the user's index:
+     **cos min 0.9998, mean 1.0000**; Flickr30k 1k caption retrieval (5,000 English captions) R@1 0.784 vs 0.785,
+     R@5 0.939 vs 0.940. Because the vectors are the same, `ModelInfo` is unchanged and existing photo indexes do not
+     need re-indexing.
+- **Self-contained `Lantern.app` and first-launch model download** (`app/build.sh --dmg`, `daemon/lantern/models.py`,
+  `service/core.py`): `app/build.sh --standalone` copies `uv`'s relocatable `cpython-3.12` (`@executable_path/../lib/libpython3.12.dylib`),
+  the production `site-packages` (without `torch`, `opencv-python`, `fastapi`/`uvicorn`, `pytest` or `ruff`) and
+  `daemon/lantern` into `Lantern.app/Contents/Resources/python`, signs every `.so`, `.dylib` and binary inside before
+  signing the bundle, and `--dmg` packs `app/build/Lantern.dmg` with an `/Applications` link. When the required
+  `EmbeddingGemma 2` snapshot is missing, the daemon stays up (`models_missing: true`, answering `status` and quick/FTS
+  searches) and the menu bar card (plus Settings → Performance) starts `python -m lantern.models` in a child process
+  with `HF_HUB_OFFLINE` unset and telemetry disabled, reporting live MB progress from Hugging Face's cache `blobs/` and
+  loading the embedder as soon as the download completes.
+- **GitHub Actions build** (`.github/workflows/release.yml` on `macos-26` Apple Silicon): runs `uv sync`, fast Python
+  and Swift tests, builds `Lantern.dmg`, verifies the bundled Python without `.venv` and `codesign --verify --deep
+  --strict`, uploads `Lantern.dmg` as a workflow artifact and attaches it to the GitHub Release on `v*` tags.
 
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
@@ -1145,8 +1171,8 @@ with the current version.
   revision.
 - The text tower stays loaded (~0.4–0.5 GB idle); the audio and vision towers are **loaded on demand** in the worker
   for audio/photo jobs and released afterwards.
-- Preprocessing without torch in the daemon (tokenizer from `tokenizers`, stub packages in the loader); the worker
-  uses the transformers processor for audio and images.
+- Preprocessing without torch in both daemon and worker: tokenizer from `tokenizers`, stub packages in `mlx_loader.py`,
+  and the processor built from its numpy/PIL parts in `embedding/processor.py`.
 - Fallback backend behind the same interface: `sentence-transformers` (MPS, bf16), e.g. if the mlx-vlm branch drifts.
 - Embedders behind an interface (`embed_text`, `embed_audio`, `embed_images`, `model_info`).
 

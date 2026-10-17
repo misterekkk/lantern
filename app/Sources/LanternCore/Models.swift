@@ -24,6 +24,16 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
         public var finished: String?
     }
 
+    public struct ModelDownload: Decodable, Equatable, Sendable {
+        public var running: Bool
+        public var key: String?
+        public var step: Int?
+        public var total: Int?
+        public var downloadedMb: Int?
+        public var approxMb: Int?
+        public var error: String?
+    }
+
     public var pid: Int
     public var memoryMb: Int
     public var mode: String
@@ -37,6 +47,8 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var files: [String: Int]
     public var kinds: [String: Int]?
     public var photoModelLoaded: Bool?
+    public var modelsMissing: Bool?
+    public var modelDownload: ModelDownload?
     public var chunks: Int
     public var roots: [Root]
     public var lastRun: LastRun?
