@@ -93,10 +93,11 @@ the indexed data.
 Measurement: `spikes/phase0/probe_network.py` intercepts `socket.connect` and `getaddrinfo` in the Python process;
 the `-m model` tests do the same for every model Lantern loads.
 
-## The demo website (GitHub Pages)
+## The website (GitHub Pages)
 
-The demo page in `site/` loads nothing from third parties (no analytics, web fonts or CDNs) and sends nothing
-anywhere; it only plays a scripted walkthrough with sample data stored in the repository.
+The website in `site/` (landing page, docs, demo) loads nothing from third parties: no analytics, no CDNs, fonts
+bundled with the site. It sends nothing anywhere; the demo only plays a scripted walkthrough with sample data stored
+in the repository. Astro's build telemetry is switched off in the build scripts.
 
 ## Company code
 

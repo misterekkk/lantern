@@ -426,9 +426,11 @@ uv run ruff check
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app
 ```
 
+The website in `site/` needs Node.js (`brew install node`); see [site/README.md](site/README.md).
+
 ```
 README.md, LICENSE, NOTICE, CLAUDE.md, pyproject.toml
-site/        the interactive demo (GitHub Pages)
+site/        the website: landing page, docs built from this README and docs/, the interactive demo
 docs/        ARCHITECTURE.md, DECISIONS.md (decisions, measurements, open questions), PRIVACY.md
 daemon/      the daemon (Python package `lantern`): api, scanner, queue, extractors, chunking, embedding, store,
              search, service, cli.py
