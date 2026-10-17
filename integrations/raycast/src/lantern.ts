@@ -89,8 +89,17 @@ export interface SearchReply {
   corrected_query: string | null;
 }
 
-export function search(query: string): Promise<SearchReply> {
-  return call<SearchReply>("search", { query, limit: 20 });
+export function search(query: string, category?: string): Promise<SearchReply> {
+  return call<SearchReply>("search", { query, limit: 20, ...(category ? { category } : {}) });
+}
+
+/**
+ * A small JPEG of an indexed photo or of a video's frame at the moment, made by the daemon (which has access to
+ * your folders) into ~/Library/Caches/Lantern/thumbnails and deleted after 10 minutes: Raycast reads only that.
+ */
+export async function thumbnail(file: string, startMs: number | null): Promise<string | null> {
+  const r = await call<{ path: string | null }>("thumbnail", { path: file, start_ms: startMs, size: 480 }, 20000);
+  return r.path;
 }
 
 /** Records the opened result, so Lantern learns your choices as it does from its own panel. */

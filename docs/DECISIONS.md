@@ -1070,8 +1070,13 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
 - **The search shortcut never turned off.** `HotKey.instances` kept every hotkey alive, so `hotKey = nil` never
   unregistered it (also when switching ⌥Space to ⌃⌥Space). `HotKey.invalidate()` releases it explicitly.
 - **No folder permissions for Raycast.** File icons and photo thumbnails made Raycast read files in Downloads and
-  Documents, and macOS asked to give Raycast access. Permissions belong to one app and cannot be passed on, so the
-  extension shows icons by kind and the preview text Lantern sends; only Quick Look (⌘Y) reads the file.
+  Documents, and macOS asked to give Raycast access. Permissions belong to one app and cannot be passed on, and
+  Raycast's `Image.Source` takes URLs, local files and icons only (no data URIs), so the daemon makes the pictures:
+  `thumbnail` (lantern/thumbnails.py) writes a JPEG of an indexed photo or a video frame at the moment to
+  `~/Library/Caches/Lantern/thumbnails` (not a protected folder), deleted after 10 minutes and on daemon start.
+  Icons by kind otherwise, text from the daemon's preview; only Quick Look (⌘Y) reads the file itself.
+- Raycast gets the panel's filters as a dropdown beside the search field (code, documents, PDFs, photos, recordings
+  and videos; the daemon's `category`).
 - Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
   (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
 

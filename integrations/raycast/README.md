@@ -30,7 +30,8 @@ default: to give that to Lantern, move Raycast's own hotkey first (sidebar → R
 To have Lantern under every Raycast query instead of a separate hotkey: Raycast's settings → Fallback Commands → add
 "Search Lantern". ↩ on it opens Lantern's results for the text you typed.
 
-The extension never reads your files itself (icons by kind, text from Lantern), so Raycast needs no access to your
-folders; only Quick Look (⌘Y) opens the file.
+The extension never reads your files itself, so Raycast needs no access to your folders: text comes from Lantern, and
+photo and video thumbnails are made by Lantern into `~/Library/Caches/Lantern/thumbnails` (deleted after 10 minutes).
+Only Quick Look (⌘Y) opens the file. The dropdown beside the search field filters by kind, like the panel's filters.
 
 `npm run build` type-checks and bundles into `dist/`.

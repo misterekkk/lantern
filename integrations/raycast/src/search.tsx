@@ -17,6 +17,7 @@ import {
   reveal,
   search,
   shortPath,
+  thumbnail,
 } from "./lantern";
 
 interface Preferences {
@@ -27,7 +28,11 @@ interface Preferences {
 export default function Command(props: LaunchProps) {
   const { includeApps } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState(props.fallbackText ?? "");
-  const { data, isLoading, error } = usePromise(async (q: string) => (q.trim() ? search(q.trim()) : undefined), [query]);
+  const [category, setCategory] = useState("");
+  const { data, isLoading, error } = usePromise(
+    async (q: string, c: string) => (q.trim() ? search(q.trim(), c || undefined) : undefined),
+    [query, category],
+  );
 
   if (error instanceof NotRunning) {
     return (
@@ -54,6 +59,13 @@ export default function Command(props: LaunchProps) {
       throttle
       isShowingDetail={!!data && hasFiles(data)}
       searchBarPlaceholder="Search Lantern by what is inside"
+      searchBarAccessory={
+        <List.Dropdown tooltip="Kind" storeValue onChange={setCategory}>
+          {CATEGORIES.map(([value, title, icon]) => (
+            <List.Dropdown.Item key={value} value={value} title={title} icon={icon} />
+          ))}
+        </List.Dropdown>
+      }
     >
       {!query.trim() ? (
         <List.EmptyView icon="icon.png" title="Search your Mac by what is inside" description="Files, code, photos and recordings, found by meaning." />
@@ -65,6 +77,16 @@ export default function Command(props: LaunchProps) {
     </List>
   );
 }
+
+/* The panel's filters (search/hybrid.py CATEGORIES) that apply to what this extension shows. */
+const CATEGORIES: [string, string, Icon][] = [
+  ["", "All Kinds", Icon.MagnifyingGlass],
+  ["code", "Code", Icon.Code],
+  ["docs", "Documents", Icon.Document],
+  ["pdf", "PDFs", Icon.Document],
+  ["photos", "Photos", Icon.Image],
+  ["media", "Recordings and Videos", Icon.Video],
+];
 
 function hasFiles(r: SearchReply): boolean {
   return r.results.length + r.photos.length + r.definitions.length > 0;
@@ -132,9 +154,9 @@ function where(h: FileHit): string {
   return "";
 }
 
-/* Icons by kind, never read from the file: Raycast reading files in Downloads or Documents would make macOS ask for
-   access to those folders, and Lantern already has it. Thumbnails and contents stay in Lantern; the text shown here
-   is the preview the daemon sends. */
+/* Never read from the user's files: Raycast reading files in Downloads or Documents would make macOS ask for access
+   to those folders, and permissions cannot be passed on from Lantern. Icons by kind, the preview text the daemon
+   sends, and thumbnails the daemon writes to its own cache (thumbnail() in lantern.ts). */
 const KIND_ICONS: Record<string, Icon> = {
   code: Icon.Code,
   pdf: Icon.Document,
@@ -155,19 +177,28 @@ function kindIcon(h: FileHit, photo: boolean): Icon {
 
 function FileItem({ h, eventId, photo = false }: { h: FileHit; eventId: number | null; photo?: boolean }) {
   const at = where(h);
+  const video = h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase());
+  const { data: thumb } = usePromise(
+    async (file: string, ms: number | null, wanted: boolean) => (wanted ? thumbnail(file, ms) : null),
+    [h.path, h.start_ms, photo || video],
+    { onError: () => undefined }, // no thumbnail (an older daemon, an unreadable file): the kind icon stays
+  );
   const text = h.preview.trim();
-  const markdown = text
+  const body = text
     ? h.kind === "code"
       ? "```\n" + text + "\n```"
       : text.replace(/([*_`#>[\]])/g, "\\$1")
-    : photo
-      ? "_A photo found by what is in it. ⌘Y shows it._"
-      : " ";
+    : h.start_ms != null
+      ? `_A recording. ↩ plays it from ${clock(h.start_ms)}._`
+      : photo
+        ? "_A photo found by what is in it._"
+        : " ";
+  const markdown = thumb ? `![](${encodeURI(`file://${thumb}`)})\n\n${text ? body : ""}` : body;
   return (
     <List.Item
       title={path.basename(h.path)}
       subtitle={at}
-      icon={kindIcon(h, photo)}
+      icon={thumb ? { source: thumb } : kindIcon(h, photo)}
       quickLook={{ path: h.path, name: path.basename(h.path) }}
       detail={
         <List.Item.Detail

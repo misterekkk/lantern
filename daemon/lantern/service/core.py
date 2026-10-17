@@ -190,6 +190,9 @@ class Daemon:
         conn = self._conn()
         roots = self._roots(conn)
         conn.close()
+        from lantern import thumbnails
+
+        thumbnails.prune(max_age_s=0)  # thumbnails of a previous run (Raycast extension) never outlive it
         return [self.scan(r) for r in roots]
 
     # ---------- worker ----------
@@ -712,6 +715,20 @@ class Daemon:
             settings_mod.save(self.settings)
         self._scan_all_soon()  # apply now
         return {"exclude": list(self.settings.exclude)}
+
+    def api_thumbnail(self, path: str, start_ms: int | None = None, size: int = 320) -> dict:
+        """A small JPEG of an indexed photo, or of a video's frame at start_ms, for clients without access to the
+        user's folders (the Raycast extension). Written to a user-only cache, deleted after 10 minutes
+        (lantern/thumbnails.py); {"path": None} for other files."""
+        from lantern import thumbnails
+
+        conn = self._conn()
+        row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
+        conn.close()
+        if row is None:
+            raise ValueError("not an indexed file")
+        out = thumbnails.make(path, row["kind"], start_ms, size)
+        return {"path": str(out) if out else None}
 
     def api_preview(self, path: str, start_line: int, end_line: int | None = None, context: int = 12) -> dict:
         """Lines of an indexed text/code file around a result, for the panel's quick look (Space). Only files in
