@@ -112,64 +112,110 @@ final class MusicSync {
     }
 }
 
-/// Plays songs and playlists in the Music app through AppleScript (osascript; macOS asks once whether Lantern may
-/// control Music). Only persistent IDs (16 hex digits) go into the script.
+/// Plays songs and playlists in the Music or Spotify app through AppleScript (osascript; macOS asks once whether
+/// Lantern may control the app). Only validated IDs go into the scripts. A closed app is started first and the command
+/// waits until it answers (a cold start used to swallow the command: the app opened, nothing played).
 enum MusicPlayer {
     enum Command { case playSong, revealSong, revealPlaylist, playPlaylist }
 
-    /// Spotify rows: ids are "sp-" + a Spotify ID; the Spotify app takes spotify: URIs (its AppleScript `play track …
-    /// in context …`; opening a URI shows it without playing).
-    static func spotify(_ command: Command, song: String? = nil, playlist: String? = nil) {
-        let valid = { (id: String?) in id.map { $0.range(of: "^sp-[A-Za-z0-9]{1,40}$", options: .regularExpression) != nil } }
-        guard valid(song) ?? true, valid(playlist) ?? true else { return }
-        let track = song.map { "spotify:track:" + $0.dropFirst(3) }
-        let list = playlist.flatMap { $0 == "sp-liked" ? nil : "spotify:playlist:" + $0.dropFirst(3) }
-        switch command {
-        case .playSong:
-            guard let track else { return }
-            let context = list.map { " in context \"\($0)\"" } ?? ""
-            osascript("tell application \"Spotify\" to play track \"\(track)\"\(context)")
-        case .revealSong:
-            if let track, let url = URL(string: track) { NSWorkspace.shared.open(url) }
-        case .revealPlaylist:
-            if let url = URL(string: list ?? "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
-        case .playPlaylist:
-            guard let list else { return }
-            osascript("tell application \"Spotify\" to play track \"\(list)\"")
-        }
-    }
-
-    private static func osascript(_ script: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        try? process.run()
+    /// Waits up to ~8 s for the app to answer, then runs `body` inside `tell application`.
+    private static func script(app: String, ready: String, body: String) -> String {
+        """
+        tell application "\(app)"
+            if it is not running then launch
+            repeat 40 times
+                try
+                    \(ready)
+                    exit repeat
+                end try
+                delay 0.2
+            end repeat
+            \(body)
+        end tell
+        """
     }
 
     static func run(_ command: Command, song: String? = nil, playlist: String? = nil) {
         let valid = { (id: String?) in id.map { $0.range(of: "^[0-9A-F]{16}$", options: .regularExpression) != nil } }
         guard valid(song) ?? true, valid(playlist) ?? true else { return }
-        let container = playlist.map { "set p to first user playlist whose persistent ID is \"\($0)\"" }
+        // `playlist`, not `user playlist`: playlists added from the Apple Music catalogue are not user playlists.
+        // A song plays from the library: Music (macOS 26) ignores the playlist given with a single track (tested:
+        // `play track i of p` and `play p` then a jump both continue with the library), while `play p` keeps the
+        // playlist. So the playlist row is the way to listen to a playlist.
+        let container = playlist.map { "set p to first playlist whose persistent ID is \"\($0)\"" }
             ?? "set p to library playlist 1"
-        let track = song.map { "(first track of p whose persistent ID is \"\($0)\")" }
+        let track = song.map { "(first track of library playlist 1 whose persistent ID is \"\($0)\")" }
         let body: String
         switch command {
-        case .playSong:  // in the playlist's (or the library's) context: the next songs follow
+        case .playSong:
             guard let track else { return }
-            body = "\(container)\nplay \(track)"
+            body = "play \(track)"
         case .revealSong:
             guard let track else { return }
-            body = "\(container)\nreveal \(track)\nactivate"
-        case .revealPlaylist:
+            body = "reveal \(track)\nactivate"
+        case .revealPlaylist:  // best effort: Music (macOS 26) may keep its current view; it comes to the front anyway
             guard playlist != nil else { return }
             body = "\(container)\nreveal p\nactivate"
         case .playPlaylist:
             guard playlist != nil else { return }
             body = "\(container)\nplay p"
         }
+        osascript(script(app: "Music", ready: "get name of library playlist 1", body: body), app: "Music")
+    }
+
+    /// Spotify rows: ids are "sp-" + a Spotify ID; the Spotify app takes spotify: URIs (its AppleScript `play track …
+    /// in context …`; opening a URI shows it without playing).
+    static func spotify(_ command: Command, song: String? = nil, playlist: String? = nil) {
+        let valid = { (id: String?) in
+            id.map { $0.range(of: "^sp-[A-Za-z0-9]{1,40}$", options: .regularExpression) != nil }
+        }
+        guard valid(song) ?? true, valid(playlist) ?? true else { return }
+        let track = song.map { "spotify:track:" + $0.dropFirst(3) }
+        let list = playlist.flatMap { $0 == "sp-liked" ? nil : "spotify:playlist:" + $0.dropFirst(3) }
+        let ready = "get player state"
+        switch command {
+        case .playSong:
+            guard let track else { return }
+            let context = list.map { " in context \"\($0)\"" } ?? ""
+            osascript(script(app: "Spotify", ready: ready, body: "play track \"\(track)\"\(context)"), app: "Spotify")
+        case .revealSong:
+            if let track, let url = URL(string: track) { NSWorkspace.shared.open(url) }
+        case .revealPlaylist:
+            if let url = URL(string: list ?? "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
+        case .playPlaylist:
+            guard let list else { return }
+            osascript(script(app: "Spotify", ready: ready, body: "play track \"\(list)\""), app: "Spotify")
+        }
+    }
+
+    /// Runs the script in the background; a refused permission (-1743) shows where to allow it, other errors go to
+    /// the app's log (Console, "Lantern").
+    private static func osascript(_ source: String, app: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", "tell application \"Music\"\n\(body)\nend tell"]
+        process.arguments = ["-e", source]
+        let errors = Pipe()
+        process.standardError = errors
+        process.terminationHandler = { proc in
+            guard proc.terminationStatus != 0 else { return }
+            let message = String(data: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            NSLog("Lantern: %@ script failed: %@", app, message)
+            if message.contains("-1743") {
+                Task { @MainActor in MusicPlayer.askForAutomation(app) }
+            }
+        }
         try? process.run()
+    }
+
+    @MainActor private static func askForAutomation(_ app: String) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Lantern may not control \(app)")
+        alert.informativeText = String(localized: "Allow it in System Settings → Privacy & Security → Automation → Lantern → \(app).")
+        alert.addButton(withTitle: String(localized: "Open Privacy Settings…"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }

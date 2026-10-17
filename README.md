@@ -35,12 +35,11 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
   `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
   and both by what they do as a fallback (`procent baterii`, `web browser`).
 - **Apple Music** (off by default; Settings → Privacy): your library's songs and playlists by title, artist or album
-  (`skeletons`, `travisa scotta`, `playlista`); ↩ plays a song in Music in the context of its playlist, a playlist
-  opens without playing (⌥↩ plays it). Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
+  (`skeletons`, `travisa scotta`, `playlista`); ↩ plays a song or a playlist, ⌘↩ shows it in Music. Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
   (Apple keeps those on its servers).
 - **Spotify** (off by default; Settings → Privacy): your playlists and liked songs, searched offline like Apple Music;
   ↩ plays in the Spotify app. Spotify keeps no readable list on the Mac, so this needs your own free key (an app at
-  developer.spotify.com with the redirect URI `http://127.0.0.1/callback`; Spotify requires Premium for it since
+  developer.spotify.com with the redirect URI `http://127.0.0.1:8000/callback`; Spotify requires Premium for it since
   2026) and a sign-in; Lantern then fetches only names, once a day and on "Sync Now". Songs of playlists made by
   others are not available from Spotify's API.
 - **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,

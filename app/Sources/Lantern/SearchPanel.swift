@@ -370,6 +370,21 @@ final class SearchModel: ObservableObject {
     func act(_ action: OpenAction) {
         guard let hit = selected else { return }
         let url = URL(fileURLWithPath: hit.path)
+        if let music = MusicResult.parse(hit.path) {
+            // One rule for every kind: ↩ (and ⌥↩) consume — a song or a playlist plays; ⌘↩ inspects — it is shown
+            // in its app. ⌘Y has nothing to preview.
+            guard action != .preview else { return }
+            let player = music.source == "spotify" ? MusicPlayer.spotify : MusicPlayer.run
+            let isSong = music.kind == "song"
+            if action == .reveal {
+                player(isSong ? .revealSong : .revealPlaylist, isSong ? music.id : nil, isSong ? nil : music.id)
+            } else {
+                player(isSong ? .playSong : .playPlaylist, isSong ? music.id : nil, isSong ? music.playlist : music.id)
+            }
+            recordOpened(hit)
+            SearchPanelController.shared.hide()
+            return
+        }
         if hit.isAction {  // apps, settings, answers, dictionary, shortcuts, web: nothing to preview or reveal
             guard action == .atLocation || action == .fromStart else {
                 if action == .reveal && hit.isApp { NSWorkspace.shared.activateFileViewerSelecting([url]) }
@@ -383,16 +398,6 @@ final class SearchModel: ObservableObject {
                 return
             } else if hit.isApp {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-            } else if let music = MusicResult.parse(hit.path) {
-                // A song plays at once, in the context of its playlist; ⌥↩ shows it in Music. A playlist opens
-                // without playing; ⌥↩ plays it from the start.
-                let player = music.source == "spotify" ? MusicPlayer.spotify : MusicPlayer.run
-                switch (music.kind, action) {
-                case ("song", .atLocation): player(.playSong, music.id, music.playlist)
-                case ("song", _): player(.revealSong, music.id, nil)
-                case (_, .atLocation): player(.revealPlaylist, nil, music.id)
-                default: player(.playPlaylist, nil, music.id)
-                }
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
@@ -498,7 +503,7 @@ private struct RowHint: View {
                 }
             }
             HStack(spacing: 4) {
-                Text(result.isMedia || result.kind == "song" ? "play"
+                Text(result.isMedia || result.kind == "song" || result.kind == "playlist" ? "play"
                      : result.isAnswer || result.kind == "clipboard" ? "copy" : "open")
                     .foregroundStyle(.secondary)
                 KeyCap(keys: "↩")

@@ -52,8 +52,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     Web API with **your own** app key (Client ID; sign-in with PKCE in your browser, Lantern never sees the password).
     Connections: accounts.spotify.com (sign-in, token refresh) and api.spotify.com (the library), only at sign-in,
     once a day and on "Sync Now"; during sign-in a listener waits on 127.0.0.1 (never other interfaces) for the one
-    redirect back. Read: playlist names, song titles, artists, albums. The refresh token is kept in your login
-    keychain. Searching and playing work offline from the local copy. Switching it off or signing out deletes the list.
+    redirect back. Read: playlist names, song titles, artists, albums. The refresh token and the Client ID are kept in
+    your login keychain. Searching and playing work offline from the local copy. Switching it off or signing out deletes the list.
 16. **Spelling:** guesses come from macOS's spell checker (NSSpellChecker, on the Mac); Lantern never teaches it
     words and sends nothing out. The daemon only compares the guesses with the index.
 17. **Search history** (`search_events`) is local only: queries and result positions, no file contents.

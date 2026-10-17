@@ -595,9 +595,20 @@ private struct PrivacyPane: View {
     @AppStorage(MenuCommands.key) private var menuCommands = false
     @AppStorage(MusicSync.key) private var appleMusic = false
     @AppStorage(SpotifySync.enabledKey) private var spotify = false
-    @AppStorage(SpotifySync.clientKey) private var spotifyClient = ""
+    @State private var clientDraft = ""
+    @State private var editingClient = false
+    @FocusState private var clientFocused: Bool
     @ObservedObject private var spotifySync = SpotifySync.shared
     @State private var accessibilityOK = MenuCommands.trusted
+
+    /// Saves the Client ID to the keychain and leaves the field (no caret left blinking in it).
+    private func saveClient() {
+        guard !clientDraft.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        SpotifySync.shared.setClientID(clientDraft)
+        clientDraft = ""
+        editingClient = false
+        clientFocused = false
+    }
 
     var body: some View {
         SettingsPage {
@@ -679,7 +690,7 @@ private struct PrivacyPane: View {
             } header: {
                 Text("Apple Music")
             } footer: {
-                Text("Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song in Music, in the context of its playlist. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose.")
+                Text("Search finds the songs and playlists in your Music library by title, artist and album; ↩ plays a song or a playlist in Music, ⌘↩ shows it. macOS asks for access to Media & Apple Music; Lantern only reads names and plays what you choose.")
                     .font(.caption)
             }
             Section {
@@ -690,9 +701,27 @@ private struct PrivacyPane: View {
                     if on { Task { await SpotifySync.shared.sync() } } else { SpotifySync.shared.clear() }
                 }
                 if spotify {
-                    TextField("", text: $spotifyClient, prompt: Text("Client ID"))
-                        .labelsHidden()
-                        .font(.system(.body, design: .monospaced))
+                    if spotifySync.hasClientID && !editingClient {
+                        HStack {  // kept in the keychain, never shown again
+                            Text("Client ID")
+                            Spacer()
+                            Text(verbatim: "••••••••••••").foregroundStyle(.secondary)
+                            Button("Change…") {
+                                clientDraft = ""
+                                editingClient = true
+                                clientFocused = true
+                            }
+                        }
+                    } else {
+                        HStack {
+                            SecureField("", text: $clientDraft, prompt: Text("Client ID"))
+                                .labelsHidden()
+                                .focused($clientFocused)
+                                .onSubmit(saveClient)
+                            Button("Save", action: saveClient)
+                                .disabled(clientDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                    }
                     HStack {
                         if spotifySync.signedIn {
                             Button("Sync Now") { Task { await SpotifySync.shared.sync() } }
@@ -700,7 +729,7 @@ private struct PrivacyPane: View {
                             Button("Sign Out") { SpotifySync.shared.signOut() }
                         } else {
                             Button("Sign In to Spotify…") { SpotifySync.shared.signIn() }
-                                .disabled(spotifyClient.trimmingCharacters(in: .whitespaces).isEmpty)
+                                .disabled(!spotifySync.hasClientID)
                         }
                         Spacer()
                         if spotifySync.busy { ProgressView().controlSize(.small) }
@@ -712,7 +741,7 @@ private struct PrivacyPane: View {
             } header: {
                 Text("Spotify")
             } footer: {
-                Text("Spotify keeps no readable list of your music on this Mac, so Lantern fetches it from Spotify with your own key: create an app at developer.spotify.com (Web API, redirect URI http://127.0.0.1/callback), paste its Client ID here and sign in. Only then, once a day and on Sync Now, Lantern connects to accounts.spotify.com and api.spotify.com and reads only playlist and song names; searching works offline and ↩ plays in the Spotify app. Songs of playlists made by others are not available from Spotify.")
+                Text("Spotify keeps no readable list of your music on this Mac, so Lantern fetches it from Spotify with your own key: create an app at developer.spotify.com (Web API, redirect URI http://127.0.0.1:8000/callback), paste its Client ID here and sign in. Only then, once a day and on Sync Now, Lantern connects to accounts.spotify.com and api.spotify.com and reads only playlist and song names; searching works offline and ↩ plays in the Spotify app. Songs of playlists made by others are not available from Spotify.")
                     .font(.caption)
             }
             Section {

@@ -15,23 +15,43 @@ final class SpotifySync: ObservableObject {
     static let enabledKey = "spotifyLibrary"
     static let clientKey = "spotifyClientID"
     static let syncedKey = "spotifyLastSync"
-    /// Register exactly this in the Spotify app's settings; the port is chosen at sign-in (allowed for loopback).
-    static let redirectBase = "http://127.0.0.1/callback"
+    /// Register exactly this redirect URI in the Spotify app's settings (Spotify's dashboard wants a port; loopback
+    /// over plain HTTP is allowed, `localhost` is not). `spotifyRedirectPort` changes the port if 8000 is taken.
+    static var port: UInt16 {
+        let saved = UserDefaults.standard.integer(forKey: "spotifyRedirectPort")
+        return (1024...65535).contains(saved) ? UInt16(saved) : 8000
+    }
+    static var redirectURI: String { redirect(port) }
     private static let scopes = "playlist-read-private playlist-read-collaborative user-library-read"
 
-    @Published private(set) var signedIn = Keychain.read() != nil
+    @Published private(set) var signedIn = Keychain.read(account: Keychain.tokenAccount) != nil
     @Published private(set) var busy = false
     @Published private(set) var message: String?
 
     var enabled: Bool { UserDefaults.standard.bool(forKey: Self.enabledKey) }
+    /// The user's app key, kept in the keychain (an older build stored it in the defaults: moved over once).
     var clientID: String {
-        (UserDefaults.standard.string(forKey: Self.clientKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let old = UserDefaults.standard.string(forKey: Self.clientKey) {
+            if !old.isEmpty { Keychain.save(old, account: Keychain.clientAccount) }
+            UserDefaults.standard.removeObject(forKey: Self.clientKey)
+        }
+        return (Keychain.read(account: Keychain.clientAccount) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    @Published private(set) var hasClientID = false
+
+    func setClientID(_ value: String) {
+        let id = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previous = clientID
+        if id.isEmpty { Keychain.delete(account: Keychain.clientAccount) } else { Keychain.save(id, account: Keychain.clientAccount) }
+        hasClientID = !id.isEmpty
+        if signedIn && id != previous { signOut() }  // tokens belong to the old key
     }
     private var accessToken: (value: String, expires: Date)?
     private var timer: Timer?
     private var login: LoopbackLogin?
 
     func start() {
+        hasClientID = !clientID.isEmpty
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
             Task { @MainActor in SpotifySync.shared.syncIfDue() }
@@ -56,11 +76,11 @@ final class SpotifySync: ObservableObject {
         let verifier = Self.randomString(64)
         let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URL
         let state = Self.randomString(16)
-        let login = LoopbackLogin(state: state) { [weak self] result in
+        let login = LoopbackLogin(state: state, port: Self.port) { [weak self] result in
             Task { @MainActor in self?.finishSignIn(result, verifier: verifier) }
         }
         guard let port = login.start() else {
-            message = String(localized: "Could not start the sign-in.")
+            message = String(localized: "Port \(Int(Self.port)) on this Mac is in use by another app; close it and sign in again.")
             return
         }
         self.login = login
@@ -97,7 +117,7 @@ final class SpotifySync: ObservableObject {
     }
 
     func signOut() {
-        Keychain.delete()
+        Keychain.delete(account: Keychain.tokenAccount)
         accessToken = nil
         signedIn = false
         UserDefaults.standard.removeObject(forKey: Self.syncedKey)
@@ -118,12 +138,14 @@ final class SpotifySync: ObservableObject {
             throw SpotifyError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
         accessToken = (access, Date().addingTimeInterval((json["expires_in"] as? Double ?? 3600) - 60))
-        if let refresh = json["refresh_token"] as? String { Keychain.save(refresh) }  // Spotify may rotate it
+        if let refresh = json["refresh_token"] as? String {  // Spotify may rotate it
+            Keychain.save(refresh, account: Keychain.tokenAccount)
+        }
     }
 
     private func bearer() async throws -> String {
         if let accessToken, accessToken.expires > Date() { return accessToken.value }
-        guard let refresh = Keychain.read() else { throw SpotifyError.signedOut }
+        guard let refresh = Keychain.read(account: Keychain.tokenAccount) else { throw SpotifyError.signedOut }
         try await token(["grant_type": "refresh_token", "refresh_token": refresh])
         return accessToken!.value
     }
@@ -237,28 +259,36 @@ enum SpotifyError: LocalizedError {
 /// Waits on 127.0.0.1 (never other interfaces) for the one redirect back from Spotify's sign-in page, then stops.
 private final class LoopbackLogin: @unchecked Sendable {
     private let state: String
+    private let port: UInt16
     private let done: (Result<(code: String, port: UInt16), Error>) -> Void
     private var listener: NWListener?
     private var finished = false
 
-    init(state: String, done: @escaping (Result<(code: String, port: UInt16), Error>) -> Void) {
+    init(state: String, port: UInt16, done: @escaping (Result<(code: String, port: UInt16), Error>) -> Void) {
         self.state = state
+        self.port = port
         self.done = done
     }
 
+    /// nil when the port cannot be used (another app listens on it).
     func start() -> UInt16? {
         let params = NWParameters.tcp
-        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .any)
+        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
         guard let listener = try? NWListener(using: params) else { return nil }
         self.listener = listener
         let ready = DispatchSemaphore(value: 0)
+        var started = false
         listener.stateUpdateHandler = { state in
-            if case .ready = state { ready.signal() }
+            if case .ready = state { started = true; ready.signal() }
             if case .failed = state { ready.signal() }
         }
         listener.newConnectionHandler = { [weak self] connection in self?.handle(connection) }
         listener.start(queue: .global(qos: .userInitiated))
         _ = ready.wait(timeout: .now() + 3)
+        guard started else {
+            listener.cancel()
+            return nil
+        }
         DispatchQueue.global().asyncAfter(deadline: .now() + 300) { [weak self] in  // give up after 5 minutes
             self?.finish(.failure(SpotifyError.cancelled))
         }
@@ -298,22 +328,26 @@ private final class LoopbackLogin: @unchecked Sendable {
     }
 }
 
-/// The refresh token, in the login keychain (only this app's item).
+/// The refresh token and the Client ID, in the login keychain (only this app's items).
 private enum Keychain {
-    private static let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                               kSecAttrService as String: "com.lantern.app.spotify",
-                                               kSecAttrAccount as String: "refresh_token"]
+    static let tokenAccount = "refresh_token"
+    static let clientAccount = "client_id"
 
-    static func save(_ token: String) {
-        SecItemDelete(query as CFDictionary)
-        var item = query
-        item[kSecValueData as String] = Data(token.utf8)
+    private static func query(_ account: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "com.lantern.app.spotify",
+         kSecAttrAccount as String: account]
+    }
+
+    static func save(_ value: String, account: String) {
+        SecItemDelete(query(account) as CFDictionary)
+        var item = query(account)
+        item[kSecValueData as String] = Data(value.utf8)
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(item as CFDictionary, nil)
     }
 
-    static func read() -> String? {
-        var item = query
+    static func read(account: String) -> String? {
+        var item = query(account)
         item[kSecReturnData as String] = true
         item[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
@@ -321,7 +355,7 @@ private enum Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func delete() { SecItemDelete(query as CFDictionary) }
+    static func delete(account: String) { SecItemDelete(query(account) as CFDictionary) }
 }
 
 private extension Data {

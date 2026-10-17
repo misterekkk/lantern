@@ -933,6 +933,26 @@ Measured on the test index (local queries vs web-like ones):
   open the `spotify:` URI in the app without playing. Lyrics: not in Spotify's API.
 - Not verified end to end yet: sign-in and sync need the user's Client ID (open question 38).
 
+## Music keys, Apple Music limits, Whisper on sound without speech (2026-10-17)
+
+- **One rule for every kind** (decided with the user, "build intuition"): ↩ consumes (a song or a playlist plays, an
+  app opens, a recording plays from its moment, code opens at its line), ⌘↩ inspects (shown in its app; files and
+  apps in Finder). ⌘Y previews files.
+- **Apple Music (macOS 26) and AppleScript**, tested silently (volume 0): `play` of one track ignores the playlist it
+  is taken from (`play track i of p`, and `play p` followed by a jump, both continued with the library), while
+  `play p` keeps the playlist; `reveal p` / `set view` do not move Music's window to a playlist. So an Apple Music song
+  plays from the library and the playlist row is the way to play a playlist; Spotify keeps the playlist context
+  (`play track … in context …`, confirmed by the user). A closed app is launched and the script waits until it
+  answers (a cold start used to swallow the command). Catalogue playlists are `playlist`, not `user playlist`.
+- **Spotify sign-in port:** the dashboard asks for a port, so the redirect is `http://127.0.0.1:8000/callback`
+  (`spotifyRedirectPort` changes it); a busy port is reported. The Client ID is kept in the keychain (masked field).
+- **Whisper invents text on sound without speech** ("! ! !" for an elephant, "f f f…" for rain, "deep deep…" for waves,
+  "Thank you." for music). Measured: compression ratio 5–10 vs ~1.4 for speech, average log-probability -1.9 or NaN
+  vs -0.2…-0.4; mlx-whisper's no_speech_prob is always 0. `keep_speech` drops segments over Whisper's own 2.4
+  compression limit, under -1.0 log-probability or NaN, without letters or made of one repeated word, and the whole
+  transcript under 0.1 words/s. On the user's files: the four noise files lose all text, the 214 s talk keeps 392 of
+  396 words. Pipeline audio v5 / video v7.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
