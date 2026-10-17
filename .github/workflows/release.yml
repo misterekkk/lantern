@@ -40,13 +40,14 @@ jobs:
       - name: Verify bundle is self-contained without .venv
         run: |
           mv .venv .venv.hidden
-          PYTHONNOUSERSITE=1 app/build/Lantern.app/Contents/Resources/python/bin/python3 -c "
-          import sys
-          sys.modules['torch'] = None
+          PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 app/build/Lantern.app/Contents/Resources/python/bin/python3 -c "
+          import importlib.util, sys
+          assert importlib.util.find_spec('torch') is None
           import lantern, mlx.core, sqlite_vec, mlx_whisper, Vision, Quartz
           from lantern.embedding import siglip_vision, processor
           from lantern.models import catalogue
           assert len(catalogue()) == 4
+          assert 'torch' not in sys.modules
           "
           mv .venv.hidden .venv
           codesign --verify --deep --strict app/build/Lantern.app

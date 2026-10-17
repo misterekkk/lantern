@@ -65,13 +65,13 @@ if (( STANDALONE )); then
   mkdir -p "$SITE_DEST"
   rsync -a \
     --exclude='__pycache__' --exclude='*.pyc' \
-    --exclude='_lantern*' --exclude='lantern-*' \
-    --exclude='pytest*' --exclude='_pytest*' --exclude='pluggy*' --exclude='iniconfig*' --exclude='py.py' \
-    --exclude='ruff*' --exclude='PyObjCTest' \
-    --exclude='torch*' --exclude='functorch*' --exclude='nvfuser*' --exclude='sympy*' --exclude='mpmath*' --exclude='networkx*' \
-    --exclude='cv2*' --exclude='opencv*' --exclude='fastapi*' --exclude='uvicorn*' --exclude='starlette*' --exclude='websockets*' \
-    --exclude='multipart*' --exclude='python_multipart*' --exclude='mlx_audio*' --exclude='llguidance*' --exclude='miniaudio*' \
-    --exclude='sentencepiece*' --exclude='sounddevice*' --exclude='audiomentations*' --exclude='librosa*' --exclude='scikit_learn*' --exclude='sklearn*' \
+    --exclude='/_lantern*' --exclude='/lantern-*' \
+    --exclude='/pytest*' --exclude='/_pytest*' --exclude='/pluggy*' --exclude='/iniconfig*' --exclude='/py.py' \
+    --exclude='/ruff*' --exclude='/PyObjCTest' \
+    --exclude='/torch*' --exclude='/functorch*' --exclude='/nvfuser*' --exclude='/sympy*' --exclude='/mpmath*' --exclude='/networkx*' \
+    --exclude='/cv2*' --exclude='/opencv*' --exclude='/fastapi*' --exclude='/uvicorn*' --exclude='/starlette*' --exclude='/websockets*' \
+    --exclude='/multipart*' --exclude='/python_multipart*' --exclude='/mlx_audio*' --exclude='/llguidance*' --exclude='/miniaudio*' \
+    --exclude='/sentencepiece*' --exclude='/sounddevice*' --exclude='/audiomentations*' --exclude='/librosa*' --exclude='/scikit_learn*' --exclude='/sklearn*' \
     "$REPO/.venv/lib/python3.12/site-packages/" "$SITE_DEST/"
   rsync -a --exclude='__pycache__' --exclude='*.pyc' "$REPO/daemon/lantern" "$SITE_DEST/"
 fi

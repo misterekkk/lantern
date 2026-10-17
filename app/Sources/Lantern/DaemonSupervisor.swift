@@ -55,6 +55,7 @@ final class DaemonSupervisor {
         env["TRANSFORMERS_OFFLINE"] = "1"
         env["HF_HUB_DISABLE_TELEMETRY"] = "1"
         env["DO_NOT_TRACK"] = "1"
+        env["PYTHONDONTWRITEBYTECODE"] = "1"  // keep Contents/Resources/python clean so the app bundle signature stays valid
         env["LANTERN_NOTIFY"] = "0"  // the app posts its own notifications (with actions)
         env["LANTERN_EXIT_WITH_PARENT"] = "1"  // never leave an orphaned daemon if the app crashes
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
