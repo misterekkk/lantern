@@ -3,15 +3,15 @@
 :root {
   --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --text: rgba(255, 255, 255, 0.94);
-  --text-2: rgba(255, 255, 255, 0.62);
-  --text-3: rgba(255, 255, 255, 0.4);
+  --text: rgba(20, 24, 31, 0.92);
+  --text-2: rgba(20, 24, 31, 0.6);
+  --text-3: rgba(20, 24, 31, 0.4);
   --accent: #3b82f6;
-  --accent-soft: rgba(59, 130, 246, 0.28);
-  --glass: rgba(40, 40, 46, 0.52);
-  --glass-strong: rgba(30, 30, 36, 0.72);
-  --stroke: rgba(255, 255, 255, 0.16);
-  --highlight: rgba(255, 255, 255, 0.28);
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.8);
+  --stroke: rgba(255, 255, 255, 0.75);
+  --highlight: rgba(255, 255, 255, 0.9);
   --radius-panel: 26px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -22,7 +22,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #05060a;
+  background: #c9d3de;
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
@@ -37,8 +37,8 @@ kbd {
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(22, 30, 42, 0.072);
+  border: 1px solid rgba(22, 30, 42, 0.048);
   color: var(--text);
 }
 
@@ -60,16 +60,11 @@ kbd {
   user-select: none;
 }
 
-/* Own wallpaper: soft colour fields in the spirit of recent macOS releases (no Apple artwork). */
+/* Own wallpaper, "Mist": a pale sky (the lantern's), so the eye goes to the panel (no Apple artwork). */
 .wallpaper {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(60% 70% at 18% 85%, #ff7a59 0%, rgba(255, 122, 89, 0) 60%),
-    radial-gradient(55% 60% at 85% 75%, #c2398f 0%, rgba(194, 57, 143, 0) 62%),
-    radial-gradient(70% 80% at 70% 10%, #3a4bd6 0%, rgba(58, 75, 214, 0) 65%),
-    radial-gradient(60% 60% at 25% 20%, #1c8cc9 0%, rgba(28, 140, 201, 0) 60%),
-    linear-gradient(160deg, #0d1640 0%, #2a1250 55%, #4a1238 100%);
+  background: radial-gradient(120% 85% at 50% 0%, #f3f6fa 0%, #dfe6ee 62%, #d3dce6 100%);
 }
 .wallpaper::after {  /* fine grain, so large gradients do not band */
   content: "";
@@ -89,7 +84,7 @@ kbd {
   box-shadow:
     inset 0 1px 0 var(--highlight),
     inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-    0 18px 50px rgba(0, 0, 0, 0.35);
+    0 18px 50px rgba(30, 45, 65, 0.18);
 }
 
 /* ---------- menu bar ---------- */
@@ -103,8 +98,8 @@ kbd {
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
-  color: #fff;
-  background: rgba(10, 10, 20, 0.18);
+  color: rgba(20, 24, 31, 0.9);
+  background: rgba(255, 255, 255, 0.35);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
   z-index: 30;
@@ -113,7 +108,7 @@ kbd {
 .menubar-left strong { font-weight: 700; }
 .menubar-logo {
   width: 14px; height: 14px; border-radius: 50%;
-  border: 2px solid #fff; opacity: 0.9;
+  border: 2px solid currentColor; opacity: 0.9;
 }
 .menubar-item {
   display: grid; place-items: center;
@@ -122,7 +117,7 @@ kbd {
 }
 .menubar-item svg { width: 17px; height: 17px; }
 .lantern-item { cursor: pointer; position: relative; }
-.lantern-item:hover, .lantern-item[aria-expanded="true"] { background: rgba(255, 255, 255, 0.2); }
+.lantern-item:hover, .lantern-item[aria-expanded="true"] { background: rgba(22, 30, 42, 0.12); }
 .menubar-clock { font-variant-numeric: tabular-nums; }
 
 /* pulsing ring around what the hint points at */
@@ -131,7 +126,7 @@ kbd {
   position: absolute;
   inset: -5px;
   border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(59, 130, 246, 0.9);
   animation: ring 1.6s var(--ease) infinite;
   pointer-events: none;
 }
@@ -148,7 +143,7 @@ kbd {
   top: 42px; right: 6px;  /* new files line up at the right edge, under the menu bar, like in Finder */
   display: grid; gap: 14px; justify-items: center;
 }
-.desktop-file { display: grid; justify-items: center; gap: 4px; width: 112px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.desktop-file { display: grid; justify-items: center; gap: 4px; width: 112px; font-size: 12px; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
 .desktop-file span { text-align: center; overflow-wrap: anywhere; line-height: 1.25; }
 .desktop-file i { width: 56px; height: 64px; display: block; }
 .desktop-file i svg { width: 100%; height: 100%; }
@@ -219,16 +214,16 @@ kbd {
 .chip {
   font-size: 11px; font-weight: 600;
   padding: 3px 9px; border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12); color: var(--text-2);
+  background: rgba(22, 30, 42, 0.072); color: var(--text-2);
   transition: background 0.3s, color 0.3s;
 }
-.chip.blue { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
-.chip.purple { background: rgba(168, 85, 247, 0.22); color: #d8b4fe; }
-.chip.green { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+.chip.blue { background: rgba(59, 130, 246, 0.16); color: #1d4ed8; }
+.chip.purple { background: rgba(202, 138, 4, 0.16); color: #8a5a00; }
+.chip.green { background: rgba(34, 197, 94, 0.16); color: #15803d; }
 
 .menu-card {
   border-radius: 12px; padding: 12px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(22, 30, 42, 0.042);
   margin-bottom: 10px;
   animation: fade 0.3s var(--ease);
 }
@@ -241,32 +236,32 @@ kbd {
   border: 0; border-radius: 8px;
   padding: 6px 14px;
   font-size: 13px; font-weight: 500;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(22, 30, 42, 0.084);
   cursor: pointer;
   position: relative;
   transition: transform 0.12s, background 0.2s;
 }
-.btn:hover { background: rgba(255, 255, 255, 0.22); }
+.btn:hover { background: rgba(22, 30, 42, 0.132); }
 .btn:active { transform: scale(0.97); }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.primary:hover { background: #2f74e8; }
 .btn.wide { width: 100%; padding: 9px 14px; }
 
-.progress { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 10px 0 6px; }
-.progress > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8b5cf6, #3b82f6); border-radius: 3px; }
+.progress { height: 6px; border-radius: 3px; background: rgba(22, 30, 42, 0.072); overflow: hidden; margin: 10px 0 6px; }
+.progress > i { display: block; height: 100%; width: 0; background: #3b82f6; border-radius: 3px; }
 
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
-.stat { border-radius: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.06); }
+.stat { border-radius: 10px; padding: 8px 10px; background: rgba(22, 30, 42, 0.036); }
 .stat b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 11px; color: var(--text-2); }
 
-.menu-actions { display: grid; gap: 2px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; }
+.menu-actions { display: grid; gap: 2px; border-top: 1px solid rgba(22, 30, 42, 0.048); padding-top: 8px; }
 .menu-action {
   display: flex; align-items: center; gap: 10px;
   border: 0; background: none; text-align: left;
   padding: 6px 8px; border-radius: 7px; font-size: 13px;
 }
-.menu-action:hover { background: rgba(255, 255, 255, 0.08); }
+.menu-action:hover { background: rgba(22, 30, 42, 0.048); }
 .menu-action kbd { margin-left: auto; }
 .menu-action svg { width: 15px; height: 15px; opacity: 0.8; }
 
@@ -312,11 +307,11 @@ kbd {
 @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .type-for-me {
   border: 0; border-radius: 99px; padding: 5px 11px; font-size: 12px;
-  background: rgba(255, 255, 255, 0.1); color: var(--text-2); cursor: pointer;
+  background: rgba(22, 30, 42, 0.06); color: var(--text-2); cursor: pointer;
 }
-.type-for-me:hover { color: var(--text); background: rgba(255, 255, 255, 0.16); }
+.type-for-me:hover { color: var(--text); background: rgba(22, 30, 42, 0.096); }
 
-.panel-content { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 8px 8px; max-height: 470px; overflow: hidden; }
+.panel-content { border-top: 1px solid rgba(22, 30, 42, 0.048); padding: 6px 8px 8px; max-height: 470px; overflow: hidden; }
 .section-title { font-size: 11px; font-weight: 600; color: var(--text-2); padding: 10px 12px 4px; }
 .result {
   display: flex; align-items: flex-start; gap: 12px;
@@ -347,7 +342,7 @@ kbd {
 .scope-icon {
   display: flex; align-items: center; gap: 0; height: 36px; min-width: 36px; padding: 0 9px;
   border: 0; border-radius: 99px; cursor: pointer; color: var(--text); overflow: hidden;
-  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  background: rgba(22, 30, 42, 0.048); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   transition: background 0.2s var(--ease), padding 0.25s var(--ease);
   animation: iconIn 0.3s var(--ease) both;
 }
@@ -357,7 +352,7 @@ kbd {
   max-width: 0; opacity: 0; white-space: nowrap; font-size: 12px; font-weight: 500;
   transition: max-width 0.25s var(--ease), opacity 0.06s linear, margin 0.25s var(--ease);
 }
-.scope-icon:hover { background: rgba(255, 255, 255, 0.16); padding: 0 13px; }
+.scope-icon:hover { background: rgba(22, 30, 42, 0.096); padding: 0 13px; }
 .scope-icon:hover .label { max-width: 180px; opacity: 1; margin-left: 7px; transition-delay: 0s, 0.08s, 0s; }
 .scope-chip {
   display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; flex: none;
@@ -405,10 +400,10 @@ kbd {
 .preview-media.audio { height: 46px; background: none; overflow: visible; }
 .preview-media.audio .player-bar { left: 0; right: 0; bottom: 0; }
 .preview-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
-.player-bar .track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); position: relative; }
+.player-bar .track { flex: 1; height: 4px; border-radius: 2px; background: rgba(22, 30, 42, 0.15); position: relative; }
 .player-bar .track i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: #fff; }
 .transcript { font-size: 12px; color: var(--text-2); margin: 10px 4px 0; line-height: 1.45; }
-.code-preview { font-family: var(--mono); font-size: 12px; line-height: 1.75; border-radius: 10px; background: rgba(0, 0, 0, 0.25); padding: 8px 0; }
+.code-preview { font-family: var(--mono); font-size: 12px; line-height: 1.75; border-radius: 10px; background: #1e2228; color: rgba(255, 255, 255, 0.9); padding: 8px 0; }
 .code-preview div { display: flex; gap: 14px; padding: 0 12px; white-space: pre; }
 .code-preview div.hit { background: rgba(59, 130, 246, 0.2); }
 .code-preview .ln { color: var(--text-3); width: 34px; text-align: right; flex: none; }
@@ -438,11 +433,11 @@ kbd {
   cursor: pointer; z-index: 45;
   animation: panelIn 0.3s var(--ease);
 }
-.shortcut kbd { font-size: 17px; padding: 12px 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.14); }
+.shortcut kbd { font-size: 17px; padding: 12px 16px; border-radius: 12px; background: rgba(22, 30, 42, 0.084); }
 .shortcut kbd.wide { padding: 12px 60px; }
 .shortcut span { font-size: 20px; color: var(--text-2); }
-.shortcut:hover kbd { background: rgba(255, 255, 255, 0.22); }
-.shortcut.pressed kbd { transform: translateY(2px); background: rgba(255, 255, 255, 0.3); }
+.shortcut:hover kbd { background: rgba(22, 30, 42, 0.132); }
+.shortcut.pressed kbd { transform: translateY(2px); background: rgba(22, 30, 42, 0.18); }
 
 /* ---------- hint bubble ---------- */
 
@@ -451,7 +446,9 @@ kbd {
   max-width: 300px;
   padding: 13px 16px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.16);
+  background: #1f2126;  /* the guide speaks in the icon's graphite, apart from the light glass of the app */
+  color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 30px rgba(30, 45, 65, 0.25);
   z-index: 70;
   font-size: 14px; line-height: 1.4;
   animation: hintIn 0.35s var(--ease);
@@ -463,9 +460,9 @@ kbd {
 .hint .hint-actions:empty { display: none; }
 .hint .pill {
   border: 0; border-radius: 99px; padding: 5px 11px; font-size: 12px; cursor: pointer;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16); color: #fff;
 }
-.hint .pill:hover { background: rgba(255, 255, 255, 0.28); }
+.hint .pill:hover { background: rgba(255, 255, 255, 0.26); }
 .hint .pill.done { opacity: 0.45; }
 
 /* final card */
@@ -488,8 +485,19 @@ kbd {
 .small-screen p { width: min(340px, 100%); margin: 4px 0; line-height: 1.45; }
 .small-screen .muted { color: var(--text-2); font-size: 14px; }
 .small-screen button { margin-top: 14px; border: 0; border-radius: 10px; padding: 10px 18px; background: var(--accent); color: #fff; font-weight: 600; }
-.small-screen a { color: #93c5fd; margin-top: 8px; }
+.small-screen a { color: #1d4ed8; margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* the app's menu header: the name and the status dot in the corner */
+.status-dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa1ab; margin-left: auto; }
+.status-dot.ready { background: #34c759; }
+.status-dot.busy { background: #ffcc00; }
+.stats-line { margin: 2px 0 8px; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* folded filter icons (as in the app): one button; unfolding slides each icon out from it, nearest first */
+.scope-icon.unfolding { animation: unfold 0.28s var(--ease) both; animation-delay: calc(var(--i) * 30ms); }
+@keyframes unfold { from { opacity: 0; transform: translateX(18px) scale(0.4); } }
+@media (prefers-reduced-motion: reduce) { .scope-icon.unfolding { animation: none; } }

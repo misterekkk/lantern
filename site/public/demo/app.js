@@ -5,7 +5,7 @@
  * chosen one becomes a chip with its ⌘ number), hints on the selected row, matched words in bold (same folding as the
  * app), apps, settings and quick answers, and the web row.
  * Development: ?step=menu|found|indexing|ready|shortcut|type|results|preview
- *   &scenario=photo|screenshot|video|code|pdf|app|setting|answer (&typed=N: the first N characters already typed)
+ *   &scenario=photo|screenshot|video|code|pdf|app|setting|music|answer (&typed=N: the first N characters already typed)
  */
 "use strict";
 
@@ -15,12 +15,12 @@ const REPO = "https://github.com/misterekkk/lantern";
 /* ---------- icons (own SVG drawings) ---------- */
 
 const ICON = {
-  lantern: `<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.2" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M12.4 12.4 16.5 16.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M8.5 5.3 9.2 7.8 11.7 8.5 9.2 9.2 8.5 11.7 7.8 9.2 5.3 8.5 7.8 7.8Z" fill="#fff"/></svg>`,
-  wifi: `<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 7.5a11 11 0 0 1 15 0"/><path d="M5.2 10.4a7 7 0 0 1 9.6 0"/><path d="M7.9 13.2a3 3 0 0 1 4.2 0"/><circle cx="10" cy="15.8" r="1" fill="#fff" stroke="none"/></svg>`,
-  battery: `<svg viewBox="0 0 26 20"><rect x="1" y="5" width="21" height="10" rx="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.3"/><rect x="2.8" y="6.8" width="15" height="6.4" rx="1.6" fill="#fff"/><rect x="23" y="8" width="1.8" height="4" rx=".9" fill="#fff" fill-opacity=".55"/></svg>`,
-  search: `<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3 16 16" stroke-linecap="round"/></svg>`,
-  control: `<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.5"><rect x="2" y="3.5" width="16" height="5.5" rx="2.75"/><circle cx="5.2" cy="6.25" r="1.6" fill="#fff"/><rect x="2" y="11" width="16" height="5.5" rx="2.75"/><circle cx="14.8" cy="13.75" r="1.6" fill="#fff"/></svg>`,
-  glyph: `<svg viewBox="0 0 26 26" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M16.2 16.2 22 22" stroke-linecap="round"/><path d="M11 6.6 11.9 10.1 15.4 11 11.9 11.9 11 15.4 10.1 11.9 6.6 11 10.1 10.1Z" fill="#fff" stroke="none"/></svg>`,
+  lantern: `<svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12.4 12.4 16.5 16.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M8.5 5.3 9.2 7.8 11.7 8.5 9.2 9.2 8.5 11.7 7.8 9.2 5.3 8.5 7.8 7.8Z" fill="currentColor"/></svg>`,
+  wifi: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 7.5a11 11 0 0 1 15 0"/><path d="M5.2 10.4a7 7 0 0 1 9.6 0"/><path d="M7.9 13.2a3 3 0 0 1 4.2 0"/><circle cx="10" cy="15.8" r="1" fill="currentColor" stroke="none"/></svg>`,
+  battery: `<svg viewBox="0 0 26 20"><rect x="1" y="5" width="21" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="1.3"/><rect x="2.8" y="6.8" width="15" height="6.4" rx="1.6" fill="currentColor"/><rect x="23" y="8" width="1.8" height="4" rx=".9" fill="currentColor" fill-opacity=".55"/></svg>`,
+  search: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3 16 16" stroke-linecap="round"/></svg>`,
+  control: `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3.5" width="16" height="5.5" rx="2.75"/><circle cx="5.2" cy="6.25" r="1.6" fill="currentColor"/><rect x="2" y="11" width="16" height="5.5" rx="2.75"/><circle cx="14.8" cy="13.75" r="1.6" fill="currentColor"/></svg>`,
+  glyph: `<svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M16.2 16.2 22 22" stroke-linecap="round"/><path d="M11 6.6 11.9 10.1 15.4 11 11.9 11.9 11 15.4 10.1 11.9 6.6 11 10.1 10.1Z" fill="currentColor" stroke="none"/></svg>`,
   doc: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><g stroke="#9aa3b2" stroke-width="2.4" stroke-linecap="round"><path d="M13 28h28M13 36h28M13 44h20"/></g></svg>`,
   pdf: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><rect x="9" y="34" width="38" height="16" rx="3" fill="#dc2626"/><text x="28" y="46" font-family="-apple-system,Helvetica,Arial" font-size="11" font-weight="800" text-anchor="middle" fill="#fff">PDF</text></svg>`,
   md: `<svg viewBox="0 0 56 64"><path d="M6 2h30l14 14v44a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f4f5f7"/><path d="M36 2v12a2 2 0 0 0 2 2h12" fill="#d7dbe2"/><text x="27" y="44" font-family="-apple-system,Helvetica,Arial" font-size="15" font-weight="800" text-anchor="middle" fill="#6b4fbb">MD</text></svg>`,
@@ -30,6 +30,7 @@ const ICON = {
   audio: `<svg viewBox="0 0 56 64"><rect x="4" y="8" width="48" height="48" rx="11" fill="url(#ga)"/><defs><linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><path d="M33 19v19.5a5 5 0 1 1-3-4.6V23l-9 2.3V41a5 5 0 1 1-3-4.6V22.5z" fill="#fff"/></svg>`,
   folder: `<svg viewBox="0 0 56 64"><path d="M3 16a4 4 0 0 1 4-4h14l5 5h23a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#5aa9f8"/><path d="M3 24a4 4 0 0 1 4-4h42a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#79bdfb"/></svg>`,
   calc: `<svg viewBox="0 0 56 64"><rect x="6" y="6" width="44" height="52" rx="10" fill="#3a3d44"/><rect x="12" y="12" width="32" height="12" rx="3" fill="#cfd3da"/><g fill="#8b9099">${[0, 1, 2].map((r) => [0, 1, 2].map((c) => `<circle cx="${17 + c * 11}" cy="${33 + r * 9}" r="3.4"/>`).join("")).join("")}</g><circle cx="39" cy="51" r="3.4" fill="#f59e0b"/></svg>`,
+  music: `<svg viewBox="0 0 56 64"><rect x="6" y="9" width="44" height="44" rx="11" fill="#f43f5e"/><path d="M34 19v18.5a4.6 4.6 0 1 1-2.7-4.2V25.5l-9.6 2.4v13a4.6 4.6 0 1 1-2.7-4.2V23.2z" fill="#fff"/></svg>`,
   gear: `<svg viewBox="0 0 56 64"><rect x="6" y="9" width="44" height="44" rx="11" fill="#2563eb"/><g transform="translate(28 31)" fill="#fff"><circle r="9"/>${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="-2.6" y="-14.5" width="5.2" height="7" rx="1.4" transform="rotate(${r})"/>`).join("")}</g><circle cx="28" cy="31" r="4" fill="#2563eb"/></svg>`,
   globe: `<svg viewBox="0 0 56 64"><circle cx="28" cy="32" r="21" fill="#0ea5e9"/><g fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2"><ellipse cx="28" cy="32" rx="9" ry="21"/><path d="M7 32h42M10 22h36M10 42h36"/></g></svg>`,
   play: `<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="#fff"/></svg>`,
@@ -55,7 +56,7 @@ const DOCK = [
   ["terminal", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#1f2328"/><rect x="5" y="5" width="48" height="48" rx="9" fill="#0d1014" stroke="#3a4048"/><path d="M15 22l8 6-8 6" stroke="#e6edf3" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 36h15" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>`],
   ["settings", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dset" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d1d5db"/><stop offset="1" stop-color="#6b7280"/></linearGradient></defs><rect width="58" height="58" fill="url(#dset)"/><g fill="#374151"><circle cx="29" cy="29" r="12"/><g id="teeth">${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="26" y="9" width="6" height="9" rx="1.5" transform="rotate(${r} 29 29)"/>`).join("")}</g></g><circle cx="29" cy="29" r="5.5" fill="#d1d5db"/></svg>`],
   "divider",
-  ["lantern", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect width="58" height="58" fill="url(#dl)"/><circle cx="26" cy="26" r="11" fill="none" stroke="#fff" stroke-width="3.6"/><path d="M34.5 34.5l8.5 8.5" stroke="#fff" stroke-width="4.6" stroke-linecap="round"/><path d="M26 18.7l1.5 5.8 5.8 1.5-5.8 1.5-1.5 5.8-1.5-5.8-5.8-1.5 5.8-1.5z" fill="#fff"/></svg>`],
+  ["lantern", true, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#1f2126"/><circle cx="25.7" cy="25.7" r="10.4" fill="none" stroke="#f3f4f6" stroke-width="3.5"/><path d="M33.6 33.6 41.1 41.1" stroke="#f3f4f6" stroke-width="4" stroke-linecap="round"/><path d="M25.7 20 C26.4 23.8 27.6 25 31.4 25.7 C27.6 26.4 26.4 27.6 25.7 31.4 C25 27.6 23.8 26.4 20 25.7 C23.8 25 25 23.8 25.7 20 Z" fill="#f2b84b"/></svg>`],
   ["trash", false, `<svg viewBox="0 0 58 58" class="bare"><path d="M16 17h26l-2.2 31a3 3 0 0 1-3 2.8H21.2a3 3 0 0 1-3-2.8z" fill="rgba(255,255,255,.28)" stroke="rgba(255,255,255,.75)" stroke-width="1.6"/><path d="M13 15h32" stroke="rgba(255,255,255,.85)" stroke-width="2.4" stroke-linecap="round"/><g stroke="rgba(255,255,255,.55)" stroke-width="1.4"><path d="M24 22l1 24M29 22v24M34 22l-1 24"/></g></svg>`],
 ];
 
@@ -176,7 +177,7 @@ const SCENARIOS = [
   {
     id: "app", label: "an app", phrase: "calcu", complete: 3,
     typeHint: "Apps and System Settings by name — even misspelt or in another language.",
-    blurb: "Like Spotlight, Lantern finds apps by any of their names — and ↩ opens them.",
+    blurb: "Like Spotlight, Lantern finds apps by any of their names, and one letter brings the app you use most. ↩ opens it.",
     sections: [
       ["Applications", [
         { icon: ICON.calc, title: "Calculator", sub: "Application", cat: "apps", source: "", action: "open",
@@ -202,6 +203,19 @@ const SCENARIOS = [
     ],
   },
   {
+    id: "music", label: "a song", phrase: "skeletons", complete: 4,
+    typeHint: "Your Apple Music songs and playlists, by title, artist or album.",
+    blurb: "Songs and playlists of your library come up by name or artist (“travisa scotta” works too); ↩ plays.",
+    sections: [
+      ["Music", [
+        { icon: ICON.music, title: "SKELETONS", sub: "Travis Scott · ASTROWORLD  ·  from playlist “Gym”", cat: "music",
+          source: "", action: "play", enterHint: "In Lantern, ↩ plays <b>SKELETONS</b> in Music; ⌘↩ shows it there." },
+        { icon: ICON.music, title: "Gym", sub: "Playlist · 34 songs", cat: "music", source: "", action: "play",
+          enterHint: "In Lantern, ↩ plays the playlist <b>Gym</b>." },
+      ]],
+    ],
+  },
+  {
     id: "answer", label: "a quick answer", phrase: "2+2*20", complete: 99,
     typeHint: "Arithmetic, units and the time in other cities — computed on your Mac.",
     blurb: "Quick answers come first: arithmetic, units (“5 km to mi”) and world time (“time in tokyo”), all offline.",
@@ -219,13 +233,19 @@ const GLYPH = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 const CATEGORIES = [
   ["apps", "Applications", GLYPH('<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>')],
   ["settings", "System Settings", GLYPH('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>')],
+  ["shortcuts", "Shortcuts", GLYPH('<path d="m12 4 8 4-8 4-8-4z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/>')],
+  ["clipboard", "Clipboard", GLYPH('<rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V3.5h6V5M9 11h6M9 15h4"/>')],
   ["code", "Code", GLYPH('<path d="M8.5 7 4 12l4.5 5M15.5 7 20 12l-4.5 5M13.5 5l-3 14"/>')],
   ["docs", "Documents", GLYPH('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 15.5h5"/>')],
   ["pdf", "PDFs", GLYPH('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><rect x="5" y="12" width="10" height="5" rx="1"/>')],
   ["photos", "Photos", GLYPH('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 4 3.5 2.5-2 4.5 3.5"/>')],
   ["media", "Recordings and videos", GLYPH('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="m10.5 9.2 4.3 2.8-4.3 2.8z" fill="currentColor"/>')],
+  ["music", "Music", GLYPH('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>')],
 ];
-const CATEGORY = Object.fromEntries(CATEGORIES.map(([id, label, glyph], k) => [id, { label, glyph, key: k + 1 }]));
+// The same kinds and keys as the app (⌘1…⌘9, then ⌘0 for the tenth).
+const CATEGORY = Object.fromEntries(CATEGORIES.map(([id, label, glyph], k) => [id, { label, glyph, key: k === 9 ? 0 : k + 1 }]));
+const FOLDED = GLYPH('<path d="M5 7h14M8 12h8M10.5 17h3"/>');  // the filter button (line.3.horizontal.decrease)
+const MAX_UNFOLDED = 3;
 
 /* ---------- matched words (a port of the app's QueryHighlight + TextFold) ---------- */
 
@@ -366,22 +386,20 @@ function closeMenu() {
   $("#lanternItem").setAttribute("aria-expanded", "false");
 }
 
+/* The status dot of the app's menu: Apple's colours (green ready, yellow busy or waiting for you, grey off); its word
+ * is the tooltip, as in the app. */
 function setChip(text, color = "") {
-  const chip = $("#menuChip");
-  chip.textContent = text;
-  chip.className = `chip ${color}`;
+  const dot = $("#menuChip");
+  const colour = { green: "ready", blue: "busy", purple: "busy" }[color] || "off";
+  dot.className = `status-dot ${colour}`;
+  dot.title = text;
+  dot.setAttribute("aria-label", text);
 }
 
 function menuBody(html) { $("#menuBody").innerHTML = html; }
 
-function menuActions() {
-  return `<div class="menu-actions">
-    <button class="menu-action" type="button" data-act="search">${ICON.menuSearch}Search…<kbd>⌥ Space</kbd></button>
-    <button class="menu-action" type="button">${ICON.menuPause}Pause Indexing</button>
-    <button class="menu-action" type="button">${ICON.menuFolder}Add Folder…</button>
-    <button class="menu-action" type="button">${ICON.menuGear}Settings…</button>
-    <button class="menu-action" type="button">${ICON.menuPower}Quit Lantern</button>
-  </div>`;
+function menuActions() {  // as in the app: one row, like "Battery Settings…" in macOS's Battery menu
+  return `<div class="menu-actions"><button class="menu-action" type="button">Lantern Settings…</button></div>`;
 }
 
 /* ---------- steps ---------- */
@@ -394,14 +412,7 @@ const STEPS = {
   },
 
   menu() {
-    openMenu();
-    setChip("Off");
-    menuBody(`<div class="menu-card"><p>Lantern is not running.</p>
-      <p class="muted">Start it to search your folders by meaning.</p>
-      <div class="row"><button class="btn primary wide" id="startBtn" type="button">Start Lantern</button></div></div>`);
-    attention($("#startBtn"));
-    $("#startBtn").addEventListener("click", () => go("starting"));
-    hint("Start Lantern. It runs quietly in the background — and <b>only on your Mac</b>.", { x: 640, y: 108, arrow: "none" });
+    go("starting");  // Lantern starts with the Mac; the first time it looks for files and asks before reading them
   },
 
   starting() {
@@ -410,8 +421,8 @@ const STEPS = {
     setChip("Starting…");
     menuBody(`<div class="menu-card"><p>Starting…</p><p class="muted">Loading the model (it never leaves this Mac).</p>
       <div class="progress"><i style="width:35%;transition:width .9s"></i></div></div>`);
-    hideHint();
-    later(900, () => go("found"));
+    hint("Lantern runs quietly in the background, <b>only on your Mac</b>.", { x: 640, y: 108, arrow: "none" });
+    later(1400, () => go("found"));
   },
 
   found() {
@@ -451,10 +462,7 @@ const STEPS = {
   ready() {
     openMenu();
     setChip("Ready", "green");
-    menuBody(`<div class="stats"><div class="stat"><b>1,248</b><span>files</span></div>
-      <div class="stat"><b>9,410</b><span>chunks</span></div><div class="stat"><b>412 MB</b><span>memory</span></div></div>
-      ${menuActions()}`);
-    $("#menuBody [data-act=search]").addEventListener("click", () => { closeMenu(); go("panel"); });
+    menuBody(`<p class="stats-line">1,248 files · 9,410 chunks · 412 MB</p>${menuActions()}`);
     notify("Indexed 1,248 files. Press ⌥ Space to search.");
     hint("All set. <b>Close the menu</b> — click anywhere on the desktop.", { x: 640, y: 108 });
   },
@@ -585,6 +593,7 @@ function completion() {
 }
 
 function renderQuery() {
+  state.scopeOpen = false;  // typing folds the filter icons again, as in the app
   const sc = state.scenario;
   const ghost = completion();
   $("#typed").textContent = state.typed;
@@ -686,13 +695,30 @@ function shownCategories() {
   return results ? categoriesOf(sc) : CATEGORIES;
 }
 
+let foldTimer = null;
 function renderScope() {
   const icons = $("#scopeIcons");
   const chip = $("#scopeChip");
   icons.hidden = state.step === "preview";
-  icons.innerHTML = shownCategories().filter(([id]) => id !== state.category).map(([id, label, glyph]) =>
-    `<button type="button" class="scope-icon" data-cat="${id}" title="${label}  ⌘${CATEGORY[id].key}">${glyph}<span class="label">${label}</span></button>`).join("");
-  icons.querySelectorAll(".scope-icon").forEach((b) => b.addEventListener("click", () => setCategory(b.dataset.cat)));
+  const list = shownCategories().filter(([id]) => id !== state.category);
+  // As in the app: more than three kinds fold into one filter button; pointing at it unfolds them, one after another.
+  if (list.length > MAX_UNFOLDED && !state.scopeOpen) {
+    icons.innerHTML = `<button type="button" class="scope-icon folded" title="Filters  ⌘1–⌘0" aria-label="Filters">${FOLDED}</button>`;
+    const open = () => { state.scopeOpen = true; renderScope(); };
+    icons.firstElementChild.addEventListener("mouseenter", () => { clearTimeout(foldTimer); foldTimer = setTimeout(open, 120); });
+    icons.firstElementChild.addEventListener("mouseleave", () => clearTimeout(foldTimer));
+    icons.firstElementChild.addEventListener("click", open);
+  } else {
+    icons.innerHTML = list.map(([id, label, glyph], k) =>
+      `<button type="button" class="scope-icon${state.scopeOpen ? " unfolding" : ""}" style="--i:${list.length - 1 - k}" data-cat="${id}" title="${label}  ⌘${CATEGORY[id].key}">${glyph}<span class="label">${label}</span></button>`).join("");
+    icons.onmouseenter = () => clearTimeout(foldTimer);
+    icons.onmouseleave = () => {
+      if (!state.scopeOpen) return;
+      clearTimeout(foldTimer);
+      foldTimer = setTimeout(() => { state.scopeOpen = false; renderScope(); }, 1200);
+    };
+  }
+  icons.querySelectorAll(".scope-icon[data-cat]").forEach((b) => b.addEventListener("click", () => { state.scopeOpen = false; setCategory(b.dataset.cat); }));
   const c = state.category && CATEGORY[state.category];
   chip.hidden = !c;
   chip.innerHTML = c ? `${c.glyph}<span>${c.label}</span><span class="key">⌘${c.key}</span>` : "";
@@ -851,9 +877,9 @@ function onKey(e) {
   }
   if (state.step === "results" || state.step === "preview") {
     if (e.key === "Tab") { e.preventDefault(); cyclePill(e.shiftKey ? -1 : 1); return; }
-    if ((e.metaKey || e.ctrlKey) && /^[1-7]$/.test(e.key)) {  // ⌘N: always the same kind, again = off
+    if ((e.metaKey || e.ctrlKey) && /^[0-9]$/.test(e.key)) {  // ⌘N: always the same kind, again = off (⌘0: the tenth)
       e.preventDefault();
-      const id = CATEGORIES[Number(e.key) - 1][0];
+      const id = CATEGORIES[e.key === "0" ? 9 : Number(e.key) - 1][0];
       if (shownCategories().some(([c]) => c === id) || state.category === id) setCategory(id);
       return;
     }

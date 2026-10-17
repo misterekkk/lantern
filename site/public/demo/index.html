@@ -7,7 +7,7 @@
   <meta name="description" content="Lantern is a local, offline Mac app that finds files, code, photos and moments in recordings by meaning. Try it in your browser.">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="assets/lantern.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <!--
@@ -43,9 +43,8 @@
       <!-- Lantern's menu (opened from the menu bar) -->
       <section class="menu glass" id="menu" hidden aria-label="Lantern">
         <div class="menu-header">
-          <span class="app-icon small" aria-hidden="true"></span>
           <strong>Lantern</strong>
-          <span class="chip" id="menuChip">Off</span>
+          <span class="status-dot" id="menuChip" role="img" aria-label="Off" title="Off"></span>
         </div>
         <div class="menu-body" id="menuBody"></div>
       </section>
@@ -88,12 +87,12 @@
   <div class="small-screen" id="smallScreen" hidden>
     <span class="app-icon" aria-hidden="true"></span>
     <h1>Lantern</h1>
-    <p>Search your Mac by meaning — files, code, photos and moments in recordings. 100% local and offline.</p>
+    <p>Search your Mac by meaning: files, code, photos and moments in recordings, entirely on your Mac.</p>
     <p class="muted">This tour is a Mac desktop in your browser; it works best on a larger screen.</p>
     <button type="button" id="continueAnyway">Show it anyway</button>
     <a href="https://github.com/misterekkk/lantern">View on GitHub</a>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
