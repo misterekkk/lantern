@@ -144,15 +144,30 @@ enum MusicPlayer {
         // playlist. So the playlist row is the way to listen to a playlist.
         let container = playlist.map { "set p to first playlist whose persistent ID is \"\($0)\"" }
             ?? "set p to library playlist 1"
-        let track = song.map { "(first track of library playlist 1 whose persistent ID is \"\($0)\")" }
+        // Songs added from the Apple Music catalogue to a playlist only are not in the library playlist (on the user's
+        // Mac: 74 of 643), so the song is looked up in the library first, then in its playlist.
+        let library = song.map { id in
+            let fallback = playlist.map { """
+                on error
+                    set p to first playlist whose persistent ID is "\($0)"
+                    set t to (first track of p whose persistent ID is "\(id)")
+                """ } ?? ""
+            return """
+                try
+                    set t to (first track of library playlist 1 whose persistent ID is "\(id)")
+                \(fallback)
+                end try
+                """
+        } ?? ""
+        let track = song.map { _ in "t" }
         let body: String
         switch command {
         case .playSong:
             guard let track else { return }
-            body = "play \(track)"
+            body = "\(library)\nplay \(track)"
         case .revealSong:
             guard let track else { return }
-            body = "reveal \(track)\nactivate"
+            body = "\(library)\nreveal \(track)\nactivate"
         case .revealPlaylist:  // best effort: Music (macOS 26) may keep its current view; it comes to the front anyway
             guard playlist != nil else { return }
             body = "\(container)\nreveal p\nactivate"

@@ -377,7 +377,7 @@ final class SearchModel: ObservableObject {
             let player = music.source == "spotify" ? MusicPlayer.spotify : MusicPlayer.run
             let isSong = music.kind == "song"
             if action == .reveal {
-                player(isSong ? .revealSong : .revealPlaylist, isSong ? music.id : nil, isSong ? nil : music.id)
+                player(isSong ? .revealSong : .revealPlaylist, isSong ? music.id : nil, music.playlist)
             } else {
                 player(isSong ? .playSong : .playPlaylist, isSong ? music.id : nil, isSong ? music.playlist : music.id)
             }
