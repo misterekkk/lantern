@@ -55,10 +55,13 @@ def _damerau(a: str, b: str, limit: int) -> int:
     return prev[-1]
 
 
-def name_match(query: str, names: list[str], keywords: list[str]) -> tuple[str, float] | None:
-    """How a typed query matches an app's names: the best level, or None."""
+def name_match(query: str, names: list[str], keywords: list[str], single: bool = False) -> tuple[str, float] | None:
+    """How a typed query matches an app's names: the best level, or None. single: one letter matches names that
+    start with it (apps, as in Spotlight), at the weak "letter" level."""
     q = _plain(query)
     if len(q) < 2:
+        if single and len(q) == 1 and any(_plain(n).startswith(q) for n in names):
+            return ("letter", 0.3)
         return None
     best: tuple[str, float] | None = None
 
@@ -131,7 +134,7 @@ def app_search(conn: sqlite3.Connection, query: str, embedder=None, limit: int =
     hits, q = [], _plain(query)
     for r in rows:
         keywords = json.loads(r["keywords"])
-        m = name_match(query, [r["name"], *json.loads(r["names"])], keywords)
+        m = name_match(query, [r["name"], *json.loads(r["names"])], keywords, single=True)
         if m:
             hits.append(AppHit(r["path"], r["name"], r["category"], r["bundle_id"], m[0], m[1]))
         elif q in category_words(r["category"], keywords):  # "muzyka": Spotify beside the app named Muzyka

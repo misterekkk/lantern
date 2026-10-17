@@ -151,3 +151,10 @@ def test_the_category_finds_apps_beside_the_one_named_like_it(conn, applications
         names = [h.name for h in app_search(conn, query)]
         assert names[0] == "Muzyka" and "Spotify" in names, query
     assert "Discord" not in [h.name for h in app_search(conn, "muzyka")]
+
+
+def test_one_letter_lists_apps_starting_with_it(conn, applications):
+    stored(conn, FakeEmbedder())
+    hits = app_search(conn, "d")
+    assert hits and hits[0].name == "Discord" and hits[0].match == "letter"
+    assert name_match("d", ["Discord"], []) is None  # only the app search takes one letter (not settings panes)

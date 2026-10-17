@@ -8,7 +8,7 @@ struct MenuView: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             header
             if let error = state.connectionError, state.status == nil {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -46,7 +46,8 @@ struct MenuView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .frame(width: 300)
         .animation(.smooth(duration: 0.28), value: state.status?.awaitingApproval)
         .animation(.smooth(duration: 0.28), value: state.status?.waitingForSettings)
@@ -72,11 +73,10 @@ struct MenuView: View {
                 .help(paused ? Text("Resume Indexing") : Text("Pause Indexing"))
                 .transition(.opacity)
             }
+            // The dot alone, in the corner (its colour says it); the word is in the tooltip and for VoiceOver.
             Circle().fill(phaseColor).frame(width: 8, height: 8)
-            Text(phaseLabel)
-                .contentTransition(.opacity)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .help(Text(phaseLabel))
+                .accessibilityLabel(Text(phaseLabel))
         }
         .animation(.smooth(duration: 0.25), value: state.phase)
     }
@@ -190,7 +190,7 @@ private struct MenuRow: View {
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 2)  // compact, like the rows of macOS's own menu extras
+            .padding(.vertical, 1)  // compact, like the rows of macOS's own menu extras
             .background(RoundedRectangle(cornerRadius: 6).fill(hovering ? Color.primary.opacity(0.08) : .clear))
             .contentShape(Rectangle())
         }

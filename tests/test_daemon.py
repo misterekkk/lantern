@@ -353,4 +353,15 @@ def test_a_query_learns_the_row_usually_opened(start_daemon):
         event = protocol.call("search", {"query": "sl"})["event_id"]
         protocol.call("opened", {"event_id": event, "chunk_id": 0, "key": key})  # an opened search is never merged
     assert protocol.call("search", {"query": "SL", "log": False})["learned"] == key
-    assert protocol.call("search", {"query": "slack", "log": False})["learned"] is None  # only that exact query
+    assert protocol.call("search", {"query": "s", "log": False})["learned"] == key  # a prefix learns from it too
+    assert protocol.call("search", {"query": "slack", "log": False})["learned"] is None  # never chosen for this one
+
+
+def test_one_letter_learns_from_the_longer_queries_typed_on(start_daemon):
+    start_daemon(mode="ask")
+    discord, docker = "app|0|-1|/Applications/Discord.app|", "app|0|-1|/Applications/Docker.app|"
+    for query, key in [("di", discord), ("discord", discord), ("disc", discord), ("doc", docker)]:
+        event = protocol.call("search", {"query": query})["event_id"]
+        protocol.call("opened", {"event_id": event, "chunk_id": 0, "key": key})
+    assert protocol.call("search", {"query": "d", "log": False})["learned"] == discord  # 3 of 4 choices
+    assert protocol.call("search", {"query": "do", "log": False})["learned"] is None  # Docker only once

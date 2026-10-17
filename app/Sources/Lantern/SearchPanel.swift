@@ -33,12 +33,24 @@ final class SearchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
+    private var settingFrame = false
+
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {
         var rect = frameRect
         // SwiftUI resizes the window as content changes (results, preview): keep the top edge and the horizontal
         // centre fixed, otherwise a width change would leave the panel off-centre.
         if let anchorTop { rect.origin.y = anchorTop - rect.height }
         if let anchorMidX { rect.origin.x = (anchorMidX - rect.width / 2).rounded() }
+        guard rect != frame else { return }  // nothing changes: no layout pass that could ask again
+        // Drawing inside setFrame lays the SwiftUI content out, which can ask for a new size and call setFrame again,
+        // nested without end (the panel hung with 100% CPU when results disappeared). A nested call only moves the
+        // window; the outer one draws once.
+        guard !settingFrame else {
+            super.setFrame(rect, display: false)
+            return
+        }
+        settingFrame = true
+        defer { settingFrame = false }
         super.setFrame(rect, display: flag)
         invalidateShadow()  // the shadow is computed from the (rounded) content
     }
@@ -822,7 +834,7 @@ struct SearchView: View {
                 } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 2) {
+                        VStack(spacing: 2) {  // not lazy: a lazy stack estimates its height, and the window size follows it (a loop)
                             Color.clear.frame(height: 0).id(ListEdge.top)
                             if let corrected = model.correctedQuery {
                                 CorrectionLine(corrected: corrected, typed: model.query) { model.searchAsTyped() }

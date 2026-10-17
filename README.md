@@ -149,8 +149,8 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 
 ## The app
 
-- **Menu bar icon:** laid out like macOS's Battery menu: a status dot in Apple's colours (green ready, yellow indexing
-  or waiting for your approval, grey paused, red not running) with its word, the file and fragment counts, a progress
+- **Menu bar icon:** laid out like macOS's Battery menu: a status dot in the corner in Apple's colours (green ready,
+  yellow indexing or waiting for your approval, grey paused, red not running; the word is in its tooltip), the file and fragment counts, a progress
   bar while indexing, pause / resume only while it applies, and "Lantern Settings…" at the bottom. A card with Index
   Now / Later appears when new files are found in "ask" mode. Folders are added in Settings → Folders; Quit Lantern
   is in Settings → About (or ⌘Q in a Lantern window).

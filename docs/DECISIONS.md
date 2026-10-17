@@ -998,6 +998,19 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   Not shipped. A tree is worth revisiting for file results (features: vector and BM25 ranks, coverage, kind,
   recency, opened history) once real opened results exist: replay `search_events` offline and compare.
 
+## The panel hang, one letter, learning from longer queries (2026-10-17)
+
+- **Hang and crash:** deleting a query with the Apps filter on (results disappearing while rows faded out) made the
+  panel loop between two sizes: SwiftUI resized the window, `setFrame` laid the content out, which asked for another
+  size; 100% CPU, later AppKit's "more Update Constraints passes than views" exception. Reproduced 5 of 5 times with
+  uneven typing. The cause was the results list's `LazyVStack`: its height is estimated lazily and the window size
+  follows it. A plain `VStack` (a few dozen rows at most) fixed it (0 of 7 runs); `setFrame` also skips unchanged
+  frames and does not draw when nested.
+- **One letter finds apps** (as in Spotlight) at a weak "letter" level (0.55), apps only (not settings panes).
+- **Learned choices count prefixes:** the rule only counted the same query, but a letter that showed nothing made the
+  user type on and the choice was logged under "discord", never under "d" (the simulation had assumed otherwise).
+  Choices of all queries starting with the typed text now count ("d" learns from "di", "disc", "discord").
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

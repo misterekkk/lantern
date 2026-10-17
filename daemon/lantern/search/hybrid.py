@@ -62,7 +62,8 @@ FILE_AGREE_RANK = 10  # a file found by every word must also rank this high by m
 FILE_MEANING_STRONG = 0.78  # top text vector score that counts as a clear meaning match (with a clear gap)
 _NAME_SCORES = {"exact": 0.97, "prefix": 0.93, "word": 0.85, "initials": 0.85, "typo": 0.8, "keyword": 0.75,
                 "leading": 0.76, "contains": 0.74,
-                "words": 0.8, "meaning": 0.42, "partial": 0.6, "category": 0.6}  # fmt: skip
+                "words": 0.8, "meaning": 0.42, "partial": 0.6, "category": 0.6,
+                "letter": 0.55}  # fmt: skip
 
 
 def _ramp(x: float, low: float, high: float) -> float:
@@ -474,15 +475,18 @@ LEARNED_DAYS = 180
 
 
 def learned_choice(conn: sqlite3.Connection, query: str) -> str | None:
-    """The row usually opened for exactly this query ("sl" -> Slack), like Alfred's knowledge: the app puts it first.
-    A query typed and opened often enough learns its answer; a newer habit takes over once it has the majority."""
+    """The row usually opened for queries starting with this text ("d" -> Discord, "sl" -> Slack), like Alfred's
+    knowledge: the app puts it first. Prefixes count, not only the same query: a letter that showed nothing made the
+    user type on ("di", "discord"), so the choice was logged under the longer query. A newer habit takes over once it
+    has the majority."""
     q = query.strip().casefold()
     if not q:
         return None
+    pattern = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     rows = conn.execute(
         "SELECT opened_key, COUNT(*) AS n FROM search_events WHERE opened_key IS NOT NULL AND ts >= ? "
-        "AND lower(trim(query)) = ? GROUP BY opened_key ORDER BY n DESC",
-        (db.now() - LEARNED_DAYS * 86400, q),
+        "AND lower(trim(query)) LIKE ? ESCAPE '\\' GROUP BY opened_key ORDER BY n DESC",
+        (db.now() - LEARNED_DAYS * 86400, pattern),
     ).fetchall()
     if not rows:
         return None
