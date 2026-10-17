@@ -977,6 +977,27 @@ Measured on the test index (local queries vs web-like ones):
 - **Apple Music cold start:** the first `play` on a just-launched Music only loads the song (paused); a second one
   plays it, and replaying faster than ~1.5 s keeps it stopped. Scripts play, wait up to 3 s, pause 1.5 s, retry (4×).
 
+## Learned choices vs a tree model (2026-10-17)
+
+Experiment (`spikes/ranking/`): 4000 simulated launches on the user's 102 real apps over ~90 days, Zipf popularity,
+habitual abbreviations, typos and initials, ranked by Lantern's real name matching; trained on 70%, tested on 1200.
+
+| ↩ opens the intended app | top-1 |
+|---|---|
+| A Lantern's name matching | 71.3% |
+| B learned rule, reordering the shown rows | 73.8% |
+| **B' learned rule, may add an app the names did not match** | **90.0%** |
+| C LightGBM LambdaRank (name score, level, history counts, recency) | 73.9% |
+| D rule + tree | 73.8% |
+| D' rule (may add) + tree | 90.1% |
+
+- In 22.8% of the test launches the intended app was not among the name matches at all (one letter, a typo, a
+  private abbreviation): no reranking can fix those; only remembering the choice can. B' is now shipped: a learned
+  app is added at the top even when its name does not match.
+- The tree's best feature was the share of past choices for the query, i.e. the rule itself; it adds 0.1 pp.
+  Not shipped. A tree is worth revisiting for file results (features: vector and BM25 ranks, coverage, kind,
+  recency, opened history) once real opened results exist: replay `search_events` offline and compare.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

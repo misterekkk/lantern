@@ -123,6 +123,12 @@ import Testing
         #expect(out.map(\.kind) == [.apps, .files] && out[0].results.first == slack)
         #expect(ResultLayout.learnedFirst(sections, key: nil) == sections)
         #expect(ResultLayout.learnedFirst(sections, key: "gone") == sections)
+        // learned but not matched by name ("d" -> Finder): added at the top; an uninstalled app is not
+        let finder = "app|0|-1|/System/Library/CoreServices/Finder.app|"
+        let added = ResultLayout.learnedFirst(sections, key: finder)
+        #expect(added[0].kind == .apps && added[0].results.first?.path == "/System/Library/CoreServices/Finder.app"
+                && added[0].results.count == 3 && added[0].results.first?.id == finder)
+        #expect(ResultLayout.learnedFirst(sections, key: "app|0|-1|/Applications/Gone.app|") == sections)
     }
 
     @Test func onlyPlainWordsAreSpellChecked() {

@@ -512,10 +512,20 @@ public enum ResultLayout {
     /// the query; above guesses by meaning.
     public static let webScore = 0.5
 
-    /// The learned row first: its section moves to the top and the row to the top of its section.
+    /// The learned row first: its section moves to the top and the row to the top of its section. A learned app
+    /// that the name match did not find ("d" -> Discord, a typo, a private abbreviation) is added: measured on
+    /// simulated launches, that lifted ↩ hitting the intended app from 74% to 90% (docs/DECISIONS.md).
     public static func learnedFirst(_ sections: [ResultSection], key: String?) -> [ResultSection] {
-        guard let key, let s = sections.firstIndex(where: { $0.results.contains { $0.id == key } }) else {
-            return sections
+        guard let key else { return sections }
+        guard let s = sections.firstIndex(where: { $0.results.contains { $0.id == key } }) else {
+            guard let app = appRow(key) else { return sections }
+            var out = sections
+            if let a = out.firstIndex(where: { $0.kind == .apps }) {
+                var apps = out.remove(at: a)
+                apps.results.insert(app, at: 0)
+                return [apps] + out
+            }
+            return [ResultSection(kind: .apps, results: [app])] + out
         }
         var section = sections[s]
         if let r = section.results.firstIndex(where: { $0.id == key }) {
@@ -524,6 +534,14 @@ public enum ResultLayout {
         var out = sections
         out.remove(at: s)
         return [section] + out
+    }
+
+    /// An application row from its row id ("app|0|-1|/Applications/Slack.app|"), if the app is still installed.
+    static func appRow(_ key: String) -> SearchResult? {
+        let parts = key.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 4, parts[0] == "app", FileManager.default.fileExists(atPath: parts[3]) else { return nil }
+        let name = (FileManager.default.displayName(atPath: parts[3]) as NSString).deletingPathExtension
+        return SearchResult(path: parts[3], chunkId: 0, symbol: name, kind: "app")
     }
 
     /// Adds the app's own sections (clipboard, web) to the daemon's, ordered on the same 0..1 scale.
