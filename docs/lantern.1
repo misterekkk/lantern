@@ -214,8 +214,19 @@ Socket path instead of
 .IR $LANTERN_HOME/lantern.sock
 (at most 104 bytes).
 .TP
+.B LANTERN_MEDIA
+Path to
+.B lantern\-media
+(AVFoundation decoder; set by the app, otherwise
+.I /Applications/Lantern.app
+or
+.IR app/build ;
+.B off
+forces
+.BR ffmpeg ).
+.TP
 .B LANTERN_FFMPEG
-Path to ffmpeg (otherwise PATH, then the Homebrew locations).
+Path to ffmpeg for MKV/WebM fallback (otherwise PATH, then the Homebrew locations).
 .TP
 .B LANTERN_NOTIFY
 .B 0

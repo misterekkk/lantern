@@ -186,7 +186,8 @@ several can be given at once (`lantern ignore add log tmp`).
 |---|---|
 | `LANTERN_HOME` | data folder instead of `~/Library/Application Support/Lantern` (index, settings, socket, logs) |
 | `LANTERN_SOCKET` | socket path instead of `$LANTERN_HOME/lantern.sock` (macOS limits socket paths to 104 bytes) |
-| `LANTERN_FFMPEG` | path to ffmpeg (otherwise `PATH`, then the Homebrew locations) |
+| `LANTERN_MEDIA` | path to `lantern-media` (AVFoundation decoder; set by the app, otherwise `/Applications/Lantern.app` or `app/build`; `off` forces `ffmpeg`) |
+| `LANTERN_FFMPEG` | path to `ffmpeg` for MKV/WebM fallback (otherwise `PATH`, then the Homebrew locations) |
 | `LANTERN_NOTIFY=0` | no notifications, whatever the setting says |
 | `LANTERN_WORKER_PRIORITY` | `background` (default) runs the indexing process with the background policy; any other value keeps normal priority |
 | `LANTERN_EMBEDDER=fake` | deterministic fake models: for tests and trying the CLI without downloading models |
@@ -216,8 +217,8 @@ printf '{"id": 1, "method": "search", "params": {"query": "invoice october", "li
 
 Methods include `ping`, `status`, `search` (`query`, `limit`, `log`, `category`), `index` (`path`, `force`),
 `remove` (`path`), `pending`, `approve`, `decline`, `pause`, `resume`, `config_get`, `config_set` (`key`, `value`),
-`exclude` (`action`, `pattern`), `extensions` (`action`, `extension`), `compact`, `clear_history`, `preview`, `perf`
-and `shutdown`. They are the `api_<method>` functions in
+`exclude` (`action`, `pattern`), `extensions` (`action`, `extension`), `compact`, `clear_history`, `preview`, `perf`,
+`download_models` (`models`) and `shutdown`. They are the `api_<method>` functions in
 `daemon/lantern/service/core.py`; the API is internal and may change between versions.
 
 ## Exit codes
