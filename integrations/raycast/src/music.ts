@@ -4,6 +4,9 @@
 // macOS asks once whether Raycast may control Music or Spotify. Only validated IDs go into the scripts.
 import { open } from "@raycast/api";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 export interface MusicHit {
   id: string;
@@ -51,11 +54,29 @@ function osascript(source: string): Promise<void> {
 const APPLE_ID = /^[0-9A-F]{16}$/;
 const SPOTIFY_ID = /^sp-[A-Za-z0-9]{1,40}$/;
 
+/**
+ * Liked Songs have no playlist URI: Spotify plays them as spotify:user:<id>:collection (spotify:collection:tracks only
+ * shows them). The id comes from the Spotify app's own local prefs, read only; nothing is sent anywhere.
+ */
+function likedCollection(): string | null {
+  try {
+    const prefs = readFileSync(path.join(os.homedir(), "Library", "Application Support", "Spotify", "prefs"), "utf8");
+    const user = prefs.match(/^autologin\.canonical_username="?([A-Za-z0-9._-]{1,64})"?$/m)?.[1];
+    return user ? `spotify:user:${user}:collection` : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function play(m: MusicHit): Promise<void> {
   if (m.source === "spotify") {
     if (!SPOTIFY_ID.test(m.id) || (m.playlist_id && !SPOTIFY_ID.test(m.playlist_id))) return;
     const list = m.kind === "playlist" ? m.id : m.playlist_id;
-    const listUri = list && list !== "sp-liked" ? `spotify:playlist:${list.slice(3)}` : null;
+    const listUri = list === "sp-liked" ? likedCollection() : list ? `spotify:playlist:${list.slice(3)}` : null;
+    if (m.kind === "playlist" && !listUri) {
+      await open("spotify:collection:tracks"); // Liked Songs without a known account: show them
+      return;
+    }
     const body =
       m.kind === "playlist"
         ? listUri
@@ -89,7 +110,13 @@ export async function play(m: MusicHit): Promise<void> {
 export async function show(m: MusicHit): Promise<void> {
   if (m.source === "spotify") {
     if (!SPOTIFY_ID.test(m.id)) return;
-    await open(m.kind === "playlist" ? `spotify:playlist:${m.id.slice(3)}` : `spotify:track:${m.id.slice(3)}`);
+    const view =
+      m.id === "sp-liked"
+        ? "spotify:collection:tracks"
+        : m.kind === "playlist"
+          ? `spotify:playlist:${m.id.slice(3)}`
+          : `spotify:track:${m.id.slice(3)}`;
+    await open(view);
     return;
   }
   if (!APPLE_ID.test(m.id)) return;

@@ -2,8 +2,21 @@
 // ↩ opens at the line or moment, ⌥↩ from the start, ⌘↩ shows in Finder, ⌘Y previews at the place, ⌃1…⌃0 filter
 // (the panel's digits; Raycast keeps ⌘1…⌘9 for "open the Nth result" and extensions cannot take them).
 // Raycast never reads the user's files: text, lines and thumbnails come from the daemon (lantern.ts).
-import { Action, ActionPanel, Detail, Icon, Keyboard, LaunchProps, List, getPreferenceValues, open } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  Icon,
+  Image,
+  Keyboard,
+  LaunchProps,
+  List,
+  environment,
+  getPreferenceValues,
+  open,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { useState } from "react";
 import { around, highlight } from "./highlight";
@@ -254,10 +267,41 @@ function isVideo(h: FileHit): boolean {
   return h.start_ms != null && VIDEO.has(path.extname(h.path).toLowerCase());
 }
 
-function kindIcon(h: FileHit, photo: boolean): Icon {
+/**
+ * The icon Finder shows for the file's type, without touching the file: macOS draws it for an empty sample file with
+ * the same extension, kept in the extension's own support folder (reading the real file in Downloads or Documents
+ * would make macOS ask to give Raycast access to that folder).
+ */
+function typeIcon(file: string): Image.ImageLike | null {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  if (!/^[a-z0-9]{1,10}$/.test(ext)) return null;
+  const folder = path.join(environment.supportPath, "type-icons");
+  const sample = path.join(folder, `sample.${ext}`);
+  try {
+    if (!existsSync(sample)) {
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(sample, "");
+    }
+    return { fileIcon: sample };
+  } catch {
+    return null;
+  }
+}
+
+function kindIcon(h: FileHit, photo: boolean): Image.ImageLike {
   if (photo) return Icon.Image;
-  if (isVideo(h)) return Icon.Video;
-  return KIND_ICONS[h.kind] ?? Icon.Document;
+  return typeIcon(h.path) ?? (isVideo(h) ? Icon.Video : (KIND_ICONS[h.kind] ?? Icon.Document));
+}
+
+const APP_ICONS = {
+  spotify: "/Applications/Spotify.app",
+  music: "/System/Applications/Music.app",
+  shortcuts: "/System/Applications/Shortcuts.app",
+  settings: "/System/Applications/System Settings.app",
+};
+
+function appIcon(app: string, fallback: Icon): Image.ImageLike {
+  return existsSync(app) ? { fileIcon: app } : fallback;
 }
 
 function where(h: FileHit): string {
@@ -446,11 +490,27 @@ function DefinitionItem({ d, ctx }: { d: DefinitionHit; ctx: Ctx }) {
 
 /* ---------- apps, settings, shortcuts, music ---------- */
 
+/** A small detail pane for rows that are not files, so the pane beside them is never empty. */
+function SimpleDetail({ labels }: { labels: [string, string][] }) {
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          {labels.map(([title, text]) => (
+            <List.Item.Detail.Metadata.Label key={title} title={title} text={text} />
+          ))}
+        </List.Item.Detail.Metadata>
+      }
+    />
+  );
+}
+
 function AppItem({ a, ctx }: { a: AppHit; ctx: Ctx }) {
   return (
     <List.Item
       title={a.name}
       icon={{ fileIcon: a.path }} // apps live in /Applications: no folder permission involved
+      detail={<SimpleDetail labels={[["Application", a.name], ["Location", shortPath(path.dirname(a.path))]]} />}
       actions={
         <ActionPanel>
           <Action
@@ -479,7 +539,8 @@ function SettingItem({ s, ctx }: { s: SettingHit; ctx: Ctx }) {
     <List.Item
       title={s.title}
       subtitle={s.is_pane ? "System Settings" : `System Settings › ${s.pane}`}
-      icon={Icon.Gear}
+      icon={appIcon(APP_ICONS.settings, Icon.Gear)}
+      detail={<SimpleDetail labels={[["Setting", s.title], ["In", s.is_pane ? "System Settings" : s.pane]]} />}
       actions={
         <ActionPanel>
           <Action
@@ -503,7 +564,8 @@ function ShortcutItem({ s, ctx }: { s: ShortcutHit; ctx: Ctx }) {
     <List.Item
       title={s.name}
       subtitle="Shortcut"
-      icon={Icon.Layers}
+      icon={appIcon(APP_ICONS.shortcuts, Icon.Layers)}
+      detail={<SimpleDetail labels={[["Shortcut", s.name], ["Runs in", "Shortcuts"]]} />}
       actions={
         <ActionPanel>
           <Action
@@ -535,8 +597,24 @@ function MusicItem({ m, ctx }: { m: MusicHit; ctx: Ctx }) {
     <List.Item
       title={m.title}
       subtitle={subtitle}
-      icon={m.kind === "playlist" ? Icon.List : Icon.Music}
+      icon={appIcon(m.source === "spotify" ? APP_ICONS.spotify : APP_ICONS.music, m.kind === "playlist" ? Icon.List : Icon.Music)}
       accessories={[{ text: m.source === "spotify" ? "Spotify" : "Music" }]}
+      detail={
+        <List.Item.Detail
+          metadata={
+            <List.Item.Detail.Metadata>
+              <List.Item.Detail.Metadata.Label title={m.kind === "playlist" ? "Playlist" : "Song"} text={m.title} />
+              {m.artist ? <List.Item.Detail.Metadata.Label title="Artist" text={m.artist} /> : null}
+              {m.album ? <List.Item.Detail.Metadata.Label title="Album" text={m.album} /> : null}
+              {m.playlist_name ? <List.Item.Detail.Metadata.Label title="From Playlist" text={m.playlist_name} /> : null}
+              {m.kind === "playlist" && m.count > 0 ? (
+                <List.Item.Detail.Metadata.Label title="Songs" text={String(m.count)} />
+              ) : null}
+              <List.Item.Detail.Metadata.Label title="App" text={m.source === "spotify" ? "Spotify" : "Music"} />
+            </List.Item.Detail.Metadata>
+          }
+        />
+      }
       actions={
         <ActionPanel>
           <Action
