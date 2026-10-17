@@ -257,12 +257,44 @@ private struct StatusRow: View {
 
 // MARK: - Panes
 
+/// Raycast or Alfred chosen in General: what to install there, and that Lantern keeps indexing in the background.
+private struct LauncherRow: View {
+    let launcher: SearchLauncher
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !launcher.isInstalled {
+                Label(launcher == .raycast ? "Raycast is not installed" : "Alfred is not installed",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            Text(launcher == .raycast
+                 ? "Lantern’s shortcut is off. In Raycast, type “Lantern” to find “Search Lantern”, or give it a hotkey or an alias in Raycast’s settings; Lantern keeps indexing and answers in the background."
+                 : "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                if launcher == .alfred, let workflow = SearchLauncher.alfredWorkflow {
+                    Button("Install the Alfred Workflow…") { NSWorkspace.shared.open(workflow) }
+                }
+                if launcher == .raycast {
+                    Button("How to Install the Raycast Extension…") { NSWorkspace.shared.open(SearchLauncher.raycastGuide) }
+                }
+            }
+            .disabled(!launcher.isInstalled)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 private struct GeneralPane: View {
     @EnvironmentObject var state: AppState
     @AppStorage(ShortcutHints.key) private var hints = ShortcutHints.row.rawValue
     @State private var language = AppLanguage.current
     @State private var askRestart = false
     @AppStorage(SearchShortcut.key) private var shortcut = SearchShortcut.optionSpace.rawValue
+    @AppStorage(SearchLauncher.key) private var launcher = SearchLauncher.lantern.rawValue
     @State private var spotlightOn = SpotlightShortcut.isOn
     @State private var addingLanguage = false
     @AppStorage(WebSearch.key) private var webSearch = WebSearch.google.rawValue
@@ -275,6 +307,17 @@ private struct GeneralPane: View {
                 Toggle(isOn: Binding(get: { state.launchAtLogin }, set: { state.launchAtLogin = $0 })) {
                     Text("Open Lantern at login")
                 }
+                Picker(selection: $launcher) {
+                    Text("Lantern’s panel").tag(SearchLauncher.lantern.rawValue)
+                    Text(verbatim: "Raycast").tag(SearchLauncher.raycast.rawValue)
+                    Text(verbatim: "Alfred").tag(SearchLauncher.alfred.rawValue)
+                } label: {
+                    Text("Search from")
+                }
+                .onChange(of: launcher) { _, _ in state.registerShortcut() }
+                if launcher != SearchLauncher.lantern.rawValue {
+                    LauncherRow(launcher: SearchLauncher(rawValue: launcher) ?? .lantern)
+                }
                 Picker(selection: $shortcut) {
                     Text(verbatim: SearchShortcut.optionSpace.label).tag(SearchShortcut.optionSpace.rawValue)
                     Text("\(SearchShortcut.commandSpace.label) (instead of Spotlight)").tag(SearchShortcut.commandSpace.rawValue)
@@ -283,7 +326,8 @@ private struct GeneralPane: View {
                     Text("Search shortcut")
                 }
                 .onChange(of: shortcut) { _, _ in state.registerShortcut() }
-                if shortcut == SearchShortcut.commandSpace.rawValue && spotlightOn {
+                .disabled(launcher != SearchLauncher.lantern.rawValue)  // dimmed, not hidden: it comes back when switched
+                if launcher == SearchLauncher.lantern.rawValue && shortcut == SearchShortcut.commandSpace.rawValue && spotlightOn {
                     // macOS gives ⌘Space to Spotlight until its shortcut is turned off; Lantern does not change it.
                     VStack(alignment: .leading, spacing: 8) {
                         Label("⌘ Space still opens Spotlight", systemImage: "exclamationmark.triangle.fill")

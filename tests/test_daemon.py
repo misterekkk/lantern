@@ -129,6 +129,8 @@ def test_search_through_the_api(start_daemon, project):
     assert r["corrected_query"] is None
     r = protocol.call("search", {"query": "przycinanie drzwa", "spelling": {"drzwa": ["drzwi", "drzewa"]}})
     assert r["corrected_query"] == "przycinanie drzewa" and r["results"][0]["path"].endswith("README.md")
+    passage = protocol.call("passage", {"chunk_id": r["results"][0]["chunk_id"]})  # the whole passage, for previews
+    assert passage["path"].endswith("README.md") and "drzew" in passage["text"].lower()
 
 
 def test_manual_pause_blocks_the_worker(start_daemon, project):

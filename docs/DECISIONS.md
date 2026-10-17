@@ -1047,6 +1047,59 @@ habitual abbreviations, typos and initials, ranked by Lantern's real name matchi
   empty quick phase is not shown (no flash of "No results"). Both are logged as one history row. The logic stays in
   the daemon, as the architecture requires.
 
+## Raycast and Alfred as front ends (2026-10-17, branch `development`)
+
+- Raycast and Alfred are launchers for automation; neither searches inside files. Both can show another program's
+  results: Raycast through an extension (TypeScript/React, `integrations/raycast`), Alfred through a Script Filter
+  workflow (`integrations/alfred`, macOS's python3 3.9, standard library only). Both talk to the daemon's Unix socket
+  directly (one JSON line each way), the same `search` and `opened` calls as the panel: no new API, no CLI in between.
+- They show what Lantern adds to a launcher: definitions, files (line, page, moment) and photos, in the daemon's
+  order. Apps and System Settings are left to the launcher (Raycast: an opt-in preference shows Lantern's too); music,
+  answers and the dictionary stay in Lantern's panel.
+- Opening matches the panel: the default app of the file, at the line for VS Code, VSCodium, Cursor, Xcode and
+  JetBrains IDEs, recordings in QuickTime at the moment, else a plain open. `opened` sends the panel's row id
+  (`kind|chunk|line|path|`), so learned choices are shared between the panel and the launcher.
+- Settings → General → **Search from** (`searchLauncher`: lantern | raycast | alfred). With a launcher, Lantern's
+  shortcut is not registered (the picker stays, dimmed); Alfred's workflow is built into the app's Resources by
+  build.sh and imported by opening it.
+- **One direction: Lantern in the launchers.** Launchers do not let extensions add rows to their main list; Raycast's
+  Fallback Commands can show "Search Lantern" under any query (the command takes `fallbackText`). The other direction
+  (Raycast and Alfred commands in Lantern's panel) was built and dropped: Raycast's built-in commands sit in an
+  encrypted database, so only extension commands could be listed ("create extension" found nothing), and half a
+  list of another launcher's commands is worse than none.
+- **The search shortcut never turned off.** `HotKey.instances` kept every hotkey alive, so `hotKey = nil` never
+  unregistered it (also when switching ⌥Space to ⌃⌥Space). `HotKey.invalidate()` releases it explicitly.
+- **No folder permissions for Raycast.** File icons and photo thumbnails made Raycast read files in Downloads and
+  Documents, and macOS asked to give Raycast access. Permissions belong to one app and cannot be passed on, and
+  Raycast's `Image.Source` takes URLs, local files and icons only (no data URIs), so the daemon makes the pictures:
+  `thumbnail` (lantern/thumbnails.py) writes a JPEG of an indexed photo or a video frame at the moment to
+  `~/Library/Caches/Lantern/thumbnails` (not a protected folder), deleted after 10 minutes and on daemon start.
+  Icons by kind otherwise, text from the daemon's preview; only Quick Look (⌘Y) reads the file itself.
+- Raycast gets the panel's filters on the panel's digits with ⌃ (⌃1 apps … ⌃0 music; 4, the clipboard, exists only in
+  the app's memory): Raycast keeps ⌘1…⌘9 for "open the Nth result" and an extension's ⌘-digit actions only fire
+  while the dropdown is open (found by the user), as actions and a dropdown beside the search field (the daemon's `category`); the chosen key again
+  returns to all kinds, like the panel's chips.
+- ⌘Y in Raycast is Lantern's own preview, not Quick Look: Quick Look cannot open a file at a line, page or moment.
+  Code: 30 lines around the result from the daemon (`preview`), the result's lines marked; text, PDFs and transcripts:
+  the whole indexed passage (`passage`, new: the reply carries only an excerpt) with the query in bold, ported from
+  `QueryHighlight` (stems, whole words, folded letters); videos: QuickTime paused at the moment. Quick Look stays on
+  ⇧⌘Y. The same preview, shorter, fills the detail pane beside the results.
+- Raycast's markdown renders `\(…\)`, `\[…\]` and `$…$` as LaTeX: passages are escaped without backslashes before
+  brackets, parentheses or `$` (HTML entities instead).
+- Raycast runs only the selected row's action shortcuts: every empty state (nothing typed, nothing of the chosen kind,
+  an error) carries the filter actions, or ⌃1…⌃0 beeped once a filter left no rows.
+- **Type icons without reading files:** Raycast's `fileIcon` of a file in Downloads asked for folder access; an empty
+  sample file per extension in the extension's support folder gives the same Finder icon (`typeIcon` in search.tsx).
+  Music, Shortcuts and System Settings rows show their app's icon.
+- **Spotify Liked Songs never played** (panel and Raycast): the row had no playlist URI and the command was skipped.
+  Tested silently (Spotify muted, state restored): `play track "spotify:collection:tracks"` and `spotify:collection`
+  do nothing; `spotify:user:<account>:collection` plays them. The account comes from Spotify's local prefs
+  (`autologin.canonical_username`), read when playing; without it the Liked Songs view opens.
+- Raycast: tested by the user (search, previews, thumbnails, filters). Alfred: not tested inside Alfred (the Powerpack
+  is paid); the script is tested against the daemon.
+- Not verified yet (user testing): the extension inside Raycast 2.8 (`ray develop`), the workflow inside Alfred 5
+  (its info.plist is written from the documented format, version 3 Script Filter), Quick Look of HEIC photos there.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1154,8 +1207,7 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 27. Line jumps in Cursor and JetBrains IDEs to verify live (VS Code verified); other editors (Zed, Sublime Text,
     BBEdit, Nova) to add once their mechanism is checked.
 28. The definitions section with many identical copies (e.g. "+4 copies") instead of filling every slot.
-29. GitHub Pages: enable Pages (source: GitHub Actions) once the repository is public; the workflow and the site are
-    ready in `.github/workflows/pages.yml` and `site/`.
+29. ~~GitHub Pages~~ — live at https://misterekkk.github.io/lantern/ (Astro site built by `.github/workflows/pages.yml`).
 30. PDF page jumps in viewers other than Preview (Skim, Acrobat) to verify; Preview cannot open a page.
 31. OCR on real libraries (phone photos of documents: perspective, blur) and on large screenshot folders; tuning the
     gate (two words of 3+ letters) if it lets through noise such as shirt numbers or shop signs.
@@ -1175,3 +1227,6 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     both ways.
 39. ~~Import other launchers' learned choices~~ — Alfred done (see "Importing Alfred's knowledge"). Still open: the
     exact form of Alfred's `knowledge.item` for apps (path or bundle id; both handled), LaunchBar's abbreviations.
+40. Raycast extension and Alfred workflow (integrations/) in the real launchers: to test by the user; then the
+    Raycast Store submission (needs `ray lint` with the store's ESLint config and a Raycast account) and an Alfred
+    Gallery entry.

@@ -202,7 +202,10 @@ enum MusicPlayer {
         }
         guard valid(song) ?? true, valid(playlist) ?? true else { return }
         let track = song.map { "spotify:track:" + $0.dropFirst(3) }
-        let list = playlist.flatMap { $0 == "sp-liked" ? nil : "spotify:playlist:" + $0.dropFirst(3) }
+        // Liked Songs have no playlist URI: Spotify plays them as spotify:user:<id>:collection (spotify:collection:tracks
+        // only shows them; tested). The id is read from Spotify's own local prefs; without it the view opens instead.
+        let liked = SpotifyAccount.collection
+        let list = playlist.flatMap { $0 == "sp-liked" ? liked : "spotify:playlist:" + $0.dropFirst(3) }
         let ready = "get player state"
         switch command {
         case .playSong:
@@ -212,9 +215,13 @@ enum MusicPlayer {
         case .revealSong:
             if let track, let url = URL(string: track) { NSWorkspace.shared.open(url) }
         case .revealPlaylist:
-            if let url = URL(string: list ?? "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
+            let view = playlist == "sp-liked" ? "spotify:collection:tracks" : list
+            if let url = URL(string: view ?? "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
         case .playPlaylist:
-            guard let list else { return }
+            guard let list else {  // Liked Songs without a known account: show them
+                if playlist == "sp-liked", let url = URL(string: "spotify:collection:tracks") { NSWorkspace.shared.open(url) }
+                return
+            }
             osascript(script(app: "Spotify", ready: ready, body: "play track \"\(list)\""), app: "Spotify")
         }
     }
@@ -273,5 +280,21 @@ enum AppLog {
         } else {
             try? data.write(to: file)
         }
+    }
+}
+
+/// The signed-in Spotify account, from the Spotify app's local prefs (`autologin.canonical_username`), read only and
+/// only to play Liked Songs; nothing is sent anywhere.
+enum SpotifyAccount {
+    static var collection: String? {
+        let prefs = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Spotify/prefs")
+        guard let text = try? String(contentsOf: prefs, encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n") where line.hasPrefix("autologin.canonical_username=") {
+            let user = line.dropFirst("autologin.canonical_username=".count).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            guard user.range(of: "^[A-Za-z0-9._-]{1,64}$", options: .regularExpression) != nil else { return nil }
+            return "spotify:user:\(user):collection"
+        }
+        return nil
     }
 }
