@@ -12,8 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://misterekkk.github.io/lantern/"><b>Try the interactive demo</b></a> (online once the repository is public)
-  · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/PRIVACY.md">Privacy</a>
+  <a href="https://misterekkk.github.io/lantern/"><b>Try the interactive demo</b></a> · <a href="docs/ARCHITECTURE.md">Architecture</a> · <a href="docs/PRIVACY.md">Privacy</a>
 </p>
 
 Search your Mac **by meaning**, not just by file name: text, code, documents, photos, recordings and videos.
