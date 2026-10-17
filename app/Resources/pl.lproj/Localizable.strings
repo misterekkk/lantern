@@ -220,7 +220,7 @@
 "Past queries and opened results are removed from this Mac." = "Dawne zapytania i otwierane wyniki zostaną usunięte z tego Maca.";
 "Local search by meaning in files, code, photos and recordings." = "Lokalne wyszukiwanie po znaczeniu w plikach, kodzie, zdjęciach i nagraniach.";
 "%lld files · %lld fragments" = "Pliki: %1$lld · fragmenty: %2$lld";
-"pid %lld · %lld MB" = "pid %lld · %lld MB";
+"PID %lld · %lld MB" = "PID %lld · %lld MB";
 "Indexing · %lld MB" = "Indeksuje · %lld MB";
 "Idle · %lld MB" = "Bezczynny · %lld MB";
 "Back" = "Wstecz";
@@ -229,7 +229,7 @@
 /* Compact counts (Format.count) */
 "%@ indexed" = "w indeksie: %@";
 "%@ files in the index" = "Plików w indeksie: %@";
-"%@ files · %@ fragments" = "Pliki: %1$@ · fragmenty: %2$@";
+"%@ files · %@ fragments" = "Pliki: %1$@ · Fragmenty: %2$@";
 
 /* PDFs and text in images */
 "%@  —  page %lld" = "%@  —  strona %lld";
@@ -364,5 +364,10 @@
 "Change…" = "Zmień…";
 "Save" = "Zapisz";
 "Lantern Settings…" = "Ustawienia Lantern…";
-"%@ files · %@ chunks · %lld MB" = "Pliki: %1$@ · fragmenty: %2$@ · %3$lld MB";
-"Search stops until you open Lantern again." = "Wyszukiwanie nie działa, dopóki ponownie nie otworzysz Lanterna.";
+"%@ files · %@ chunks · %lld MB" = "Pliki: %1$@ · Fragmenty: %2$@ · %3$lld MB";
+"Search Index" = "Indeks";
+"Quit Lantern…" = "Zakończ Lantern…";
+"Search and indexing run in the background" = "Wyszukiwanie i indeksowanie działają w tle";
+"Quit Lantern?" = "Zakończyć Lantern?";
+"Quit" = "Zakończ";
+"Search and indexing stop until you open Lantern again." = "Wyszukiwanie i indeksowanie zatrzymają się, dopóki ponownie nie otworzysz Lanterna.";

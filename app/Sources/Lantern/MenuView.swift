@@ -8,7 +8,7 @@ struct MenuView: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             if let error = state.connectionError, state.status == nil {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -45,8 +45,9 @@ struct MenuView: View {
                 SettingsWindowController.shared.show()
             }
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(width: 300)
         .animation(.smooth(duration: 0.28), value: state.status?.awaitingApproval)
         .animation(.smooth(duration: 0.28), value: state.status?.waitingForSettings)
         .animation(.smooth(duration: 0.28), value: state.status?.worker.running)
@@ -189,7 +190,7 @@ private struct MenuRow: View {
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 2)  // compact, like the rows of macOS's own menu extras
             .background(RoundedRectangle(cornerRadius: 6).fill(hovering ? Color.primary.opacity(0.08) : .clear))
             .contentShape(Rectangle())
         }

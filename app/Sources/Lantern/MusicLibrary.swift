@@ -136,6 +136,19 @@ enum MusicPlayer {
         """
     }
 
+    private static func untilPlaying(_ play: String) -> String {
+        """
+        repeat 4 times
+            \(play)
+            repeat 12 times
+                delay 0.25
+                if player state is playing then return
+            end repeat
+            delay 1.5
+        end repeat
+        """
+    }
+
     static func run(_ command: Command, song: String? = nil, playlist: String? = nil) {
         let valid = { (id: String?) in id.map { $0.range(of: "^[0-9A-F]{16}$", options: .regularExpression) != nil } }
         guard valid(song) ?? true, valid(playlist) ?? true else { return }
@@ -164,8 +177,10 @@ enum MusicPlayer {
         let body: String
         switch command {
         case .playSong:
+            // Measured on a cold start: the first `play` only loads the song and leaves it paused, a second one plays
+            // it; replaying too fast keeps it stopped. So: play, wait up to 3 s, pause 1.5 s, again (4 times).
             guard let track else { return }
-            body = "\(library)\nplay \(track)"
+            body = "\(library)\n" + Self.untilPlaying("play \(track)")
         case .revealSong:
             guard let track else { return }
             body = "\(library)\nreveal \(track)\nactivate"
@@ -174,7 +189,7 @@ enum MusicPlayer {
             body = "\(container)\nreveal p\nactivate"
         case .playPlaylist:
             guard playlist != nil else { return }
-            body = "\(container)\nplay p"
+            body = "\(container)\n" + Self.untilPlaying("play p")
         }
         osascript(script(app: "Music", ready: "get name of library playlist 1", body: body), app: "Music")
     }
@@ -206,14 +221,18 @@ enum MusicPlayer {
 
     /// Runs the script in the background; a refused permission (-1743) shows where to allow it, other errors go to
     /// the app's log (Console, "Lantern").
+    /// The command still running, if any: a new one replaces it, so a late `play` never interrupts the new choice.
+    nonisolated(unsafe) private static var running: Process?
+
     private static func osascript(_ source: String, app: String) {
+        if let running, running.isRunning { running.terminate() }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", source]
         let errors = Pipe()
         process.standardError = errors
         process.terminationHandler = { proc in
-            guard proc.terminationStatus != 0 else { return }
+            guard proc.terminationStatus != 0, proc.terminationReason == .exit else { return }  // replaced: not an error
             let message = String(data: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
             NSLog("Lantern: %@ script failed: %@", app, message)
             AppLog.write("\(app) script failed: \(message.trimmingCharacters(in: .whitespacesAndNewlines))")
@@ -222,6 +241,7 @@ enum MusicPlayer {
             }
         }
         try? process.run()
+        running = process
     }
 
     @MainActor private static func askForAutomation(_ app: String) {

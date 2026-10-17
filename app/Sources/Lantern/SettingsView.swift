@@ -791,6 +791,7 @@ private struct PrivacyPane: View {
 
 private struct AboutPane: View {
     @EnvironmentObject var state: AppState
+    @State private var confirmQuit = false
 
     var body: some View {
         SettingsPage {
@@ -813,21 +814,25 @@ private struct AboutPane: View {
             Section {
                 LabeledContent("Models") { Text("EmbeddingGemma 2 · SigLIP 2 · Whisper").foregroundStyle(.secondary) }
                 if let s = state.status {
-                    LabeledContent("Index") { Text("\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) fragments").foregroundStyle(.secondary) }
-                    LabeledContent("Daemon") { Text("pid \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }
+                    LabeledContent("Search Index") { Text("\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) fragments").foregroundStyle(.secondary) }
+                    LabeledContent("Daemon") { Text("PID \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }
                 }
-            }
-            Section {
-                // Lantern has no Dock icon or menu bar menu of its own, so quitting lives here (⌘Q works too while a
-                // Lantern window is in front). A plain button: macOS keeps red for actions that destroy data.
-                HStack {
-                    Spacer()
-                    Button("Quit Lantern") { NSApp.terminate(nil) }
+                // Lantern has no Dock icon, so quitting lives here, as an action row like "Sign Out…" in System
+                // Settings (⌘Q works too while a Lantern window is in front). It asks first, as Terminal and Safari do
+                // when quitting stops something; a plain button: macOS keeps red for actions that destroy data.
+                LabeledContent {
+                    Button("Quit Lantern…") { confirmQuit = true }
                         .keyboardShortcut("q", modifiers: .command)
+                } label: {
+                    Text("Search and indexing run in the background")
                 }
-            } footer: {
-                Text("Search stops until you open Lantern again.").font(.caption)
             }
+        }
+        .confirmationDialog("Quit Lantern?", isPresented: $confirmQuit) {
+            Button("Quit") { NSApp.terminate(nil) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Search and indexing stop until you open Lantern again.")
         }
     }
 }
