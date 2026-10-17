@@ -98,3 +98,18 @@ def test_cli_end_to_end_with_fake_embedder(project, lantern_home, monkeypatch):
 
     out = run_cli("index", str(project / "missing"), env=env)
     assert out.returncode == 1 and "Nothing was removed" in out.stderr
+
+
+def test_an_audio_window_close_to_everything_does_not_count():
+    import numpy as np
+
+    from lantern.search.basic import AUDIO_MIN_MARGIN, HUB_K, audio_margin
+
+    rng = np.random.default_rng(0)
+    refs = rng.normal(size=(40, 16)).astype(np.float32)
+    refs /= np.linalg.norm(refs, axis=1, keepdims=True)
+    hub = refs[:HUB_K].mean(axis=0)
+    hub /= np.linalg.norm(hub)  # close to many generic queries
+    usual = float(np.sort(refs @ hub)[-HUB_K:].mean())
+    assert audio_margin(usual + 0.003, hub, refs) < AUDIO_MIN_MARGIN  # "sea" on the music clip: not shown
+    assert audio_margin(usual + 0.02, hub, refs) >= AUDIO_MIN_MARGIN  # clearly above its usual level: shown

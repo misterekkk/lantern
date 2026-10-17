@@ -93,6 +93,79 @@ def _best_per_file(hits: list[Hit], limit: int) -> list[Hit]:
     return out
 
 
+# Audio windows (EmbeddingGemma's audio tower) are "hubs": some sit close to almost any query ("sea", "elephant" and
+# "forest" all found the same music clip first, all within 0.62–0.71). Each window's typical closeness to generic
+# queries is subtracted (CSLS-style) and only windows that stand out by AUDIO_MIN_MARGIN count; measured on the
+# user's index: "rain" +0.017, a talk about a dashboard +0.014, "sea" at most +0.003 (docs/DECISIONS.md).
+HUB_REFERENCES = (
+    "people talking",
+    "a man speaking",
+    "music playing",
+    "piano",
+    "guitar",
+    "a car engine",
+    "birds singing",
+    "dog barking",
+    "wind",
+    "rain",
+    "applause",
+    "a phone ringing",
+    "typing on a keyboard",
+    "a lecture",
+    "a meeting",
+    "kitchen sounds",
+    "traffic",
+    "a crowd",
+    "silence",
+    "footsteps",
+    "rozmowa ludzi",
+    "muzyka",
+    "wykład",
+    "spotkanie",
+    "szum",
+    "śpiew",
+    "telefon dzwoni",
+    "samochód",
+    "ptaki",
+    "kot miauczy",
+    "a baby crying",
+    "water running",
+    "a train",
+    "thunder",
+    "an interview",
+    "a podcast",
+    "a song",
+    "drums",
+    "laughter",
+    "a door closing",
+)
+HUB_K = 10
+AUDIO_MIN_MARGIN = 0.01
+_hub_refs: dict = {}
+
+
+def _hub_references(embedder: Embedder) -> np.ndarray:
+    key = embedder.model_info()  # vectors of one model only
+    if key not in _hub_refs:
+        _hub_refs[key] = embedder.embed_text([format_query(q) for q in HUB_REFERENCES]).astype(np.float32)
+    return _hub_refs[key]
+
+
+def audio_margin(score: float, vector: np.ndarray, refs: np.ndarray) -> float:
+    """How far a window's score stands above its usual closeness to generic queries (mean of its HUB_K best)."""
+    return score - float(np.sort(refs @ vector)[-HUB_K:].mean())
+
+
+def _drop_hub_audio(conn: sqlite3.Connection, embedder: Embedder, table: str, hits: list[Hit]) -> list[Hit]:
+    audio = {h.chunk_id: h.score for h in hits if h.kind == "audio"}
+    if not audio:
+        return hits
+    refs = _hub_references(embedder)
+    keep = {cid for cid, v in _vectors(conn, table, list(audio)).items()
+            if audio_margin(audio[cid], v, refs) >= AUDIO_MIN_MARGIN}  # fmt: skip
+    return [h for h in hits if h.kind != "audio" or h.chunk_id in keep]
+
+
 def vector_search(conn: sqlite3.Connection, embedder: Embedder, query: str, limit: int = 10) -> list[Hit]:
     model_id = db.find_model(conn, embedder.model_info())
     if model_id is None:  # nothing indexed with this model yet
@@ -102,7 +175,8 @@ def vector_search(conn: sqlite3.Connection, embedder: Embedder, query: str, limi
         f"SELECT chunk_id, distance FROM {db.vec_table(model_id)} WHERE embedding MATCH ? AND k = ?",
         (qv.tobytes(), limit * 5),
     ).fetchall()
-    return _best_per_file(_hits(conn, [(r[0], 1.0 - r[1]) for r in rows], query), limit)
+    hits = _hits(conn, [(r[0], 1.0 - r[1]) for r in rows], query)
+    return _best_per_file(_drop_hub_audio(conn, embedder, db.vec_table(model_id), hits), limit)
 
 
 def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[Hit]:

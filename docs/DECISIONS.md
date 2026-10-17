@@ -953,6 +953,17 @@ Measured on the test index (local queries vs web-like ones):
   transcript under 0.1 words/s. On the user's files: the four noise files lose all text, the 214 s talk keeps 392 of
   396 words. Pipeline audio v5 / video v7.
 
+## Audio windows are hubs (2026-10-17)
+
+- Measured on the user's 18 audio windows: EmbeddingGemma's audio tower scores every text query within 0.62–0.71, and
+  one music clip window was the top meaning match for "sea", "morze", "elephant", "słoń" and "forest" (hubness).
+  Subtracting each window's usual closeness to 40 generic reference queries (mean of its 10 best; CSLS-style) leaves
+  real matches clearly above zero ("rain" +0.017, a talk about a dashboard +0.014) and the hub at about +0.003. Audio
+  windows now count only at a margin of 0.01 or more (`basic.AUDIO_MIN_MARGIN`); transcripts, frames and file names
+  are unaffected. "sea" then shows no recording rather than a wrong one (the ocean clip has no matching words).
+- Apple Music: 569 of the user's 643 songs exist only in playlists (catalogue songs never added to the library), so
+  AppleScript cannot find them in `library playlist 1`; the song is looked up there first, then in its playlist.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
