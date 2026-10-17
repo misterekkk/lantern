@@ -310,6 +310,92 @@ def store_apps(conn: sqlite3.Connection, apps: list[AppInfo], languages: list[st
     return len(todo)
 
 
+@dataclass(frozen=True)
+class LauncherCommand:
+    """A command of another launcher, shown with the user's shortcuts: a Raycast extension command (opened through
+    its raycast:// link) or a keyword of an Alfred workflow (opened in Alfred with the keyword typed)."""
+
+    id: str
+    name: str
+    keyword: str | None
+    source: str  # raycast | alfred
+    detail: str  # the extension or workflow it belongs to
+    url: str  # raycast://extensions/… or alfred:search:<keyword> (the app runs Alfred's "search" AppleScript)
+
+
+RAYCAST_EXTENSIONS = Path.home() / ".config" / "raycast" / "extensions"
+ALFRED_HOME = Path.home() / "Library" / "Application Support" / "Alfred"
+_launcher: list[LauncherCommand] = []
+
+
+def scan_raycast(root: Path = RAYCAST_EXTENSIONS) -> list[LauncherCommand]:
+    """Commands of installed Raycast extensions, from each extension's package.json (names only). Raycast's own
+    built-in commands are not on disk in a readable form, so they are not listed; Lantern's extension is skipped."""
+    found = []
+    for manifest in sorted(root.glob("*/package.json")) if root.is_dir() else []:
+        try:
+            ext = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        name, owner = ext.get("name"), ext.get("owner") or ext.get("author")
+        if not isinstance(name, str) or not isinstance(owner, str) or name == "lantern":
+            continue
+        for cmd in ext.get("commands") or []:
+            if not isinstance(cmd, dict) or cmd.get("mode") == "menu-bar" or not cmd.get("name"):
+                continue
+            title = str(cmd.get("title") or cmd["name"])
+            url = f"raycast://extensions/{owner}/{name}/{cmd['name']}"
+            found.append(LauncherCommand(url, title, None, "raycast", str(ext.get("title") or name), url))
+    return found
+
+
+def _alfred_preferences(home: Path = ALFRED_HOME) -> Path:
+    """Alfred.alfredpreferences, also when synced elsewhere (prefs.json names the current one)."""
+    try:
+        current = json.loads((home / "prefs.json").read_text(encoding="utf-8")).get("current")
+        if isinstance(current, str) and Path(current).is_dir():
+            return Path(current)
+    except (OSError, ValueError):
+        pass
+    return home / "Alfred.alfredpreferences"
+
+
+def scan_alfred(home: Path = ALFRED_HOME) -> list[LauncherCommand]:
+    """Keywords of the user's enabled Alfred workflows (Keyword and Script Filter inputs), from each workflow's
+    info.plist: the keyword, its title and the workflow's name; nothing else is read."""
+    found = []
+    for info in sorted((_alfred_preferences(home) / "workflows").glob("*/info.plist")):
+        try:
+            with info.open("rb") as f:
+                wf = plistlib.load(f)
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            continue
+        if wf.get("disabled") or wf.get("bundleid") == "com.lantern.alfred":
+            continue
+        for obj in wf.get("objects") or []:
+            if obj.get("type") not in ("alfred.workflow.input.keyword", "alfred.workflow.input.scriptfilter"):
+                continue
+            config = obj.get("config") or {}
+            keyword = str(config.get("keyword") or "").strip()
+            if not keyword or obj.get("disabled"):
+                continue
+            title = str(config.get("title") or config.get("text") or wf.get("name") or keyword)
+            ident = f"alfred:{wf.get('bundleid') or info.parent.name}:{keyword}"
+            found.append(LauncherCommand(ident, title, keyword, "alfred", str(wf.get("name") or ""),
+                                         f"alfred:search:{keyword}"))  # fmt: skip
+    return found
+
+
+def refresh_launcher_commands() -> None:
+    """Kept in memory (no schema change): re-read with the apps, a few milliseconds."""
+    global _launcher
+    _launcher = scan_raycast() + scan_alfred()
+
+
+def launcher_commands() -> list[LauncherCommand]:
+    return _launcher
+
+
 def scan_shortcuts() -> list[tuple[str, str]]:
     """(identifier, name) of the user's shortcuts, from the Shortcuts command line tool (local)."""
     try:

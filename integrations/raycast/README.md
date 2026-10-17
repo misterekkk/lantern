@@ -27,4 +27,10 @@ Then in Lantern: Settings → General → Search from: **Raycast** (turns Lanter
 settings (sidebar → Lantern) give "Search Lantern" a hotkey or an alias such as `l`. Raycast itself opens on ⌥Space by
 default: to give that to Lantern, move Raycast's own hotkey first (sidebar → Raycast → Raycast Hotkey).
 
+To have Lantern under every Raycast query instead of a separate hotkey: Raycast's settings → Fallback Commands → add
+"Search Lantern". ↩ on it opens Lantern's results for the text you typed.
+
+The extension never reads your files itself (icons by kind, text from Lantern), so Raycast needs no access to your
+folders; only Quick Look (⌘Y) opens the file.
+
 `npm run build` type-checks and bundles into `dist/`.

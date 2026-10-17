@@ -1,6 +1,6 @@
 // "Search Lantern": Lantern's results in Raycast's window, in the order the daemon decides. ↩ opens at the line or
 // moment, ⌘↩ shows in Finder, ⌘Y Quick Look; the choice is recorded so Lantern keeps learning.
-import { Action, ActionPanel, Icon, List, getPreferenceValues, open } from "@raycast/api";
+import { Action, ActionPanel, Icon, LaunchProps, List, getPreferenceValues, open } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import path from "node:path";
 import { useState } from "react";
@@ -23,14 +23,15 @@ interface Preferences {
   includeApps: boolean;
 }
 
-export default function Command() {
+// As a Fallback Command (Raycast settings → Fallback Commands) it opens with the text typed in Raycast's root search.
+export default function Command(props: LaunchProps) {
   const { includeApps } = getPreferenceValues<Preferences>();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(props.fallbackText ?? "");
   const { data, isLoading, error } = usePromise(async (q: string) => (q.trim() ? search(q.trim()) : undefined), [query]);
 
   if (error instanceof NotRunning) {
     return (
-      <List onSearchTextChange={setQuery} throttle>
+      <List searchText={query} onSearchTextChange={setQuery} throttle>
         <List.EmptyView
           icon={Icon.ExclamationMark}
           title="Lantern is not running"
@@ -48,6 +49,7 @@ export default function Command() {
   return (
     <List
       isLoading={isLoading}
+      searchText={query}
       onSearchTextChange={setQuery}
       throttle
       isShowingDetail={!!data && hasFiles(data)}

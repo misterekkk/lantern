@@ -381,3 +381,4 @@
 "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack." = "Skrót Lanterna jest wyłączony. W Alfredzie wpisz l i zapytanie (albo nadaj workflow skrót); Lantern dalej indeksuje i odpowiada w tle. Workflow wymagają Powerpacka Alfreda.";
 "Install the Alfred Workflow…" = "Zainstaluj workflow Alfreda…";
 "How to Install the Raycast Extension…" = "Jak zainstalować rozszerzenie Raycasta…";
+"Commands" = "Polecenia";

@@ -178,3 +178,49 @@ def test_the_quick_phase_answers_by_name_without_files(conn, applications):
     resp = search(conn, FakeEmbedder(), "kalkul", log=False, quick=True)
     assert resp.apps[0].name == "Kalkulator" and resp.results == [] and resp.photos == []
     assert resp.sections()[0][0] == "apps"
+
+
+def test_raycast_and_alfred_commands_read_and_found(tmp_path, monkeypatch):
+    """Commands of Raycast extensions and Alfred workflow keywords join the shortcuts section by name or keyword;
+    menu-bar commands, Lantern's own extension and workflow, and disabled workflows are skipped."""
+    import json
+
+    from lantern.search.apps import shortcut_search
+
+    ext = tmp_path / "raycast" / "abc123"
+    ext.mkdir(parents=True)
+    (ext / "package.json").write_text(json.dumps({
+        "name": "github", "title": "GitHub", "author": "someone", "commands": [
+            {"name": "my-pull-requests", "title": "My Pull Requests", "mode": "view"},
+            {"name": "unread", "title": "Unread Notifications", "mode": "menu-bar"},
+        ]}))  # fmt: skip
+    own = tmp_path / "raycast" / "lantern"
+    own.mkdir()
+    (own / "package.json").write_text(json.dumps({"name": "lantern", "author": "x", "commands": [{"name": "search"}]}))
+    alfred = tmp_path / "alfred"
+    for folder, wf in {
+        "user.workflow.A": {"name": "Kill Process", "bundleid": "com.x.kill", "objects": [
+            {"type": "alfred.workflow.input.scriptfilter", "config": {"keyword": "kill", "title": "Kill a process"}}]},
+        "user.workflow.B": {"name": "Off", "disabled": True, "objects": [
+            {"type": "alfred.workflow.input.keyword", "config": {"keyword": "off", "text": "Disabled"}}]},
+    }.items():  # fmt: skip
+        (alfred / "Alfred.alfredpreferences" / "workflows" / folder).mkdir(parents=True)
+        (alfred / "Alfred.alfredpreferences" / "workflows" / folder / "info.plist").write_bytes(plistlib.dumps(wf))
+
+    raycast = apps_mod.scan_raycast(tmp_path / "raycast")
+    assert [(c.name, c.url) for c in raycast] == [
+        ("My Pull Requests", "raycast://extensions/someone/github/my-pull-requests")
+    ]
+    workflows = apps_mod.scan_alfred(alfred)
+    assert [(c.name, c.keyword, c.url, c.detail) for c in workflows] == [
+        ("Kill a process", "kill", "alfred:search:kill", "Kill Process")
+    ]
+
+    monkeypatch.setattr(apps_mod, "_launcher", raycast + workflows)
+    conn = db.connect(tmp_path / "index.db")
+    try:
+        assert [(h.name, h.source) for h in shortcut_search(conn, "pull")] == [("My Pull Requests", "raycast")]
+        hit = shortcut_search(conn, "kill")[0]
+        assert (hit.source, hit.url, hit.detail) == ("alfred", "alfred:search:kill", "Kill Process")
+    finally:
+        conn.close()

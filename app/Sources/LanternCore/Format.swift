@@ -43,7 +43,7 @@ public enum Format {
         switch r.kind {
         case "answer", "web", "clipboard", "menu", "window": return r.preview
         case "dictionary": return String(localized: "Dictionary")
-        case "shortcut": return String(localized: "Shortcut")
+        case "shortcut": return r.preview.isEmpty ? String(localized: "Shortcut") : r.preview  // "Raycast · GitHub"
         case "song":
             let about = [r.musicArtist, r.musicAlbum].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             guard let list = r.musicPlaylist else { return about }

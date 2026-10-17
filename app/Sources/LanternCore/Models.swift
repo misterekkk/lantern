@@ -169,19 +169,37 @@ public struct WordDefinitionResult: Decodable, Equatable, Sendable {
     }
 }
 
-/// One of the user's shortcuts (Shortcuts app); ↩ runs it.
+/// A command: one of the user's shortcuts (Shortcuts app), a Raycast extension command or an Alfred workflow
+/// keyword (`apps.scan_raycast` / `scan_alfred` in the daemon); ↩ runs it in its app.
 public struct ShortcutResult: Decodable, Equatable, Sendable {
     public var id: String
     public var name: String
     public var match: String
+    public var source: String?  // shortcuts (default) | raycast | alfred
+    public var detail: String?  // the extension or workflow
+    public var keyword: String?
+    public var url: String?  // raycast://extensions/… or alfred:search:<keyword>
+
+    public static let alfredPrefix = "alfred:search:"
 
     public var asResult: SearchResult {
-        var parts = URLComponents(string: "shortcuts://run-shortcut")!
-        parts.queryItems = [URLQueryItem(name: "name", value: name)]
-        var row = SearchResult(path: parts.url?.absoluteString ?? "shortcuts://", chunkId: 0, symbol: name,
-                               kind: "shortcut")
-        row.iconPath = "/System/Applications/Shortcuts.app"
-        return row
+        switch source {
+        case "raycast", "alfred":
+            var row = SearchResult(path: url ?? "", chunkId: 0, symbol: name, kind: "shortcut")
+            let app = source == "raycast" ? "Raycast" : "Alfred"
+            row.preview = [app, detail, keyword].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            row.iconPath = (source == "raycast" ? ["/Applications/Raycast.app"]
+                            : ["/Applications/Alfred 5.app", "/Applications/Alfred 4.app", "/Applications/Alfred.app"])
+                .first { FileManager.default.fileExists(atPath: $0) }
+            return row
+        default:
+            var parts = URLComponents(string: "shortcuts://run-shortcut")!
+            parts.queryItems = [URLQueryItem(name: "name", value: name)]
+            var row = SearchResult(path: parts.url?.absoluteString ?? "shortcuts://", chunkId: 0, symbol: name,
+                                   kind: "shortcut")
+            row.iconPath = "/System/Applications/Shortcuts.app"
+            return row
+        }
     }
 }
 

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lantern.apps import CATEGORY_NAMES, usage
+from lantern.apps import CATEGORY_NAMES, launcher_commands, usage
 from lantern.embedding.base import format_query
 from lantern.store import db
 from lantern.textnorm import fold
@@ -103,15 +103,24 @@ class ShortcutHit:
     name: str
     match: str
     score: float
+    source: str = "shortcuts"  # shortcuts | raycast | alfred
+    detail: str | None = None  # the Raycast extension or Alfred workflow
+    keyword: str | None = None  # Alfred's keyword
+    url: str | None = None  # how the app opens a Raycast or Alfred command
 
 
 def shortcut_search(conn: sqlite3.Connection, query: str, limit: int = APP_SECTION_SIZE) -> list[ShortcutHit]:
-    """The user's shortcuts (Shortcuts app) by name, like apps."""
+    """The user's shortcuts (Shortcuts app) and the commands of Raycast and Alfred (lantern/apps.py) by name, like
+    apps; an Alfred keyword counts as a name."""
     hits = []
     for sid, name in conn.execute("SELECT id, name FROM shortcuts"):
         m = name_match(query, [name], [])
         if m:
             hits.append(ShortcutHit(sid, name, m[0], m[1]))
+    for c in launcher_commands():
+        m = name_match(query, [c.name, *([c.keyword] if c.keyword else [])], [])
+        if m:
+            hits.append(ShortcutHit(c.id, c.name, m[0], m[1], c.source, c.detail, c.keyword, c.url))
     hits.sort(key=lambda h: (-h.score, len(h.name)))
     return hits[:limit]
 

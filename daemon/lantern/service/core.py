@@ -652,6 +652,7 @@ class Daemon:
             return
         self._apps_checked = now
         shortcuts = apps_mod.scan_shortcuts()  # cheap (~30 ms) and they change often: every check
+        apps_mod.refresh_launcher_commands()  # Raycast and Alfred commands, names only, memory only
         usage_conn = self._conn()
         try:  # how much each app is used (Spotlight's counts): name-match ties go to the used one
             apps_mod.refresh_usage([r[0] for r in usage_conn.execute("SELECT path FROM apps")])
