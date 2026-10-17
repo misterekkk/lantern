@@ -56,7 +56,9 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     your login keychain. Searching and playing work offline from the local copy. Switching it off or signing out deletes the list.
 16. **Spelling:** guesses come from macOS's spell checker (NSSpellChecker, on the Mac); Lantern never teaches it
     words and sends nothing out. The daemon only compares the guesses with the index.
-17. **Search history** (`search_events`) is local only: queries and result positions, no file contents.
+17. **Search history** (`search_events`) is local only: queries, result positions and the row you
+    opened, no file contents. It teaches Lantern your usual choice for a query ("sl" → Slack); Settings → Privacy →
+    Keep search history switches it off.
     `lantern search --no-log` skips it, `lantern clear-history` deletes it and compacts the database.
 
 ## Where the data is

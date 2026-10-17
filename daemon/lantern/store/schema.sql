@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS search_events (
     ts               INTEGER NOT NULL,
     query            TEXT NOT NULL,
     results_json     TEXT NOT NULL,          -- returned chunks with features (ranks, scores, source)
-    opened_chunk_id  INTEGER
+    opened_chunk_id  INTEGER,
+    opened_key       TEXT                    -- the row the app opened (its own id): learned choices, like Alfred's
 );
 
 -- Applications (lantern/apps.py): names, category and one text vector each; rebuilt from the bundles.

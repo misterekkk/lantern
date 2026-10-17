@@ -265,6 +265,8 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     /// app adds its own (clipboard, web) on the same scale.
     public var sectionScores: [String: Double]
     public var music: [MusicResult]
+    /// The row usually opened for exactly this query (`hybrid.learned_choice`): shown first.
+    public var learned: String?
     /// The query the daemon searched instead, when a spelling guess replaced an unknown word (`search/spelling.py`).
     public var correctedQuery: String?
     public var eventId: Int?
@@ -274,7 +276,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case results, photos, photosFirst, definitions, categories, category, completion, apps, appsFirst, eventId
         case settings, settingsFirst, settingsAppName, shortcuts, answer, definition, definitionFirst, sectionScores
-        case vectorMs, keywordMs, correctedQuery, music
+        case vectorMs, keywordMs, correctedQuery, music, learned
     }
 
     public init(from decoder: Decoder) throws {
@@ -299,6 +301,7 @@ public struct SearchResponse: Decodable, Equatable, Sendable {
         sectionScores = try c.decodeIfPresent([String: Double].self, forKey: .sectionScores) ?? [:]
         correctedQuery = try c.decodeIfPresent(String.self, forKey: .correctedQuery)
         music = try c.decodeIfPresent([MusicResult].self, forKey: .music) ?? []
+        learned = try c.decodeIfPresent(String.self, forKey: .learned)
         eventId = try c.decodeIfPresent(Int.self, forKey: .eventId)
         vectorMs = try c.decode(Double.self, forKey: .vectorMs)
         keywordMs = try c.decode(Double.self, forKey: .keywordMs)
@@ -508,6 +511,20 @@ public enum ResultLayout {
     /// The web row's place on the daemon's scale: below answers, name matches and files that contain every word of
     /// the query; above guesses by meaning.
     public static let webScore = 0.5
+
+    /// The learned row first: its section moves to the top and the row to the top of its section.
+    public static func learnedFirst(_ sections: [ResultSection], key: String?) -> [ResultSection] {
+        guard let key, let s = sections.firstIndex(where: { $0.results.contains { $0.id == key } }) else {
+            return sections
+        }
+        var section = sections[s]
+        if let r = section.results.firstIndex(where: { $0.id == key }) {
+            section.results.insert(section.results.remove(at: r), at: 0)
+        }
+        var out = sections
+        out.remove(at: s)
+        return [section] + out
+    }
 
     /// Adds the app's own sections (clipboard, web) to the daemon's, ordered on the same 0..1 scale.
     public static func merge(_ sections: [ResultSection], scores: [String: Double],

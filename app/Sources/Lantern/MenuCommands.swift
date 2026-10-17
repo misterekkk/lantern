@@ -153,6 +153,34 @@ final class MenuCommands {
         }
     }
 
+    /// Presses the first menu item of `app` whose title starts with one of `titles` ("New Window", "Nowe okno"),
+    /// searching the menus two levels deep. Needs the Accessibility permission; false when nothing was pressed.
+    @discardableResult
+    static func press(_ titles: [String], in app: NSRunningApplication) -> Bool {
+        guard trusted else { return false }
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(root, 0.5)
+        guard let bar: AXUIElement = attribute(root, kAXMenuBarAttribute) else { return false }
+        let wanted = titles.map { $0.lowercased() }
+        func find(_ element: AXUIElement, depth: Int) -> AXUIElement? {
+            for child in children(element) {
+                if let title = string(child, kAXTitleAttribute)?.lowercased(),
+                   wanted.contains(where: { title.hasPrefix($0) }),
+                   (attribute(child, kAXEnabledAttribute) as Bool?) ?? true {
+                    return child
+                }
+                if depth < 3, let hit = find(child, depth: depth + 1) { return hit }
+            }
+            return nil
+        }
+        for top in children(bar).dropFirst() {
+            if let item = find(top, depth: 0) {
+                return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+            }
+        }
+        return false
+    }
+
     // MARK: Accessibility helpers
 
     private static func attribute<T>(_ element: AXUIElement, _ name: String) -> T? {

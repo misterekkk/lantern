@@ -174,6 +174,9 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   or a setting): "faktrua za prad" shows "Showing results for faktura za prad · Search for “faktrua za prad”
   instead". With no known guess the query stays as typed.
 - **↩ on an answer** copies it; on a word definition it opens Dictionary; on a shortcut it runs it.
+- **Learned choices:** a query you keep answering with the same result ("sl" → Slack) puts that result first from
+  the second time on. ⌥↩ on an app opens a new window (browsers, Safari, Finder; other apps through their menu when
+  menu items are on).
 - **Inline completion:** while you type, the rest of a likely query appears in grey; → accepts it. Suggestions come
   from your earlier searches that led to an opened result, then from app and System Settings names, then function
   and file names in the index (never from the internet, never invented sentences).

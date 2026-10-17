@@ -344,3 +344,13 @@ def test_music_library_through_the_api(start_daemon):
     assert hit["title"] == "SKELETONS" and hit["playlist_name"] == "Gym"
     assert protocol.call("music", {"clear": True})["songs"] == 0
     assert protocol.call("search", {"query": "skeletons", "log": False})["music"] == []
+
+
+def test_a_query_learns_the_row_usually_opened(start_daemon):
+    start_daemon(mode="ask")
+    key = "app|0|-1|/Applications/Slack.app|"
+    for _ in range(2):
+        event = protocol.call("search", {"query": "sl"})["event_id"]
+        protocol.call("opened", {"event_id": event, "chunk_id": 0, "key": key})  # an opened search is never merged
+    assert protocol.call("search", {"query": "SL", "log": False})["learned"] == key
+    assert protocol.call("search", {"query": "slack", "log": False})["learned"] is None  # only that exact query

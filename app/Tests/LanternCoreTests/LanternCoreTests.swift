@@ -114,6 +114,17 @@ import Testing
         #expect(spotify.asResult.iconPath == "/Applications/Spotify.app")
     }
 
+    @Test func theLearnedRowComesFirst() {
+        let slack = SearchResult(path: "/Applications/Slack.app", chunkId: 0, symbol: "Slack", kind: "app")
+        let sleep = SearchResult(path: "/Applications/Sleep.app", chunkId: 0, symbol: "Sleep", kind: "app")
+        let file = SearchResult(path: "/a/slajdy.pdf", chunkId: 4, kind: "pdf")
+        let sections = [ResultSection(kind: .files, results: [file]), ResultSection(kind: .apps, results: [sleep, slack])]
+        let out = ResultLayout.learnedFirst(sections, key: slack.id)
+        #expect(out.map(\.kind) == [.apps, .files] && out[0].results.first == slack)
+        #expect(ResultLayout.learnedFirst(sections, key: nil) == sections)
+        #expect(ResultLayout.learnedFirst(sections, key: "gone") == sections)
+    }
+
     @Test func onlyPlainWordsAreSpellChecked() {
         #expect(SpellingWords.candidates(in: "faktrua za prad") == ["faktrua", "prad"])
         #expect(SpellingWords.candidates(in: "IrisDatabase backoff_wrapper v2 config.toml ORA-01555 USB") == [])

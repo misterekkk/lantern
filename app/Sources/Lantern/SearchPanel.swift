@@ -281,7 +281,7 @@ final class SearchModel: ObservableObject {
         Task {
             defer { searching = false }
             do {
-                var params: [String: Any] = ["query": q, "limit": 8]
+                var params: [String: Any] = ["query": q, "limit": 8, "log": SearchHistory.enabled]
                 if let category { params["category"] = category.rawValue }
                 if let spelling { params["spelling"] = spelling }
                 let resp = try await AppState.shared.client.call("search", params, as: SearchResponse.self, timeout: 10)
@@ -298,7 +298,8 @@ final class SearchModel: ObservableObject {
                 var swap = Transaction()
                 swap.disablesAnimations = spelling != nil
                 withTransaction(swap) {
-                    sections = ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra)
+                    sections = ResultLayout.learnedFirst(
+                        ResultLayout.merge(resp.sections, scores: resp.sectionScores, extra: extra), key: resp.learned)
                     categories = resp.categories + (clipboard != nil ? [.clipboard] : [])
                     completion = resp.completion
                     correctedQuery = resp.correctedQuery
@@ -397,7 +398,11 @@ final class SearchModel: ObservableObject {
                 MenuCommands.shared.perform(hit.path)
                 return
             } else if hit.isApp {
-                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                if action == .fromStart {
+                    NewWindow.open(url)  // ⌥↩: a new window
+                } else {
+                    NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                }
             } else if hit.isAnswer {  // ↩ copies the answer
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
@@ -468,10 +473,20 @@ final class SearchModel: ObservableObject {
     }
 
     private func recordOpened(_ hit: SearchResult) {
-        if let eventId, hit.chunkId >= 0 {  // which result was chosen: training data for a future reranker
-            Task { try? await AppState.shared.client.callRaw("opened", ["event_id": eventId, "chunk_id": hit.chunkId]) }
+        // Which row was chosen: learned choices ("sl" + ↩ -> Slack) and training data for a future ranking model.
+        guard SearchHistory.enabled, let eventId, hit.chunkId >= 0 else { return }
+        Task {
+            try? await AppState.shared.client.callRaw("opened", ["event_id": eventId, "chunk_id": hit.chunkId,
+                                                                 "key": hit.id])
         }
     }
+}
+
+/// Settings → Privacy → Search history (on by default): searches and chosen results are kept in the local index
+/// (`search_events`, never file contents) to learn the usual choice for a query and, later, to rank results.
+enum SearchHistory {
+    static let key = "searchHistory"
+    static var enabled: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
 }
 
 enum ShortcutHints: String, CaseIterable {

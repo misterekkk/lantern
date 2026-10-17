@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold, is_blob
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -46,6 +46,12 @@ def _add_music_source(conn: sqlite3.Connection) -> None:
     """Music from two sources (Apple Music, Spotify), each replacing only its own rows."""
     if "source" not in {r[1] for r in conn.execute("PRAGMA table_info(music)")}:
         conn.execute("ALTER TABLE music ADD COLUMN source TEXT NOT NULL DEFAULT 'apple'")
+
+
+def _add_opened_key(conn: sqlite3.Connection) -> None:
+    """Which row was opened (apps, settings and songs all have chunk 0): learned choices per query."""
+    if "opened_key" not in {r[1] for r in conn.execute("PRAGMA table_info(search_events)")}:
+        conn.execute("ALTER TABLE search_events ADD COLUMN opened_key TEXT")
 
 
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
@@ -119,6 +125,7 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
 )"""
     ],
     11: [_add_music_source],
+    12: [_add_opened_key],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.

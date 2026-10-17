@@ -592,6 +592,7 @@ private struct PrivacyPane: View {
     @State private var compacting = false
     @State private var compactResult: String?
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
+    @AppStorage(SearchHistory.key) private var searchHistory = true
     @AppStorage(MenuCommands.key) private var menuCommands = false
     @AppStorage(MusicSync.key) private var appleMusic = false
     @AppStorage(SpotifySync.enabledKey) private var spotify = false
@@ -615,6 +616,7 @@ private struct PrivacyPane: View {
             PaneHeader(symbol: "hand.raised.fill", color: .indigo, title: "Privacy",
                        text: "Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on.")
             Section {
+                Toggle("Keep search history", isOn: $searchHistory)
                 Button { confirmClear = true } label: {
                     Text("Clear Search History…")
                 }
@@ -637,7 +639,11 @@ private struct PrivacyPane: View {
             } header: {
                 Text("Data")
             } footer: {
-                if let compactResult { Text(compactResult).font(.caption) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Search history stays on this Mac: your queries and the results you open, never file contents. Lantern learns from it which result you usually pick for a query (“sl” → Slack).")
+                    if let compactResult { Text(compactResult) }
+                }
+                .font(.caption)
             }
             Section {
                 Picker(selection: $clipboardHistory) {

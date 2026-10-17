@@ -24,7 +24,7 @@ from pathlib import Path
 from lantern import config
 from lantern.api import protocol
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
-from lantern.search.hybrid import clear_history, mark_opened, search
+from lantern.search.hybrid import clear_history, learned_choice, mark_opened, search
 from lantern.service import notify as notify_mod
 from lantern.service import power as power_mod
 from lantern.service import qos
@@ -445,13 +445,22 @@ class Daemon:
             "definition_first": resp.definition_first,
             "section_scores": resp.section_scores, "order": [name for name, _ in resp.sections()],
             "corrected_query": resp.corrected_query, "music": [asdict(m) for m in resp.music],
+            "learned": self._learned(resp.corrected_query or query),
         }  # fmt: skip
 
-    def api_opened(self, event_id: int, chunk_id: int) -> dict:
-        """Record which result of a search the user opened (training data for a future reranker)."""
+    def _learned(self, query: str) -> str | None:
         conn = self._conn()
         try:
-            mark_opened(conn, int(event_id), int(chunk_id))
+            return learned_choice(conn, query)
+        finally:
+            conn.close()
+
+    def api_opened(self, event_id: int, chunk_id: int, key: str | None = None) -> dict:
+        """Record which result of a search the user opened (learned choices; training data for a future reranker).
+        key: the app's id of the row (apps, settings and songs all have chunk 0)."""
+        conn = self._conn()
+        try:
+            mark_opened(conn, int(event_id), int(chunk_id), str(key)[:500] if key else None)
         finally:
             conn.close()
         return {"ok": True}

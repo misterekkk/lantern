@@ -964,6 +964,19 @@ Measured on the test index (local queries vs web-like ones):
 - Apple Music: 569 of the user's 643 songs exist only in playlists (catalogue songs never added to the library), so
   AppleScript cannot find them in `library playlist 1`; the song is looked up there first, then in its playlist.
 
+## Learned choices, ⌥↩ new window (2026-10-17)
+
+- **Learned choices, like Alfred's knowledge.** `search_events.opened_key` (schema 13) keeps the app's id of the row
+  opened (apps, settings and songs all share chunk 0). For exactly the same query (case-insensitive, last 180 days),
+  a row opened at least twice and in at least 60% of the choices is returned as `learned` and shown first. Rules,
+  not a model: it works from the second time and can be explained. A tree model (LightGBM) stays off the list until
+  enough real choices exist (see the experiment below); history can be switched off in Settings → Privacy.
+- **⌥↩ on an app opens a new window**, ↩ keeps Spotlight's behaviour (the app comes forward with its windows):
+  Chromium browsers and Firefox via `--new-window` (a second launch hands it to the running browser), Safari and
+  Finder via their scripting, other apps by pressing "New Window" in their menu when menu items are on.
+- **Apple Music cold start:** the first `play` on a just-launched Music only loads the song (paused); a second one
+  plays it, and replaying faster than ~1.5 s keeps it stopped. Scripts play, wait up to 3 s, pause 1.5 s, retry (4×).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

@@ -463,8 +463,32 @@ def last_event(conn: sqlite3.Connection) -> sqlite3.Row | None:
     return conn.execute("SELECT id, query, results_json FROM search_events ORDER BY id DESC LIMIT 1").fetchone()
 
 
-def mark_opened(conn: sqlite3.Connection, event_id: int, chunk_id: int) -> None:
-    conn.execute("UPDATE search_events SET opened_chunk_id = ? WHERE id = ?", (chunk_id, event_id))
+def mark_opened(conn: sqlite3.Connection, event_id: int, chunk_id: int, key: str | None = None) -> None:
+    conn.execute("UPDATE search_events SET opened_chunk_id = ?, opened_key = ? WHERE id = ?",
+                 (chunk_id, key, event_id))  # fmt: skip
+
+
+LEARNED_MIN = 2  # chosen at least this often for the same query
+LEARNED_SHARE = 0.6  # and in at least this share of the choices for it
+LEARNED_DAYS = 180
+
+
+def learned_choice(conn: sqlite3.Connection, query: str) -> str | None:
+    """The row usually opened for exactly this query ("sl" -> Slack), like Alfred's knowledge: the app puts it first.
+    A query typed and opened often enough learns its answer; a newer habit takes over once it has the majority."""
+    q = query.strip().casefold()
+    if not q:
+        return None
+    rows = conn.execute(
+        "SELECT opened_key, COUNT(*) AS n FROM search_events WHERE opened_key IS NOT NULL AND ts >= ? "
+        "AND lower(trim(query)) = ? GROUP BY opened_key ORDER BY n DESC",
+        (db.now() - LEARNED_DAYS * 86400, q),
+    ).fetchall()
+    if not rows:
+        return None
+    total = sum(r["n"] for r in rows)
+    top = rows[0]
+    return top["opened_key"] if top["n"] >= LEARNED_MIN and top["n"] / total >= LEARNED_SHARE else None
 
 
 def clear_history(conn: sqlite3.Connection) -> int:
