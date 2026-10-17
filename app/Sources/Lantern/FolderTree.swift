@@ -263,20 +263,20 @@ private struct TreeRow: View {
 enum TreeReason {
     static func label(_ reason: String?) -> String {
         switch reason {
-        case "hidden": String(localized: "hidden")
-        case "secret": String(localized: "secrets")
-        case "build": String(localized: "build or cache")
+        case "hidden": String(localized: "Hidden item")
+        case "secret": String(localized: "Secrets")
+        case "build": String(localized: "Build or cache")
         case "gitignore": String(localized: ".gitignore")
-        case "extension": String(localized: "ignored extension")
-        case "unsupported": String(localized: "type not indexed")
-        case "photos_off": String(localized: "photos off")
-        case "media_off": String(localized: "audio and video off")
-        case "system": String(localized: "system folder")
+        case "extension": String(localized: "Ignored extension")
+        case "unsupported": String(localized: "Type not indexed")
+        case "photos_off": String(localized: "Photos off")
+        case "media_off": String(localized: "Audio and video off")
+        case "system": String(localized: "System folder")
         case "bundle": String(localized: "macOS package")
-        case "generated": String(localized: "generated file")
+        case "generated": String(localized: "Generated file")
         case "cloud": String(localized: "iCloud only")
-        case "symlink": String(localized: "link")
-        case "pattern": String(localized: "exclusion pattern")
+        case "symlink": String(localized: "Link")
+        case "pattern": String(localized: "Exclusion pattern")
         default: ""
         }
     }

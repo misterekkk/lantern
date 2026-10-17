@@ -58,8 +58,8 @@ struct PerformanceTab: View {
                         if snap.worker.running {
                             Text(mb(snap.worker.mb) + peak(snap.worker.peakMb))
                         } else {
-                            Text(snap.worker.lastPeakMb.map { String(localized: "not running (last run peak \($0) MB)") }
-                                 ?? String(localized: "not running"))
+                            Text(snap.worker.lastPeakMb.map { String(localized: "Not running · last run peak \($0) MB") }
+                                 ?? String(localized: "Not running"))
                         }
                     }
                     if snap.worker.running, let done = snap.worker.done, let total = snap.worker.total {
@@ -100,7 +100,7 @@ struct PerformanceTab: View {
     }
 
     private func mb(_ v: Int?) -> String { v.map { "\($0) MB" } ?? "–" }
-    private func peak(_ v: Int?) -> String { v.map { String(localized: " (peak \($0) MB)") } ?? "" }
+    private func peak(_ v: Int?) -> String { v.map { String(localized: " · peak \($0) MB") } ?? "" }
 
     private func stageLabel(_ stage: String?) -> String {
         stage == "transcribe" ? String(localized: "Transcribing") : String(localized: "Indexing files")
@@ -118,9 +118,9 @@ private struct ModelRow: View {
             HStack {
                 Text(title).font(.body.weight(.medium))
                 Spacer()
-                if model.loadedDaemon { Badge(text: String(localized: "loaded in the daemon"), active: true) }
+                if model.loadedDaemon { Badge(text: String(localized: "Loaded in the daemon"), active: true) }
                 if model.loadedWorker { Badge(text: workerText, active: true) }
-                if !model.downloaded { Badge(text: String(localized: "not downloaded"), active: false) }
+                if !model.downloaded { Badge(text: String(localized: "Not downloaded"), active: false) }
             }
             Text("\(model.repo) @ \(String(model.revision.prefix(8)))" + (model.sizeMb.map { " · \($0) MB" } ?? ""))
                 .font(.caption.monospaced())
@@ -148,7 +148,7 @@ private struct ModelRow: View {
             default: String(localized: "text")
             }
         }
-        return parts.isEmpty ? String(localized: "indexing") : String(localized: "indexing: \(parts.joined(separator: ", "))")
+        return parts.isEmpty ? String(localized: "Indexing") : String(localized: "Indexing: \(parts.joined(separator: ", "))")
     }
 }
 

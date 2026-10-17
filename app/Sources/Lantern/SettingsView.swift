@@ -455,7 +455,7 @@ private struct FoldersPane: View {
                         }
                         Spacer()
                         if !root.available {
-                            Text("unavailable").font(.caption).foregroundStyle(.secondary)
+                            Text("Unavailable").font(.caption).foregroundStyle(.secondary)
                         }
                         Button(role: .destructive) { state.removeFolder(root.path) } label: {
                             Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
