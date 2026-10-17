@@ -481,8 +481,8 @@ uv run lantern daemon stop | uninstall
 - Memory (measured on M4): idle daemon ~490 MB, plus ~340 MB for the photo query model while the panel is in use
   (released after 5 minutes); the indexing process up to ~2 GB for text, ~3.3 GB for recordings and ~4 GB for photos,
   then it exits.
-- Photo search was measured on 1,000 Flickr30k photos and an 80-photo test folder; real libraries (screenshots,
-  documents, many similar photos) may behave differently. Text inside images is not read (no OCR).
+- Photo search was measured on 1,000 Flickr30k photos and an 80-photo test folder; real libraries (many similar
+  photos, blurred or strongly skewed phone shots of documents) may behave differently.
 - Audio search was evaluated on synthetic speech; real recordings (noise, several speakers) may do worse.
   Transcripts cover the first 4 hours of a recording; audio embeddings cover all of it.
 - Large files (> 64 MB, mostly videos) are recognised by size and content samples, not a full hash.

@@ -1216,8 +1216,8 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 1. Transcription as the second audio track is accepted (ADR-003). Still open: with very many recordings, whether to
    transcribe lazily (audio embeddings first, transcripts later in the background).
 2. The best audio window length (30 / 60 / 120 s) on real recordings.
-3. ~~MPS memory limit in the daemon~~ — superseded: MLX memory and cache limits are set at load (Phase 2), torch/MPS
-   runs only in the worker.
+3. ~~MPS memory limit in the daemon~~ — superseded: MLX memory and cache limits are set at load (Phase 2), and Phase 14
+   removed torch/MPS from the worker as well (everything runs on MLX).
 4. ~~Vector size 768 vs Matryoshka 256~~ — measured in the "whole Mac" stage: 256 loses clearly (top-10 agreement
    78–80%); we keep 768.
 5. llama.cpp: a newer build than 11429 may support `gemma-embedding2` (the GGUF is from ggml-org, unofficial). Not
