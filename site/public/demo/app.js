@@ -30,7 +30,7 @@ const ICON = {
   audio: `<svg viewBox="0 0 56 64"><rect x="4" y="8" width="48" height="48" rx="11" fill="url(#ga)"/><defs><linearGradient id="ga" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><path d="M33 19v19.5a5 5 0 1 1-3-4.6V23l-9 2.3V41a5 5 0 1 1-3-4.6V22.5z" fill="#fff"/></svg>`,
   folder: `<svg viewBox="0 0 56 64"><path d="M3 16a4 4 0 0 1 4-4h14l5 5h23a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#5aa9f8"/><path d="M3 24a4 4 0 0 1 4-4h42a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#79bdfb"/></svg>`,
   calc: `<svg viewBox="0 0 56 64"><rect x="6" y="6" width="44" height="52" rx="10" fill="#3a3d44"/><rect x="12" y="12" width="32" height="12" rx="3" fill="#cfd3da"/><g fill="#8b9099">${[0, 1, 2].map((r) => [0, 1, 2].map((c) => `<circle cx="${17 + c * 11}" cy="${33 + r * 9}" r="3.4"/>`).join("")).join("")}</g><circle cx="39" cy="51" r="3.4" fill="#f59e0b"/></svg>`,
-  music: `<svg viewBox="0 0 56 64"><rect x="6" y="9" width="44" height="44" rx="11" fill="#f43f5e"/><path d="M34 19v18.5a4.6 4.6 0 1 1-2.7-4.2V25.5l-9.6 2.4v13a4.6 4.6 0 1 1-2.7-4.2V23.2z" fill="#fff"/></svg>`,
+  music: `<svg viewBox="0 0 56 64"><defs><linearGradient id="rm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0f766e"/></linearGradient></defs><g transform="translate(6 9) scale(0.7586)"><rect width="58" height="58" rx="14.5" fill="url(#rm)"/><ellipse cx="25" cy="40" rx="7.5" ry="6" transform="rotate(-20 25 40)" fill="#fff"/><path d="M30.5 40V13h3c0 6 9 8 9 16 0 3-1 5-2.5 7 .6-6-3.5-9-6.5-9.5V40z" fill="#fff"/></g></svg>`,  /* own icon: one note on teal, unlike any real player's */
   gear: `<svg viewBox="0 0 56 64"><rect x="6" y="9" width="44" height="44" rx="11" fill="#2563eb"/><g transform="translate(28 31)" fill="#fff"><circle r="9"/>${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="-2.6" y="-14.5" width="5.2" height="7" rx="1.4" transform="rotate(${r})"/>`).join("")}</g><circle cx="28" cy="31" r="4" fill="#2563eb"/></svg>`,
   globe: `<svg viewBox="0 0 56 64"><circle cx="28" cy="32" r="21" fill="#0ea5e9"/><g fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2"><ellipse cx="28" cy="32" rx="9" ry="21"/><path d="M7 32h42M10 22h36M10 42h36"/></g></svg>`,
   play: `<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="#fff"/></svg>`,
@@ -51,7 +51,7 @@ const DOCK = [
   ["calendar", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff"/><rect width="58" height="17" fill="#ef4444"/><text x="29" y="13" font-family="-apple-system,Helvetica,Arial" font-size="9" font-weight="700" fill="#fff" text-anchor="middle" id="calMonth">OCT</text><text x="29" y="46" font-family="-apple-system,Helvetica,Arial" font-size="26" font-weight="300" fill="#1f2937" text-anchor="middle" id="calDay">16</text></svg>`],
   ["notes", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#fff6d1"/><rect width="58" height="15" fill="#f6c443"/><g stroke="#d5c79a" stroke-width="2"><path d="M10 26h38M10 34h38M10 42h28"/></g></svg>`],
   ["pictures", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect width="58" height="58" fill="url(#dp)"/><circle cx="40" cy="18" r="6" fill="#fde68a"/><path d="M0 44l16-16 12 12 8-7 22 18v7H0z" fill="#16a34a"/><path d="M0 50l18-12 16 20H0z" fill="#15803d"/></svg>`],
-  ["music", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="58" height="58" fill="url(#dm)"/><path transform="translate(4.2 -1)" d="M39 13v23.5a6.2 6.2 0 1 1-3.6-5.6V21.2l-12.8 3.2V40a6.2 6.2 0 1 1-3.6-5.6V18.7z" fill="#fff"/></svg>`],
+  ["music", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#0f766e"/></linearGradient></defs><rect width="58" height="58" fill="url(#dm)"/><ellipse cx="25" cy="40" rx="7.5" ry="6" transform="rotate(-20 25 40)" fill="#fff"/><path d="M30.5 40V13h3c0 6 9 8 9 16 0 3-1 5-2.5 7 .6-6-3.5-9-6.5-9.5V40z" fill="#fff"/></svg>`],
   ["code", true, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dcode" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="58" height="58" fill="url(#dcode)"/><path d="M21 19l-10 10 10 10M37 19l10 10-10 10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 16l-6 26" stroke="#bae6fd" stroke-width="3" stroke-linecap="round"/></svg>`],
   ["terminal", false, `<svg viewBox="0 0 58 58"><rect width="58" height="58" fill="#1f2328"/><rect x="5" y="5" width="48" height="48" rx="9" fill="#0d1014" stroke="#3a4048"/><path d="M15 22l8 6-8 6" stroke="#e6edf3" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 36h15" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>`],
   ["settings", false, `<svg viewBox="0 0 58 58"><defs><linearGradient id="dset" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d1d5db"/><stop offset="1" stop-color="#6b7280"/></linearGradient></defs><rect width="58" height="58" fill="url(#dset)"/><g fill="#374151"><circle cx="29" cy="29" r="12"/><g id="teeth">${[0, 45, 90, 135, 180, 225, 270, 315].map((r) => `<rect x="26" y="9" width="6" height="9" rx="1.5" transform="rotate(${r} 29 29)"/>`).join("")}</g></g><circle cx="29" cy="29" r="5.5" fill="#d1d5db"/></svg>`],
@@ -363,7 +363,7 @@ function hint(html, { x, y, arrow = "none", actions = [], cls = "" } = {}) {
     const b = document.createElement(a.href ? "a" : "button");
     b.className = a.cls || "pill";
     b.innerHTML = a.label;
-    if (a.href) { b.href = a.href; b.target = "_blank"; b.rel = "noopener"; }
+    if (a.href) { b.href = a.href; if (!a.self) { b.target = "_blank"; b.rel = "noopener"; } }
     else { b.type = "button"; b.addEventListener("click", a.onClick); }
     box.appendChild(b);
   }
@@ -376,6 +376,14 @@ function hideHint() { $("#hint").hidden = true; }
 function attention(el, on = true) {
   document.querySelectorAll(".attention").forEach((e) => e.classList.remove("attention"));
   if (el && on) el.classList.add("attention");
+}
+
+/* A short shake on the element the tour waits for. */
+function nudge(el) {
+  if (!el) return;
+  el.classList.remove("nudge");
+  void el.offsetWidth;  // restart the animation
+  el.classList.add("nudge");
 }
 
 /* ---------- menu ---------- */
@@ -525,9 +533,10 @@ const STEPS = {
     hint(`<span class="app-icon"></span><h2>That’s Lantern.</h2>
       <p>Search your files, code, photos and recordings by meaning — and apps, settings and quick answers, like Spotlight. <b>100% on your Mac</b>, no cloud, no
       telemetry. Open source under the Apache 2.0 license.</p>`, {
-      x: 510, y: 250, cls: "finale",
+      x: 485, y: 250, cls: "finale",
       actions: [
         { label: "Get Lantern on GitHub", href: REPO, cls: "btn primary" },
+        { label: "Back to the website", href: "../", self: true },
         { label: "Start over", onClick: restart },
       ],
     });
@@ -914,6 +923,7 @@ function wire() {
   $("#lanternItem").addEventListener("click", (e) => {
     e.stopPropagation();
     if (state.step === "intro") go("menu");
+    else if (["starting", "found", "indexing"].includes(state.step)) { openMenu(); attention($("#indexBtn")); }
     else if (!$("#menu").hidden) {
       closeMenu();
       if (state.step === "ready") go("shortcut");
@@ -926,6 +936,7 @@ function wire() {
   $("#hint").addEventListener("click", (e) => e.stopPropagation());
   $("#desktop").addEventListener("click", () => {
     if (state.step === "ready" && !$("#menu").hidden) go("shortcut");
+    else if (state.step === "found") nudge($("#indexBtn"));  // the tour waits here: closing the menu would leave nothing to click
     else if (!$("#menu").hidden && state.step !== "starting" && state.step !== "indexing") closeMenu();
   });
   $("#shortcut").addEventListener("click", (e) => {

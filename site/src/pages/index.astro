@@ -91,7 +91,7 @@ const faq = [
     .field { display: flex; align-items: center; gap: 12px; padding: 18px 22px; font-size: 22px; border-bottom: 1px solid var(--line); min-height: 68px; }
     .field svg { flex: none; color: var(--muted); }
     .typed { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-    .caret { width: 2px; height: 26px; background: #3b82f6; animation: blink 1.1s steps(1) infinite; }
+    .caret { width: 2px; height: 26px; margin-left: -11px; flex: none; background: #3b82f6; animation: blink 1.1s steps(1) infinite; }  /* right after the text, not a gap away */
     @keyframes blink { 50% { opacity: 0; } }
     .results { padding: 10px; display: grid; gap: 4px; min-height: 236px; }
     .section-name { font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 12px 2px; letter-spacing: 0.02em; }
