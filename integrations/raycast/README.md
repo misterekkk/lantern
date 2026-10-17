@@ -24,6 +24,7 @@ npm run dev        # adds "Search Lantern" to Raycast and rebuilds on changes; C
 ```
 
 Then in Lantern: Settings → General → Search from: **Raycast** (turns Lantern's own shortcut off), and in Raycast's
-settings give "Search Lantern" a hotkey, e.g. ⌥Space.
+settings (sidebar → Lantern) give "Search Lantern" a hotkey or an alias such as `l`. Raycast itself opens on ⌥Space by
+default: to give that to Lantern, move Raycast's own hotkey first (sidebar → Raycast → Raycast Hotkey).
 
 `npm run build` type-checks and bundles into `dist/`.

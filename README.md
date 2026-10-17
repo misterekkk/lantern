@@ -231,7 +231,8 @@ line or moment, photos). Lantern keeps running in the menu bar, indexing and ans
 there teach it as in its own panel.
 
 - **Raycast:** the "Search Lantern" command in [integrations/raycast](integrations/raycast) (not in the Raycast Store
-  yet: `npm install && npm run dev` once adds it to Raycast). Give it a hotkey in Raycast's settings.
+  yet: `npm install && npm run dev` once adds it to Raycast). Give it a hotkey or an alias in Raycast's settings
+  (sidebar → Lantern); Raycast's own hotkey is also ⌥Space by default.
 - **Alfred** (Powerpack): Settings → General → *Install the Alfred Workflow…*, then type `l` and your query, or give
   the workflow a hotkey. Source in [integrations/alfred](integrations/alfred).
 
