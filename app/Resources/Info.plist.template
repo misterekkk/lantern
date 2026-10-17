@@ -12,6 +12,7 @@
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>pl</string></array>
     <key>NSHumanReadableCopyright</key><string>Lantern — local search, no data leaves your Mac.</string>
     <key>NSDesktopFolderUsageDescription</key><string>Lantern indexes files on your Desktop locally so you can search them by meaning. Files are only read.</string>

@@ -232,12 +232,10 @@ private struct StatusRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "sparkle.magnifyingglass")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 38, height: 38)
-                .background(Circle().fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)))
-                .symbolEffect(.pulse, options: .repeating, isActive: state.phase == .indexing)
+            Image(nsImage: NSApp.applicationIconImage)  // the app icon (brand/lantern-icon.svg), with its own margin
+                .resizable()
+                .frame(width: 46, height: 46)
+                .padding(-4)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Lantern").font(.headline)
                 Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -825,11 +823,9 @@ private struct AboutPane: View {
         SettingsPage {
             Section {
                 VStack(spacing: 8) {
-                    Image(systemName: "sparkle.magnifyingglass")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 72, height: 72)
-                        .background(Circle().fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 96, height: 96)
                     Text("Lantern").font(.title2.weight(.semibold))
                     Text("Local search by meaning in files, code, photos and recordings.")
                         .font(.callout).foregroundStyle(.secondary)

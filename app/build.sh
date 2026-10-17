@@ -18,6 +18,7 @@ cp "$(swift build -c release --show-bin-path)/Lantern" "$APP/Contents/MacOS/Lant
 sed -e "s#__PYTHON__#$REPO/.venv/bin/python#" -e "s#__VERSION__#$VERSION#" -e "s#__BUILD__#$(date +%Y%m%d%H%M)#" \
     Resources/Info.plist.template > "$APP/Contents/Info.plist"
 cp -R Resources/*.lproj "$APP/Contents/Resources/"   # localizations (the system language picks one)
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"  # from brand/lantern-icon.svg (brand/make-icons.sh)
 
 IDENTITY="$(security find-identity -v -p codesigning | grep -m1 'Apple Development' | sed -E 's/.*"(.*)"/\1/' || true)"
 if [[ -n "$IDENTITY" ]]; then

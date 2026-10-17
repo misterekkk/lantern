@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="site/assets/lantern.svg" width="96" height="96" alt="Lantern icon">
+  <img src="brand/lantern-icon.svg" width="112" height="112" alt="Lantern icon">
 </p>
 
 <h1 align="center">Lantern</h1>

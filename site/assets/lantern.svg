@@ -1,13 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Lantern's own icon: a magnifying glass with a spark, on a purple-to-blue disc. -->
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#a855f7"/>
-      <stop offset="1" stop-color="#3b82f6"/>
-    </linearGradient>
-  </defs>
-  <circle cx="32" cy="32" r="32" fill="url(#g)"/>
-  <circle cx="28" cy="28" r="12" fill="none" stroke="#fff" stroke-width="4"/>
-  <path d="M37 37 L47 47" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-  <path d="M28 20.5 L29.6 26.4 L35.5 28 L29.6 29.6 L28 35.5 L26.4 29.6 L20.5 28 L26.4 26.4 Z" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Lantern's icon (variant E, "lantern light"): a magnifier on a graphite tile, its sparkle in warm amber, the one
+       light in the dark. macOS icon grid: an 824 pt tile inside the 1024 pt canvas. The menu bar keeps a one-colour
+       template glyph. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#1f2126"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" ry="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+  <circle cx="454" cy="454" r="184" fill="none" stroke="#f3f4f6" stroke-width="62"/>
+  <path d="M594 594 L726 726" stroke="#f3f4f6" stroke-width="70" stroke-linecap="round"/>
+  <path d="M454 354 C466 420 488 442 554 454 C488 466 466 488 454 554 C442 488 420 466 354 454 C420 442 442 420 454 354 Z" fill="#f2b84b"/>
 </svg>
