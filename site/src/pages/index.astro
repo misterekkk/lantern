@@ -119,9 +119,11 @@ const faq = [
     .start .dmg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0 16px; }
     .start code { font-family: var(--mono); font-size: 14px; background: var(--sky); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--ink); }
     .code { position: relative; background: #161a1f; color: #e8ecef; border-radius: 16px; padding: 44px 24px 22px; font-family: var(--mono); font-size: 15px; line-height: 1.7; overflow-x: auto; }
+    .brew-code { margin: 18px 0 14px; padding: 22px 20px 20px; font-size: 14.5px; }
     .code pre { margin: 0; white-space: pre; }
     .copy { position: absolute; top: 12px; right: 12px; background: rgba(255, 255, 255, 0.1); color: #e8ecef; border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
     .start .after { color: var(--muted); font-size: 15px; margin-top: 14px; }
+    .dmg-lead { margin: 18px 0 10px; font-size: 14.5px; color: var(--muted); }
     details { border-bottom: 1px solid var(--line); padding-block: 16px; }
     details:first-of-type { border-top: 1px solid var(--line); }
     summary { cursor: pointer; font-weight: 700; font-size: 18px; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; transition: color 0.2s; }
@@ -223,21 +225,26 @@ const faq = [
         <p class="intro">Needs a Mac with Apple Silicon (macOS 14+) and 1.2 GB for the search model (about 3.8 GB with transcripts and photo search).</p>
         <div class="start">
           <div>
-            <h3>Download the app (.dmg)</h3>
-            <p class="after" style="margin-top: 0">Self-contained app with Python 3.12 and MLX inside — no Xcode, Homebrew, <code>uv</code> or <code>ffmpeg</code> needed.</p>
+            <h3>Install the app</h3>
+            <p class="after" style="margin-top: 0">Self-contained app with Python 3.12 and MLX inside — no Xcode, <code>uv</code> or Python setup needed.</p>
+            <div class="code brew-code">
+              <button class="copy" type="button" data-target="brew-cmd">Copy</button>
+              <pre id="brew-cmd">brew install --cask misterekkk/tap/lantern</pre>
+            </div>
+            <p class="dmg-lead">Or download the installer directly:</p>
             <div class="dmg-actions">
               <a class="btn primary" href={`${repo}/releases/latest/download/Lantern.dmg`}>Download Lantern.dmg</a>
               <a class="btn secondary" href={`${repo}/releases`}>Releases</a>
             </div>
             <ol>
-              <li>Open <code>Lantern.dmg</code> and drag <strong>Lantern</strong> to <strong>Applications</strong>.</li>
-              <li>Allow the ad-hoc signed app once in <strong>System Settings → Privacy &amp; Security → Open Anyway</strong> (or run <code>xattr -cr /Applications/Lantern.app</code>).</li>
+              <li>Install via Homebrew above, or drag <strong>Lantern</strong> from the DMG to <strong>Applications</strong>.</li>
+              <li>Allow the ad-hoc signed app once in <strong>System Settings → Privacy &amp; Security → Open Anyway</strong> (or run <code>xattr -cr /Applications/Lantern.app</code>; Homebrew users can pass <code>--no-quarantine</code>).</li>
               <li>Click <strong>Download</strong> in the menu bar to fetch the search model.</li>
             </ol>
           </div>
           <div>
             <h3>Or build from source &amp; CLI</h3>
-            <div class="code"><button class="copy" type="button" id="copy">Copy</button><pre id="cmd">{install}</pre></div>
+            <div class="code"><button class="copy" type="button" data-target="cmd">Copy</button><pre id="cmd">{install}</pre></div>
             <p class="after">For the <code>lantern</code> command-line tool, <code>man lantern</code> and building with Xcode 26. Checks the Mac, installs what is missing, downloads the models and builds the app. <a href={`${base}docs/install/`}>Step by step</a></p>
           </div>
         </div>
@@ -313,11 +320,16 @@ const faq = [
         running.onfinish = () => { running = null; if (!opening) { d.open = false; d.classList.remove("closing"); } };
       });
     }
-    document.getElementById("copy").addEventListener("click", async (e) => {
-      const text = document.getElementById("cmd").textContent;
-      try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
-      catch { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); getSelection().removeAllRanges(); getSelection().addRange(r); }
-      setTimeout(() => (e.target.textContent = "Copy"), 1600);
+    document.querySelectorAll(".copy").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const targetId = btn.getAttribute("data-target") || "cmd";
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        const text = target.textContent;
+        try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+        catch { const r = document.createRange(); r.selectNodeContents(target); getSelection().removeAllRanges(); getSelection().addRange(r); }
+        setTimeout(() => (btn.textContent = "Copy"), 1600);
+      });
     });
   </script>
 </body>
