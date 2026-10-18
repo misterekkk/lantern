@@ -95,6 +95,12 @@ commit (EmbeddingGemma 2 support), `transformers`, `tokenizers`, `sqlite-vec`, `
 
 ## Installation
 
+### Via Homebrew (Recommended)
+
+```bash
+brew install --cask misterekkk/tap/lantern
+```
+
 ### Download the app (`Lantern.dmg`)
 
 1. Download **`Lantern.dmg`** from [Releases](https://github.com/misterekkk/lantern/releases) (or the latest artifact of
@@ -489,6 +495,12 @@ uv run lantern daemon stop | uninstall
 - CSV/TSV and large number-heavy files are indexed by their head only (when not ignored).
 - Polish inflection in keyword search is approximated by stem prefixes, not a real stemmer.
 - Full list of open questions: [docs/DECISIONS.md](docs/DECISIONS.md#open-questions).
+
+## Acknowledgements & Prior Art
+
+- [DigUp](https://github.com/ARahim3/DigUp) by [@ARahim3](https://github.com/ARahim3) — for demonstrating the power of on-device multimodal search with EmbeddingGemma 2, which initially inspired this project.
+- Google DeepMind for [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2).
+- Apple MLX team for [mlx](https://github.com/ml-explore/mlx) and [mlx-vlm](https://github.com/ml-explore/mlx-vlm).
 
 ## License
 
