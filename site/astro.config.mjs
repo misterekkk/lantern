@@ -20,6 +20,17 @@ export default defineConfig({
         { label: "Using Lantern", items: [{ slug: "docs/search" }, { slug: "docs/folders" }, { slug: "docs/launchers" }, { slug: "docs/cli" }] },
         { label: "Under the hood", items: [{ slug: "docs/privacy" }, { slug: "docs/daemon" }, { slug: "docs/architecture" }, { slug: "docs/limitations" }] },
       ],
+      head: [
+        {
+          tag: "link",
+          attrs: {
+            rel: "alternate",
+            type: "text/markdown",
+            href: "/lantern/llms.txt",
+            title: "LLM context",
+          },
+        },
+      ],
       pagefind: true,
     }),
   ],

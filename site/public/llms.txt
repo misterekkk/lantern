@@ -1,0 +1,33 @@
+# Lantern
+
+> Lantern is a fast, 100% on-device semantic search engine for macOS built specifically for Apple Silicon. It indexes files, code definitions, PDFs (including scanned OCR), photos, audio/video recordings, apps, System Settings, shortcuts, and music libraries, making them searchable by meaning and keywords without cloud telemetry.
+
+Lantern runs locally on macOS using a native Swift menu bar application and a Python background daemon communicating over a local Unix domain socket. It features deep integrations with Raycast and Alfred, and includes a full-featured CLI.
+
+## Core Documentation
+
+- [Getting Started & Installation](https://misterekkk.github.io/lantern/docs/install/): System requirements (macOS 14.0+, Apple Silicon), Homebrew tap, DMG download, and building from source.
+- [How Search Works](https://misterekkk.github.io/lantern/docs/search/): Hybrid retrieval combining BM25 keyword matching and dense vector embeddings (bge-m3 / bge-small) using SQLite and sqlite-vec.
+- [App & Keyboard Navigation](https://misterekkk.github.io/lantern/docs/app/): Native Swift menu bar UI, search panel, instant preview pane, and key bindings.
+- [Folders & Exclusions](https://misterekkk.github.io/lantern/docs/folders/): Default indexed folders, .gitignore integration, secret skipping (.env, id_rsa), and custom exclusions.
+- [Launchers (Raycast & Alfred)](https://misterekkk.github.io/lantern/docs/launchers/): Official Raycast extension ("Search Lantern") and Alfred workflow integration.
+- [Background Daemon](https://misterekkk.github.io/lantern/docs/daemon/): Battery-aware indexing, thermal management, launchd service, and IPC protocol.
+- [CLI Reference](https://misterekkk.github.io/lantern/docs/cli/): Complete command-line interface documentation (`lantern search`, `index`, `status`, `daemon`, `vacuum`).
+- [Architecture & Tech Stack](https://misterekkk.github.io/lantern/docs/architecture/): Swift, Python daemon, SQLite + sqlite-vec, Metal, Apple Vision OCR, and Accelerate framework.
+- [Privacy Model](https://misterekkk.github.io/lantern/docs/privacy/): Zero telemetry, local-only vector database in `~/Library/Application Support/Lantern/`, transparent data erasure.
+- [Known Limitations](https://misterekkk.github.io/lantern/docs/limitations/): Apple Silicon requirement, current file size limits, and multilingual testing status.
+
+## Technical Specifications
+
+- **Target OS:** macOS 14.0 (Sonoma) or newer
+- **Architecture:** Apple Silicon (M1, M2, M3, M4)
+- **Local AI Models:**
+  - Text & Code Embeddings: BAAI/bge-m3 (dense vectors, 1024 dims) or bge-small-en-v1.5
+  - Vision / OCR: Apple Vision framework (native Neural Engine acceleration)
+  - Audio Transcription: Whisper models running locally on Apple Silicon
+- **Database:** SQLite with sqlite-vec extension for vector nearest-neighbor search and FTS5 for full-text search
+- **IPC:** Unix domain socket at `~/Library/Application Support/Lantern/lantern.sock` using JSON-RPC line protocol
+- **Integrations:** Raycast extension, Alfred workflow, CLI tool (`lantern`)
+- **License:** MIT License
+- **Source Code:** https://github.com/misterekkk/lantern
+- **Full Consolidated Documentation:** https://misterekkk.github.io/lantern/llms-full.txt

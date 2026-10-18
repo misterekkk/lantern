@@ -1,0 +1,128 @@
+# Lantern — Full Technical Reference for LLMs
+
+> Lantern is a fast, 100% on-device semantic search engine for macOS built specifically for Apple Silicon (M1/M2/M3/M4). It indexes files, code definitions, PDFs (including scanned OCR), photos, audio/video recordings, applications, System Settings, shortcuts, and music libraries, making them searchable by meaning and keywords without cloud telemetry.
+
+---
+
+## 1. Executive Summary & Core Principles
+
+- **Zero Cloud / 100% Offline:** All AI models run locally on the Mac using Apple Silicon's Neural Engine, GPU (Metal), and CPU (Accelerate). No files, queries, embeddings, or metadata ever leave the device.
+- **Hybrid Retrieval:** Blends BM25 full-text keyword ranking (SQLite FTS5) with dense vector embeddings (BAAI/bge-m3, 1024 dimensions, or bge-small) using `sqlite-vec`.
+- **Deep macOS Native Integration:**
+  - Swift menu bar application with instant global hotkey (⌥Space or ⌘Space).
+  - Background Python daemon running via launchd.
+  - Official Raycast extension ("Search Lantern") and Alfred workflow.
+  - Direct integration with editors (VS Code, Cursor, Xcode, JetBrains) jumping to the exact line.
+  - Video and audio seek and playback in QuickTime Player directly from matched spoken timestamps.
+  - PDF jump-to-page in Preview and Skim.
+- **Resource & Battery Conscious:** Indexing automatically pauses on battery power, when the Mac is thermally throttled, or under heavy CPU load.
+
+---
+
+## 2. System Architecture
+
+### 2.1 Component Breakdown
+1. **Menu Bar App & Search Panel (Swift / SwiftUI / AppKit):**
+   - Lives in the macOS menu bar.
+   - Global shortcut listener with fast window presentation.
+   - Live query typing, real-time keyboard navigation (↩, ⌥↩, ⌘↩, ⌘Y, ⌃1...⌃0).
+   - Side preview pane with syntax-highlighted code excerpts, passage highlighting, and photo/video thumbnails.
+2. **Background Daemon (Python):**
+   - Headless background process managed by `launchd` (`~/Library/LaunchAgents/com.lantern.daemon.plist`).
+   - File system monitoring (FSEvents), content extraction, chunking, OCR, and vector embedding.
+   - SQLite database (`~/Library/Application Support/Lantern/lantern.db`) storing chunks, inverted index, and vector embeddings (`sqlite-vec`).
+   - Listens on a local Unix domain socket: `~/Library/Application Support/Lantern/lantern.sock`.
+3. **IPC Protocol:**
+   - JSON-RPC over local Unix domain socket (`lantern.sock`).
+   - Request format: `{"id": 1, "method": "<method>", "params": { ... }}\n`
+   - Response format: `{"id": 1, "result": { ... }, "error": null}\n`
+
+### 2.2 Content Ingestion Pipeline
+- **Code:** Treesitter / AST parsing across Python, TypeScript, JavaScript, Rust, Go, Swift, C, C++, Kotlin, Ruby, etc. Extracts symbols, signatures, and functions.
+- **Documents & Text:** Markdown, plain text, DOCX, EPUB.
+- **PDFs:** Text extraction via PDFKit + Apple Vision OCR for scanned pages.
+- **Images & Photos:** Apple Vision framework for OCR, embedding vision models for semantic image retrieval.
+- **Recordings & Videos:** Whisper local transcription for audio tracks; video keyframes extraction with timestamps.
+- **Secrets & Exclusions:** Automatically skips `.git/`, `node_modules/`, `target/`, `.venv/`, `.env`, private keys (`id_rsa`, `.pem`), and all patterns defined in `.gitignore` or custom user exclusion rules.
+
+---
+
+## 3. Command Line Interface (CLI) Reference
+
+The `lantern` CLI tool communicates directly with the local daemon via the Unix socket, or manages the background service.
+
+### Global Options
+- `--socket <path>`: Custom socket path (default: `~/Library/Application Support/Lantern/lantern.sock`).
+- `--json`: Output raw JSON for scripting and automation.
+- `--help`: Show CLI help and options.
+
+### Commands
+
+#### `lantern search <query>`
+Search your Mac from the terminal.
+- `--kind, -k <kind>`: Filter results by kind (`code`, `docs`, `pdf`, `photos`, `media`, `apps`, `settings`, `shortcuts`, `music`).
+- `--limit, -n <number>`: Maximum number of results to return (default: 20).
+- `--json`: Output detailed machine-readable JSON matching the daemon protocol.
+
+#### `lantern status`
+Display the current daemon and index status.
+- Shows:
+  - Daemon status (running / stopped, PID, uptime).
+  - Indexed file count, chunk count, and database file size.
+  - Current indexing activity (idle, processing folder, or paused).
+  - Battery and thermal status.
+
+#### `lantern index [path...]`
+Manually trigger indexing of specific paths or refresh existing indexed folders.
+- `--force`: Reindex files even if modified timestamps have not changed.
+
+#### `lantern daemon <subcommand>`
+Control the background daemon service:
+- `lantern daemon start`: Start the daemon process.
+- `lantern daemon stop`: Stop the running daemon.
+- `lantern daemon restart`: Restart the daemon.
+- `lantern daemon logs`: View or follow recent daemon logs.
+
+#### `lantern vacuum`
+Optimize the local SQLite database and rebuild vector index trees to reclaim disk space.
+
+---
+
+## 4. Raycast & Alfred Integrations
+
+### Raycast Extension ("Search Lantern")
+- Accessible via Raycast root search or as a Fallback Command.
+- Keyboard shortcuts:
+  - `↩`: Open at line (VS Code, Cursor, Xcode, JetBrains) / play from moment (QuickTime) / open PDF at page.
+  - `⌥↩`: Open from start (0:00 for recordings).
+  - `⌘↩`: Reveal file in Finder / show song in Music or Spotify.
+  - `⌘Y`: Instant preview pane (30 surrounding lines of code or full passage).
+  - `⇧⌘Y`: macOS Quick Look.
+  - `⌃1 ... ⌃0`: Quick category filters matching Lantern's panel digits.
+  - `⇧⌘C`: Copy file path to clipboard.
+
+### Alfred Workflow
+- Script filter connecting directly to `lantern search --json "{query}"`.
+
+---
+
+## 5. Privacy & Security Specifications
+
+- **Application Support Directory:** All local state resides exclusively in `~/Library/Application Support/Lantern/`.
+  - Database: `lantern.db` (SQLite + sqlite-vec).
+  - Socket: `lantern.sock` (Unix domain socket, file permissions 0600).
+  - Config: `config.json`.
+- **Caches:** Thumbnails are written to `~/Library/Caches/Lantern/thumbnails/` and automatically purged after 10 minutes.
+- **No Analytics / No Network:** The app and daemon make zero outbound network requests. (The optional Spotify integration only talks to Spotify's local desktop client or user-configured Spotify Web API keys).
+- **True Deletion:** Removing an indexed folder permanently deletes all corresponding text chunks and vector embeddings from the local SQLite database.
+
+---
+
+## 6. System Requirements & Compatibility
+
+- **Hardware:** Mac with Apple Silicon (M1, M1 Pro/Max/Ultra, M2, M3, M4). Intel Macs are not supported due to Neural Engine and Metal vector acceleration requirements.
+- **Operating System:** macOS 14.0 (Sonoma) or macOS 15.0 (Sequoia)+.
+- **Memory:** Requires ~500 MB RAM while search models are loaded in memory.
+- **License:** Open Source under the MIT License.
+- **Source Repository:** https://github.com/misterekkk/lantern
+- **Website & Documentation:** https://misterekkk.github.io/lantern/

@@ -27,6 +27,48 @@ const faq = [
   { q: "Can I keep using Raycast or Alfred?", a: "Yes. Raycast gets a “Search Lantern” command with Lantern's results, previews, thumbnails and filters, and Alfred a workflow. Lantern then runs in the background and hands its shortcut to the launcher. Settings → General → Search from." },
   { q: "Coming from Spotlight or Alfred?", a: "Your habits come with you. From the first day Lantern ranks apps by how often and how recently you opened them, read from the usage macOS already records on your Mac, the same data Spotlight ranks by. If you used Alfred, Settings → Privacy imports the choices it learned, so a letter and ↩ open the same app as before. Both are read on your Mac and stay there." },
 ];
+
+const siteUrl = "https://misterekkk.github.io/lantern/";
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${siteUrl}#software`,
+      "name": "Lantern",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "macOS 14.0+ (Apple Silicon)",
+      "description": "Local semantic search engine for macOS on Apple Silicon. Search files, code, PDFs, photos, and recordings by meaning entirely on your Mac.",
+      "url": siteUrl,
+      "downloadUrl": "https://github.com/misterekkk/lantern",
+      "license": "https://opensource.org/licenses/MIT",
+      "author": {
+        "@type": "Person",
+        "name": "Kacper Piotrowski",
+        "url": "https://github.com/misterekkk"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "100% on-device local search with zero telemetry",
+        "Semantic search across files, code, PDFs, photos, and recordings",
+        "Apple Silicon native acceleration via Metal and Neural Engine",
+        "Official Raycast extension and Alfred workflow",
+        "Fast global shortcut and instant previews"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}#website`,
+      "url": siteUrl,
+      "name": "Lantern",
+      "description": "Local semantic search for macOS on Apple Silicon."
+    }
+  ]
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -35,7 +77,17 @@ const faq = [
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Lantern</title>
   <meta name="description" content="Search your Mac by what is inside: files, code, photos, recordings and apps, found by meaning, entirely on your Mac.">
+  <link rel="canonical" href={siteUrl}>
+  <link rel="alternate" type="text/markdown" href={`${base}llms.txt`} title="LLM context">
+  <meta property="og:title" content="Lantern · Local Semantic Search for macOS">
+  <meta property="og:description" content="Search your Mac by what is inside: files, code, photos, recordings and apps, found by meaning, entirely on your Mac.">
+  <meta property="og:url" content={siteUrl}>
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Lantern · Local Semantic Search for macOS">
+  <meta name="twitter:description" content="Search your Mac by what is inside: files, code, photos, recordings and apps, found by meaning, entirely on your Mac.">
   <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml">
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   <style is:global>
     /* Global on purpose: the miniature's rows are rendered by the script, which Astro's scoped styles miss.
        Layout: a sky-coloured opening band (the Mist of the demo) with the text left and a live panel right, then quiet
