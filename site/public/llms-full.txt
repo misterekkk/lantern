@@ -1,13 +1,13 @@
-# Lantern — Full Technical Reference for LLMs
+# Lantern: Full Technical Reference for LLMs
 
-> Lantern is a fast, 100% on-device semantic search engine for macOS built specifically for Apple Silicon (M1/M2/M3/M4). It indexes files, code definitions, PDFs (including scanned OCR), photos, audio/video recordings, applications, System Settings, shortcuts, and music libraries, making them searchable by meaning and keywords without cloud telemetry.
+> Lantern is a fast, 100% on-device semantic search engine for macOS built specifically for Apple Silicon (M1 or newer: M1, M2, M3, M4, M5, M6 and upcoming generations). It indexes files, code definitions, PDFs (including scanned OCR), photos, audio/video recordings, applications, System Settings, shortcuts, and music libraries, making them searchable by meaning and keywords without cloud telemetry.
 
 ---
 
 ## 1. Executive Summary & Core Principles
 
 - **Zero Cloud / 100% Offline:** All AI models run locally on the Mac using Apple Silicon's Neural Engine, GPU (Metal), and CPU (Accelerate). No files, queries, embeddings, or metadata ever leave the device.
-- **Hybrid Retrieval:** Blends BM25 full-text keyword ranking (SQLite FTS5) with dense vector embeddings (BAAI/bge-m3, 1024 dimensions, or bge-small) using `sqlite-vec`.
+- **Hybrid Retrieval:** Blends BM25 full-text keyword ranking (SQLite FTS5) with dense vector embeddings (EmbeddingGemma-2 via MLX) using `sqlite-vec`.
 - **Deep macOS Native Integration:**
   - Swift menu bar application with instant global hotkey (⌥Space or ⌘Space).
   - Background Python daemon running via launchd.
@@ -41,8 +41,8 @@
 - **Code:** Treesitter / AST parsing across Python, TypeScript, JavaScript, Rust, Go, Swift, C, C++, Kotlin, Ruby, etc. Extracts symbols, signatures, and functions.
 - **Documents & Text:** Markdown, plain text, DOCX, EPUB.
 - **PDFs:** Text extraction via PDFKit + Apple Vision OCR for scanned pages.
-- **Images & Photos:** Apple Vision framework for OCR, embedding vision models for semantic image retrieval.
-- **Recordings & Videos:** Whisper local transcription for audio tracks; video keyframes extraction with timestamps.
+- **Images & Photos:** Apple Vision framework for OCR, SigLIP 2 visual embeddings for semantic image retrieval.
+- **Recordings & Videos:** `mlx-whisper` local transcription for audio tracks; video keyframes extraction with SigLIP 2 embeddings and timestamps.
 - **Secrets & Exclusions:** Automatically skips `.git/`, `node_modules/`, `target/`, `.venv/`, `.env`, private keys (`id_rsa`, `.pem`), and all patterns defined in `.gitignore` or custom user exclusion rules.
 
 ---
@@ -120,8 +120,8 @@ Optimize the local SQLite database and rebuild vector index trees to reclaim dis
 
 ## 6. System Requirements & Compatibility
 
-- **Hardware:** Mac with Apple Silicon (M1, M1 Pro/Max/Ultra, M2, M3, M4). Intel Macs are not supported due to Neural Engine and Metal vector acceleration requirements.
-- **Operating System:** macOS 14.0 (Sonoma) or macOS 15.0 (Sequoia)+.
+- **Hardware:** Mac with Apple Silicon (M1 or newer: M1, M2, M3, M4, M5, M6 and upcoming generations). Intel Macs are not supported due to Neural Engine and Metal vector acceleration requirements.
+- **Operating System:** macOS 14.0 (Sonoma) or newer (including macOS 15 Sequoia, macOS 26+).
 - **Memory:** Requires ~500 MB RAM while search models are loaded in memory.
 - **License:** Open Source under the MIT License.
 - **Source Repository:** https://github.com/misterekkk/lantern
