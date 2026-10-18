@@ -4,9 +4,9 @@
   "title": "Lantern",
   "description": "Search your Mac by meaning with Lantern: files, code, PDFs, photos and the moment in a recording, entirely on your Mac.",
   "icon": "icon.png",
-  "author": "misterekkk",
+  "author": "kacper_piotrowski",
   "categories": ["Productivity", "Developer Tools"],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "commands": [
     {
       "name": "search",
