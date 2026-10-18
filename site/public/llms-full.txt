@@ -123,6 +123,6 @@ Optimize the local SQLite database and rebuild vector index trees to reclaim dis
 - **Hardware:** Mac with Apple Silicon (M1 or newer: M1, M2, M3, M4, M5, M6 and upcoming generations). Intel Macs are not supported due to Neural Engine and Metal vector acceleration requirements.
 - **Operating System:** macOS 14.0 (Sonoma) or newer (including macOS 15 Sequoia, macOS 26+).
 - **Memory:** Requires ~500 MB RAM while search models are loaded in memory.
-- **License:** Open Source under the MIT License.
+- **License:** Open Source under the Apache License 2.0 (Raycast extension integration is MIT).
 - **Source Repository:** https://github.com/misterekkk/lantern
 - **Website & Documentation:** https://misterekkk.github.io/lantern/

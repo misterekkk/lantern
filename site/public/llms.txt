@@ -29,6 +29,6 @@ Lantern runs locally on macOS using a native Swift menu bar application and a Py
 - **Database:** SQLite with sqlite-vec extension for vector nearest-neighbor search and FTS5 for full-text search
 - **IPC:** Unix domain socket at `~/Library/Application Support/Lantern/lantern.sock` using JSON-RPC line protocol
 - **Integrations:** Raycast extension, Alfred workflow, CLI tool (`lantern`)
-- **License:** MIT License
+- **License:** Apache License 2.0 (Raycast extension is MIT)
 - **Source Code:** https://github.com/misterekkk/lantern
 - **Full Consolidated Documentation:** https://misterekkk.github.io/lantern/llms-full.txt
