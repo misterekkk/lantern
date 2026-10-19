@@ -7,6 +7,7 @@ Runs only in the index worker (PyObjC, the photo model's vision tower): new phot
 `--people-only` run the daemon starts while the setting is on. Nothing is re-embedded.
 """
 
+import os
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,6 +24,12 @@ MAX_CROPS = 4  # the largest people are classified; a crowd counts, its genders 
 CROP_PAD_BODY, CROP_PAD_FACE = 0.15, 1.2
 PROMPTS = ("a photo of a woman", "a photo of a man")
 BATCH = 50
+# Vision misses some people (7% of photos with people on COCO). When it sees nobody, the photo's stored vector is
+# compared with these two prompts; a clear "person" makes the count unknown (neither "with" nor "without people").
+# COCO: SigLIP 2 at 0.01 caught 9 of 16 missed photos and doubted 1 of 99 empty ones; EmbeddingGemma 2 (always there)
+# at 0.02 caught 9 and doubted 6. Thresholds chosen on that set.
+DOUBT_PROMPTS = ("a photo of a person", "a photo with no people")
+DOUBT_MARGIN = {"siglip": 0.01, "embeddinggemma": 0.02}
 
 
 @dataclass(frozen=True)
@@ -104,6 +111,46 @@ def analyse(path: Path, classify: Classifier) -> People:
     return People(count, women, men, round(face_area, 4))
 
 
+class Doubt:
+    """Is a photo Vision found empty clearly a photo of a person to the photo models? Uses the vector already in the
+    index (SigLIP 2 when downloaded, else EmbeddingGemma 2): nothing is embedded again."""
+
+    def __init__(self, conn: sqlite3.Connection, embedder):
+        self.conn, self.table, self.prompts, self.margin = conn, None, None, 0.0
+        query = None
+        if os.environ.get("LANTERN_EMBEDDER") != "fake":
+            from lantern.embedding import siglip
+
+            query = siglip.SiglipQueryEmbedder() if siglip.available() else None
+        model_id = db.find_model(conn, query.model_info()) if query else None
+        if model_id is not None and _has_table(conn, db.vec_table(model_id, images=True)):
+            query.load()
+            self.prompts = query.embed_queries(list(DOUBT_PROMPTS))
+            query.unload()
+            self.table, self.margin = db.vec_table(model_id, images=True), DOUBT_MARGIN["siglip"]
+        else:
+            model_id = db.find_model(conn, embedder.model_info())
+            if model_id is not None and _has_table(conn, db.vec_table(model_id, images=True)):
+                self.prompts = embedder.embed_text([format_image_query(p, "en") for p in DOUBT_PROMPTS])
+                self.table, self.margin = db.vec_table(model_id, images=True), DOUBT_MARGIN["embeddinggemma"]
+
+    def __call__(self, file_id: int) -> bool:
+        if self.table is None:
+            return False
+        from lantern.search.basic import _vectors
+
+        row = self.conn.execute("SELECT id FROM chunks WHERE file_id = ? AND kind = 'image'", (file_id,)).fetchone()
+        vec = _vectors(self.conn, self.table, [row[0]]).get(row[0]) if row else None
+        if vec is None:
+            return False
+        scores = self.prompts @ vec
+        return float(scores[0] - scores[1]) > self.margin
+
+
+def _has_table(conn: sqlite3.Connection, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (name,)).fetchone() is not None
+
+
 def pending(conn: sqlite3.Connection) -> int:
     return conn.execute(
         "SELECT count(*) FROM files WHERE kind = 'image' AND status = 'indexed' AND people_version < ?",
@@ -122,6 +169,7 @@ def refresh(
     if not total:
         return 0
     classify = Classifier(embedder)
+    doubt = Doubt(conn, embedder)
     while not should_stop():
         rows = conn.execute(
             "SELECT id, path FROM files WHERE kind = 'image' AND status = 'indexed' AND people_version < ? "
@@ -139,7 +187,10 @@ def refresh(
                 progress("people", done, total, row["path"])
             try:
                 p = analyse(Path(row["path"]), classify)
-                updates.append((p.count, p.women, p.men, p.face_area, PEOPLE_VERSION, row["id"]))
+                if p.count == 0 and doubt(row["id"]):  # nobody to Vision, a person to the photo model: unknown
+                    updates.append((None, None, None, None, PEOPLE_VERSION, row["id"]))
+                else:
+                    updates.append((p.count, p.women, p.men, p.face_area, PEOPLE_VERSION, row["id"]))
             except Exception:  # one bad file never stops the rest; marked so it is not retried in a loop
                 updates.append((None, None, None, None, PEOPLE_VERSION, row["id"]))
         with db.transaction(conn):

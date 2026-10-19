@@ -172,7 +172,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     stats = run_queue(
         conn, make_embedder(), progress, make_transcriber(not args.no_transcribe),
         image_embedder=make_image_embedder(settings), video_frames=settings.index_video_frames,
-        image_text=settings.index_image_text,
+        image_text=settings.index_image_text, people=settings.people and settings.index_photos,
     )  # fmt: skip
     while filemeta.refresh(conn, places=settings.places):  # dates and places (file headers only)
         pass

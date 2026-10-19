@@ -449,9 +449,15 @@ def test_people_are_counted_and_classified_in_the_worker(conn, tmp_path, monkeyp
 
 
 def test_vision_detection_runs_on_a_photo_without_people(tmp_path):
-    pytest.importorskip("Vision")
-    count, face, boxes = people_mod.detect(photo(tmp_path / "pasy.jpg"))
-    assert (count, face, boxes) == (0, 0.0, [])
+    """Real Vision, in its own process: PyObjC must never be loaded where the daemon's tests run."""
+    import sys
+
+    path = photo(tmp_path / "pasy.jpg")
+    code = f"from lantern import people; print(people.detect({str(path)!r}))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    if "No module named 'Vision'" in out.stderr:
+        pytest.skip("Vision (PyObjC) not installed")
+    assert out.stdout.strip() == "(0, 0.0, [])", out.stderr
 
 
 def _people_index(conn, root: Path) -> None:
@@ -505,3 +511,23 @@ def test_a_people_word_never_hides_documents(conn, embedder, tmp_path):
     found = search(conn, embedder, "prawa kobiet historia", log=False)
     assert "prawa-kobiet.txt" in {Path(r.path).name for r in found.results}
     assert all(Path(p.path).name in {"kobieta_krk.jpg", "kobieta_paris.jpg", "grupa_paris.jpg"} for p in found.photos)
+
+
+def test_people_words_without_counted_photos_search_by_meaning(conn, embedder, tmp_path):
+    """The setting off or photos not counted yet: "kobieta" must not empty the photos section."""
+    _people_index(conn, tmp_path / "zdjecia")
+    people_mod.forget(conn)
+    found = search(conn, embedder, "kobieta z 2023", log=False, category="photos")
+    assert found.photos and {Path(p.path).name for p in found.photos} <= {"kobieta_krk.jpg", "mezczyzna_krk.jpg",
+                                                                          "pejzaz_krk.jpg"}  # fmt: skip
+
+
+def test_unknown_counts_are_left_out_of_people_filters_only(conn, embedder, tmp_path):
+    _people_index(conn, tmp_path / "zdjecia")
+    with db.transaction(conn):  # Vision saw nobody, the photo model a person: unknown
+        conn.execute("UPDATE files SET people = NULL, women = NULL, men = NULL WHERE path LIKE '%pejzaz_paris%'")
+    assert "pejzaz_paris.jpg" not in {Path(p.path).name for p in search(conn, embedder, "bez ludzi", log=False).photos}
+    assert "pejzaz_paris.jpg" not in {Path(p.path).name for p in search(conn, embedder, "z ludźmi", log=False).photos}
+    paris = search(conn, embedder, "zdjęcia z Paryża", log=False)  # no people words: it is there like any photo
+    assert "pejzaz_paris.jpg" in {Path(p.path).name for p in paris.photos}
+    assert people_query.parse("zdjęcie nie wiadomo kim z Paryża") is None  # "unknown" is not something to search

@@ -32,6 +32,7 @@ class PeopleFilter:
     sql: str  # condition on files (alias f)
     params: tuple
     words: frozenset[int]  # indices of the query's words that said it (with "bez", numbers)
+    crowd: bool = False  # "grupa": the most people first when browsing; else the fewest (the person is the subject)
 
 
 def parse(query: str) -> PeopleFilter | None:
@@ -73,7 +74,8 @@ def parse(query: str) -> PeopleFilter | None:
     if not conditions:
         return None
     unique = list(dict.fromkeys(conditions))  # "kobieta i kobieta" once
-    return PeopleFilter(" AND ".join(f"({c})" for c in unique), tuple(params), frozenset(used))
+    crowd = any(c.startswith(f"f.people >= {GROUP_MIN}") for c in unique)
+    return PeopleFilter(" AND ".join(f"({c})" for c in unique), tuple(params), frozenset(used), crowd)
 
 
 def only_people_words(query: str, people: PeopleFilter, also: set[str] = frozenset()) -> bool:

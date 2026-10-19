@@ -274,6 +274,7 @@ class Filters:
     narrowed: bool = False  # a time or place limits the results (not only a folder)
     kind: str | None = None  # "zdjęcia z maja": the photos category
     people: Scope | None = None  # "kobieta", "bez ludzi", "grupa": a condition on the photos section only
+    people_order: str = ""  # browsing with people words: "f.people ASC" (a person) or "f.people DESC" (a group)
 
 
 def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
@@ -298,13 +299,14 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
         kinds = {KIND_WORDS.get(places_mod.name_key(w)) for w in query.split()}
         if len(kinds) == 1 and None not in kinds:  # only kind words left ("zdjęcia"): browse that kind
             kind, query = kinds.pop(), ""
-    found = people_query.parse(query) if query.strip() else None
+    found = people_query.parse(query) if query.strip() and _people_counted(conn) else None
     people_scope = Scope(found.sql, found.params) if found else None
     photo_words = {k for k, v in KIND_WORDS.items() if v == "photos"}
     if found and people_query.only_people_words(query, found, also=photo_words):  # "zdjęcia kobiet", "selfie"
         kind, query = "photos", ""
     return query, Filters(
         people=people_scope,
+        people_order=("f.people DESC" if found.crowd else "f.people ASC") if found else "",
         kind=kind,
         scope=Scope.all(folder_scope, time_scope, place_scope),
         soft_time=time_filter if time_filter and not time_filter.hard else None,
@@ -312,6 +314,13 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
         soft_countries=place.countries if place and not place.hard else (),
         narrowed=bool(time_scope or place_scope or people_scope),
     )
+
+
+def _people_counted(conn: sqlite3.Connection) -> bool:
+    """Any photo with its people counted. Without (the setting off, an older index, before the first count) people
+    words are searched by meaning, as before: a filter would hide every photo."""
+    row = conn.execute("SELECT 1 FROM files WHERE kind = 'image' AND people_version > 0 LIMIT 1").fetchone()
+    return row is not None
 
 
 def _file_facts(conn: sqlite3.Connection, paths: list[str], lang: str) -> dict[str, tuple]:
@@ -355,7 +364,9 @@ def _keep(conn: sqlite3.Connection, items: list[Result], scope: Scope) -> list[R
     return [i for i in items if i.path in ok]
 
 
-def browse(conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, category: str | None) -> SearchResponse:
+def browse(
+    conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, category: str | None, people_order: str = ""
+) -> SearchResponse:
     """A time or place without other words ("z maja 2023", "photos in Paris"): files made then or there, newest
     first; photos as their own section."""
     kinds = _BROWSE_KINDS.get(category or "")
@@ -365,7 +376,8 @@ def browse(conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, catego
         "JOIN chunks c ON c.id = (SELECT min(id) FROM chunks WHERE file_id = f.id) "
         # photos dated by the camera (or their name) before images dated only by the disk (downloads, graphics)
         f"WHERE f.status = 'indexed' AND {scope.sql}{kind_sql} "
-        "ORDER BY f.date_source IN ('exif', 'quicktime', 'name') DESC, f.inferred_date DESC LIMIT ?",
+        f"ORDER BY {people_order + ', ' if people_order else ''}"
+        "f.date_source IN ('exif', 'quicktime', 'name') DESC, f.inferred_date DESC LIMIT ?",
         (*scope.params, *(kinds or ()), BROWSE_PHOTOS + limit * 4),
     ).fetchall()
     photos, files = [], []
@@ -541,7 +553,8 @@ def search(
     if (scope is not None or filters.people is not None) and not query.strip():
         if not filters.narrowed:
             return SearchResponse([], None, 0.0, 0.0, category=category)  # a folder alone is not a query
-        resp = browse(conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind)
+        resp = browse(conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind,
+                      filters.people_order)
         return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query

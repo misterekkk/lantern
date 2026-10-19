@@ -1280,6 +1280,30 @@ M4A, MP3, MOV and Ogg Opus.
   (`image_search` and the photos found by their text), so "prawa kobiet" still finds documents; people words alone,
   or with a time, a place and `zdjęcia`, browse the photos. "A group" = 3+ people, "selfie"/"portret" = one person
   whose face covers ≥ 3% of the photo. The user chose to keep woman/man on by default with the people switch.
+- **People, measured after building** (the same 320 COCO photos, sets and seeds as before; photos section, top 24;
+  "right" = the labelled kind, "group" = a group photo the labels give no genders for, "wrong" = surely wrong):
+
+  | query | before: right (top 5) | after: right / wrong / group (top 5) |
+  |---|---|---|
+  | zdjęcie kobiety z 2024 w Portugalii | 13/20 (3/5) | 18/24 / 0 / 6 (5/5) |
+  | mężczyzna w Krakowie | 10/18 (2/5) | 20/24 / 0 / 4 (5/5) |
+  | photos of a woman in Paris | 12/30 (2/5) | 18/24 / 1 / 5 (5/5) |
+  | kobieta z 2023 | 15/20 (3/5) | 19/24 / 1 / 4 (5/5) |
+  | kobieta / mężczyzna | 22/30, 17/30 | 23/24, 22/24 (5/5) |
+  | a woman / a man | 23/30, 19/30 | 23/24, 22/24 (5/5) |
+  | zdjęcia bez ludzi z 2024 | 6/27 (2/5) | 21/24 / 3 (4/5) |
+  | grupa ludzi w Paryżu | 12/16 (4/5) | 13/13 (5/5) |
+  | people | 28/30 | 24/24 |
+  | dwie osoby (new) | – | 15/24 / 9 (4/5) |
+
+  Time and place filters stayed exact. Stored counts: people found in 97% of photos with people (the doubt check
+  turned 10 counts into "unknown": 9 photos whose people Vision missed, 1 empty), never in an empty one; woman/man
+  right on 111 of 113 one-person photos. Exact counts stay approximate ("dwie osoby"). Browsing with people words puts
+  the photos with the fewest people first (a group query: the most). Cost: the people pass took 85 s for 320 photos
+  (~0.26 s each, Vision + crops + loading the SigLIP text tower once); indexing with it 180 s instead of 122 s.
+- **Unknown counts** (Vision saw nobody, the photo model a person) and photos not counted yet are left out of people
+  filters only; every other search sees them. With no photo counted at all (the setting off, an older index), people
+  words are searched by meaning as before instead of emptying the photos section.
 - Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
   dictionary); time phrases in languages other than Polish and English are not understood (places are).
 
