@@ -9,6 +9,7 @@ is empty, so heavy models never stay resident.
 import ctypes
 import json
 import os
+import shutil
 import signal
 import socketserver
 import struct
@@ -41,6 +42,11 @@ POWER_CHECK_S = 30.0
 SETTINGS_HOLD_S = 30.0
 APPS_CHECK_S = 120.0  # how often the app folders are checked for added, removed or updated apps
 WORKER_RETRY_S = 30.0  # after a worker crash with work left
+# A file the worker spends longer on is taken as stuck (a hung PDFKit/Vision call cannot be interrupted from Python):
+# the worker is killed, that file is skipped and the queue goes on. Generous on purpose: a 1000-page scanned PDF or a
+# three-hour recording may legitimately take long.
+STUCK_FILE_S = {"index": 30 * 60.0, "transcribe": 90 * 60.0}
+MIN_FREE_BYTES = 2 * 1024**3  # indexing pauses below this much free space on the index's disk (low_disk)
 
 
 def footprint_mb() -> float:
@@ -96,6 +102,7 @@ class Daemon:
         self.worker_terminating = False
         self.worker_retry_at = 0.0
         self.progress: dict = {}
+        self.progress_at = 0.0  # when the worker reported the file it is on
         self.perf = PerfMonitor()
         self.last_run: dict = {}
         self.warnings: list[str] = []
@@ -248,6 +255,12 @@ class Daemon:
                 continue
             with self.lock:
                 if event.get("event") == "progress":
+                    same_file = (event.get("path"), event.get("stage")) == (
+                        self.progress.get("path"),
+                        self.progress.get("stage"),
+                    )
+                    if not same_file:
+                        self.progress_at = time.monotonic()
                     self.progress = event
                 elif event.get("event") == "done":
                     self.last_run = {**event, "finished": time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -285,7 +298,30 @@ class Daemon:
             if left == 0 and self.settings.index_mode == "ask":
                 self.approved = False
 
+    def _check_stuck_worker(self) -> None:
+        with self.lock:
+            proc, progress, since = self.worker, dict(self.progress), self.progress_at
+        stage, path = progress.get("stage"), progress.get("path")
+        limit = STUCK_FILE_S.get(stage or "")
+        if proc is None or proc.poll() is not None or not path or limit is None or time.monotonic() - since < limit:
+            return
+        from lantern.queue import jobs
+
+        proc.kill()  # SIGTERM would wait for the stuck file to finish
+        proc.wait()
+        conn = self._conn()
+        try:
+            with db.transaction(conn):
+                jobs.give_up_file(conn, path, stage, f"took longer than {int(limit // 60)} min ({stage}); skipped")
+        finally:
+            conn.close()
+        self._warn(f"skipped a file that took longer than {int(limit // 60)} min: {path}")
+        with self.lock:
+            self.worker_terminating = True  # an expected exit: no crash warning, no retry pause
+        self._reap_worker()
+
     def _manage_worker(self) -> None:
+        self._check_stuck_worker()
         self._reap_worker()
         with self.lock:
             running = self.worker is not None
@@ -327,9 +363,14 @@ class Daemon:
             reason = "low_power"
         elif self.settings.pause_on_thermal and state.thermal_pressure:
             reason = "thermal"
+        elif _free_bytes(config.lantern_home()) < MIN_FREE_BYTES:
+            reason = "low_disk"  # an index (and the WAL, VACUUM's copy) needs room; a full disk breaks the Mac too
         with self.lock:
+            newly_low = reason == "low_disk" and self.auto_pause != "low_disk"
             self.auto_pause = reason
             self.power_state = state
+        if newly_low:
+            self._warn("indexing paused: less than 2 GB free on the disk of the index")
 
     def _scan_all_soon(self) -> None:
         def scan() -> None:
@@ -1025,3 +1066,10 @@ def wait_for_socket(timeout: float = 30.0) -> bool:
             return True
         time.sleep(0.1)
     return False
+
+
+def _free_bytes(path: Path) -> int:
+    try:
+        return shutil.disk_usage(path).free
+    except OSError:  # unknown: never pause for that
+        return MIN_FREE_BYTES

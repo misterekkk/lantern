@@ -462,7 +462,11 @@ uv run lantern daemon stop | uninstall
   and are released when it finishes. The idle daemon uses ~490 MB. Searches run at a higher priority than the
   daemon's own scans, so they stay fast while it works (measured in DECISIONS.md, "Power and QoS").
 - **Automatic pause** on battery power, in Low Power Mode and when macOS reports the Mac is hot (thermal state
-  "serious" or worse); the current file is finished, the rest waits. `lantern status` shows what the daemon sees.
+  "serious" or worse), and when less than 2 GB is free on the disk of the index; the current file is finished, the
+  rest waits. `lantern status` shows what the daemon sees.
+- **A stuck file never stops the queue:** a file the worker spends more than 30 minutes on (90 for a transcript;
+  e.g. a hung PDF or image decoder) is skipped with the reason in `lantern status` and the warnings, and indexing
+  goes on with the next one.
 - **Settings** live in `~/Library/Application Support/Lantern/config.toml` (`lantern config` lists them).
 - **API:** Unix socket `~/Library/Application Support/Lantern/lantern.sock` (mode `0600`, folder `0700`), JSON lines.
   The menu bar app uses the same API.

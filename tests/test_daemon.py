@@ -446,3 +446,44 @@ def test_passage_returns_transcript_for_audio_and_frame_chunks(start_daemon):
     by_kind = {r["kind"]: r["id"] for r in rows}
     assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["audio"]})["text"]
     assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["frame"]})["text"]
+
+
+def test_a_file_the_worker_is_stuck_on_is_skipped(lantern_home, project, monkeypatch):
+    """A worker stuck on one file (a hung PDFKit/Vision call) is killed after the time limit; that file's job fails
+    at once with the reason, the other claimed jobs go back to the queue."""
+    import subprocess as sp
+    import time as tm
+
+    from lantern.queue import jobs
+    from lantern.scanner.diff import scan_root
+    from lantern.service import core
+
+    conn = db.connect(db.Path(os.environ["LANTERN_HOME"]) / "index.db")
+    scan_root(conn, project)
+    paths = [r[0] for r in conn.execute("SELECT path FROM files ORDER BY path")]
+    jobs.claim(conn, "index", 10)  # all running, as a worker would have them
+    conn.commit()
+    monkeypatch.setattr(core, "STUCK_FILE_S", {"index": 1.0})
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False))
+    d.worker = sp.Popen(["sleep", "60"])
+    d.progress, d.progress_at = {"event": "progress", "stage": "index", "path": paths[0]}, tm.monotonic() - 5
+    d._check_stuck_worker()
+    assert d.worker is None
+    rows = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT f.path, j.status, j.last_error FROM jobs j JOIN files f ON f.id = j.file_id")}  # fmt: skip
+    assert rows[paths[0]][0] == "failed" and "took longer than" in rows[paths[0]][1]
+    assert all(status == "queued" for p, (status, _) in rows.items() if p != paths[0])
+    conn.close()
+
+
+def test_indexing_pauses_when_the_disk_is_almost_full(lantern_home, monkeypatch):
+    from lantern.service import core
+
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False))
+    monkeypatch.setattr(core, "_free_bytes", lambda path: 500 * 1024**2)
+    d._check_power()
+    assert d._paused() == "low_disk" and any("2 GB free" in w for w in d.warnings)
+    monkeypatch.setattr(core, "_free_bytes", lambda path: 50 * 1024**3)
+    d._last_power_check = 0.0
+    d._check_power()
+    assert d._paused() is None

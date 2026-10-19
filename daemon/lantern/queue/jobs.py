@@ -60,5 +60,17 @@ def fail(conn: sqlite3.Connection, job: Job, error: str) -> bool:
     return give_up
 
 
+def give_up_file(conn: sqlite3.Connection, path: str, kind: str, error: str) -> int:
+    """A file the worker got stuck on: its job is failed at once (no retries, they would get stuck again) and every
+    other job the killed worker had claimed goes back to the queue. Returns the number of jobs given up."""
+    n = conn.execute(
+        "UPDATE jobs SET status = 'failed', attempts = ?, last_error = ?, updated_at = ? "
+        "WHERE kind = ? AND file_id IN (SELECT id FROM files WHERE path = ?)",
+        (MAX_ATTEMPTS, error[:1000], now(), kind, path),
+    ).rowcount
+    recover(conn)
+    return n
+
+
 def counts(conn: sqlite3.Connection) -> dict[str, int]:
     return {r["status"]: r["n"] for r in conn.execute("SELECT status, COUNT(*) AS n FROM jobs GROUP BY status")}

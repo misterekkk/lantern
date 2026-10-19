@@ -100,6 +100,7 @@ struct MenuView: View {
             case "battery": "Paused: battery"
             case "low_power": "Paused: Low Power Mode"
             case "thermal": "Paused: heat"
+            case "low_disk": "Paused: disk almost full"
             default: "Paused"
             }
         case .awaitingApproval: "Waiting for approval"

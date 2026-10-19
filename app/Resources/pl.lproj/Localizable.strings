@@ -5,6 +5,7 @@
 "Off" = "Wyłączony";
 "Paused: battery" = "Pauza: bateria";
 "Paused: heat" = "Pauza: temperatura";
+"Paused: disk almost full" = "Pauza: dysk prawie pełny";
 "Paused: Low Power Mode" = "Pauza: niskie zużycie energii";
 "Paused" = "Wstrzymany";
 "Waiting for approval" = "Czeka na zgodę";
