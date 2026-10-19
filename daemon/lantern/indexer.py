@@ -167,8 +167,10 @@ def run_queue(
     image_embedder: ImageEmbedder | None = None,
     video_frames: bool = True,
     image_text: bool = True,
+    people: bool = False,
 ) -> IndexStats:
-    """image_text: read text in photos, screenshots and scanned PDF pages (Apple Vision OCR)."""
+    """image_text: read text in photos, screenshots and scanned PDF pages (Apple Vision OCR); people: count the people
+    in photos and guess woman/man (lantern/people.py) once the photos are indexed."""
     """Process queued jobs; should_stop is checked between files (pause, battery, shutdown)."""
     stats = IndexStats()
     dim = embedder.model_info().dim
@@ -380,6 +382,13 @@ def run_queue(
         embedder.unload_vision()
         if image_embedder:
             image_embedder.unload()
+
+    # ---- people in photos (Vision + the photo model; new photos and photos indexed before) ----
+    if people and not stats.stopped:
+        from lantern import people as people_mod
+
+        people_mod.refresh(conn, embedder, should_stop, progress)
+        stats.stopped = should_stop()
 
     # ---- stage 2: transcribe ----
     if transcriber is None or stats.stopped:

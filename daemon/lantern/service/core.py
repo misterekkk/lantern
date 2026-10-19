@@ -22,7 +22,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import asdict
 from pathlib import Path
 
-from lantern import config
+from lantern import config, filemeta
 from lantern.api import protocol
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
 from lantern.search.hybrid import clear_history, learned_choice, mark_opened, search
@@ -35,6 +35,9 @@ from lantern.service.perf import PerfMonitor
 from lantern.store import db
 
 TICK_S = 0.5
+META_BATCH = 50  # files whose date and place are read per control-loop tick (filemeta.refresh)
+META_IDLE_S = 5.0
+PEOPLE_CHECK_S = 30.0  # how often an idle daemon looks for photos whose people are not counted yet
 QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
@@ -101,6 +104,8 @@ class Daemon:
         self.worker: subprocess.Popen | None = None
         self.worker_terminating = False
         self.worker_retry_at = 0.0
+        self._meta_check_at = 0.0  # next time filemeta.refresh looks for files without a date
+        self._people_check_at = 0.0  # next time it looks for photos without people counted
         self.progress: dict = {}
         self.progress_at = 0.0  # when the worker reported the file it is on
         self._whisper_checked = (-1e9, False)  # (when, Whisper downloaded)
@@ -251,12 +256,12 @@ class Daemon:
             return "manual"
         return self.auto_pause
 
-    def _start_worker(self) -> None:
+    def _start_worker(self, people_only: bool = False) -> None:
         logs_dir().mkdir(parents=True, exist_ok=True)
         log = open(logs_dir() / "worker.log", "ab")  # noqa: SIM115 - owned by the child
         env = {**os.environ, **self.worker_env}
         proc = subprocess.Popen(
-            [sys.executable, "-m", "lantern.service.worker"],
+            [sys.executable, "-m", "lantern.service.worker", *(["--people-only"] if people_only else [])],
             stdout=subprocess.PIPE, stderr=log, env=env, text=True, start_new_session=True,
         )  # fmt: skip
         log.close()
@@ -348,13 +353,30 @@ class Daemon:
         if running and (paused or holding):
             self._stop_worker()
             return
-        if running or paused or not want or time.monotonic() < self.worker_retry_at:
+        if running or paused or holding or time.monotonic() < self.worker_retry_at:
             return
         conn = self._conn()
-        has_work = sum(self._queued(conn).values()) > 0
+        has_work = want and sum(self._queued(conn).values()) > 0
         conn.close()
         if has_work:
             self._start_worker()
+        elif self._people_waiting():  # needs no approval: these photos are already in the index
+            # photos indexed before (or whose analysis is out of date): counted in a worker that does nothing else, so
+            # files waiting for approval in "ask" mode stay waiting
+            self._start_worker(people_only=True)
+
+    def _people_waiting(self) -> bool:
+        if not (self.settings.people and self.settings.index_photos) or time.monotonic() < self._people_check_at:
+            return False
+        from lantern import people
+
+        conn = self._conn()
+        try:
+            n = people.pending(conn)
+        finally:
+            conn.close()
+        self._people_check_at = time.monotonic() + PEOPLE_CHECK_S
+        return n > 0
 
     def _release_idle_query_model(self) -> None:
         q = self.query_embedder
@@ -438,6 +460,9 @@ class Daemon:
                 r[0]: r[1]
                 for r in conn.execute("SELECT kind, COUNT(*) FROM files WHERE status = 'indexed' GROUP BY kind")
             }
+            from lantern import people
+
+            enriching = {"dates_pending": filemeta.pending(conn), "people_pending": people.pending(conn)}
         finally:
             conn.close()
         from lantern.transcription import whisper
@@ -451,6 +476,7 @@ class Daemon:
                 "paused": self._paused(), "power": asdict(self.power_state),
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
+                **enriching,  # files whose date/place, photos whose people are still to be read (phase 16)
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
                 "whisper_downloaded": whisper.available(),
                 "models_missing": self.models_missing, "model_download": self._download_status(),
@@ -638,7 +664,47 @@ class Daemon:
             self._scan_all_soon()
         elif key == "transcribe" and self.settings.transcribe:
             self._enqueue_missing_transcripts()
+        elif key == "places":
+            conn = self._conn()
+            try:
+                if self.settings.places:
+                    filemeta.read_places_again(conn)
+                else:
+                    filemeta.forget_places(conn)
+            finally:
+                conn.close()
+            self._meta_check_at = 0.0
+        elif key == "people":
+            if self.settings.people:
+                self._people_check_at = 0.0
+            else:
+                from lantern import people
+
+                if self.worker is not None and self.progress.get("stage") == "people":
+                    self._stop_worker(wait=True)  # it writes its last batch on the way out: before the deletion
+                conn = self._conn()
+                try:
+                    people.forget(conn)
+                finally:
+                    conn.close()
         return asdict(self.settings)
+
+    def _refresh_meta(self) -> None:
+        """Dates and places of new files and of files indexed before phase 16, a small batch per tick (file headers
+        only), paused like indexing."""
+        if self._paused() or time.monotonic() < self._meta_check_at:
+            return
+        conn = self._conn()
+        try:
+            done = filemeta.refresh(conn, places=self.settings.places, limit=META_BATCH,
+                                    should_stop=self.stopping.is_set)  # fmt: skip
+        except Exception as exc:  # never stops the control loop; tried again later
+            self._warn(f"reading file dates failed: {exc}")
+            done = 0
+        finally:
+            conn.close()
+        if done < META_BATCH:  # nothing (more) to read: look again in a while (new files, a changed setting)
+            self._meta_check_at = time.monotonic() + META_IDLE_S
 
     def api_exclude(self, action: str, pattern: str) -> dict:
         with self.lock:
@@ -1058,6 +1124,7 @@ class Daemon:
                 self._check_power()
                 self._refresh_apps()
                 self._manage_worker()
+                self._refresh_meta()
                 self._release_idle_query_model()
                 with self.lock:
                     worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)

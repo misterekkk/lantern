@@ -207,7 +207,7 @@ struct MenuView: View {
             if let done = w.done, let total = w.total, total > 0 {
                 ProgressView(value: Double(done), total: Double(total))
                     .animation(.smooth(duration: 0.4), value: done)
-                Text("\(w.stage == "transcribe" ? String(localized: "Transcribing") : String(localized: "Indexing files")) \(done)/\(total) · \((w.path.map { ($0 as NSString).lastPathComponent }) ?? "")")
+                Text("\(w.stage == "transcribe" ? String(localized: "Transcribing") : w.stage == "people" ? String(localized: "Counting people in photos") : String(localized: "Indexing files")) \(done)/\(total) · \((w.path.map { ($0 as NSString).lastPathComponent }) ?? "")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lantern.chunking.symbols import arity, name_key
+from lantern.search.scope import condition
 
 DEFINITION_SECTION_SIZE = 5
 _IDENT = re.compile(r"[A-Za-z_$][\w$]*(?:(?:::|\.|->)[A-Za-z_$][\w$]*)*")
@@ -157,8 +158,9 @@ def fragment_at_word_start(name: str, key: str) -> bool:
 
 
 def symbol_search(
-    conn: sqlite3.Connection, query: str, limit: int = DEFINITION_SECTION_SIZE, scope: str | None = None
+    conn: sqlite3.Connection, query: str, limit: int = DEFINITION_SECTION_SIZE, scope=None
 ) -> list[Definition]:
+    """scope: a folder pattern or search.scope.Scope (folder, time, place)."""
     q = parse_symbol_query(query)
     if q is None:
         return []
@@ -172,13 +174,14 @@ def symbol_search(
         if len(q.key) >= 4:
             levels.append(("partial", "instr(s.name_key, ?) > 1", (q.key,), 1.0))
     found: dict[int, tuple[float, str, sqlite3.Row]] = {}  # symbol id -> (score, match, row)
+    scope_sql, scope_params = condition(scope) if scope is not None else ("", [])
     for match, where, params, base in levels:
         rows = conn.execute(
             "SELECT s.id, s.file_id, s.name, s.kind, s.parent, s.signature, s.line, s.end_line, f.path "
             f"FROM symbols s JOIN files f ON f.id = s.file_id WHERE {where}"
-            + (" AND f.path LIKE ? ESCAPE '\\'" if scope is not None else "")
+            + (f" AND {scope_sql}" if scope is not None else "")
             + " LIMIT 200",
-            (*params, *([scope] if scope is not None else [])),
+            (*params, *scope_params),
         ).fetchall()
         for r in rows:
             if match == "partial" and not fragment_at_word_start(r["name"], q.key):

@@ -43,6 +43,7 @@ app/              Swift menu-bar client (app/CLAUDE.md; build with app/build.sh)
 integrations/     Raycast extension and Alfred workflow (clients of the daemon socket, like the app)
 site/             website: Astro landing page, docs generated from README/docs, the demo (site/README.md)
 launchd/          LaunchAgent plist template
+scripts/          development tools (build_places.py: the bundled GeoNames city table)
 spikes/phase0/    Phase 0 measurement scripts (not app code, excluded from ruff)
 tests/            pytest; tests needing the real model are marked `@pytest.mark.model`
 ```

@@ -77,6 +77,10 @@ public struct SearchResult: Decodable, Equatable, Sendable, Identifiable {
     public var endMs: Int?
     public var page: Int?  // PDF page
     public var textRank: Int?  // photos found by the text read from them (OCR)
+    public var date: String?  // when the file was made, "2023-05-14" (EXIF, QuickTime, its name or the file system)
+    public var dateSource: String?  // exif | quicktime | name | fs
+    public var place: String?  // the city it was made in, already in the app's language
+    public var country: String?  // ISO code: Format.whenWhere names it in the macOS language
     public var appCategory: String?  // applications: App Store category ("social-networking")
     public var settingPane: String?  // System Settings: the pane of a setting (nil for a pane itself)
     public var settingSymbol: String?  // its icon: SF Symbol and enclosure colour, as System Settings draws it
@@ -402,6 +406,8 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var indexAudioVideo: Bool
     public var indexImageText: Bool
     public var extraLanguages: [String]?
+    public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
+    public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
 }
 
 /// Preferred languages (`api_languages`): the macOS ones, the ones added in Settings, and the list in use.

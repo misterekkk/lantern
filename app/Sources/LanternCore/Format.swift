@@ -33,8 +33,38 @@ public enum Format {
         return name
     }
 
-    /// Folder (and line range) shown under the title.
+    /// "14 May 2023 · Kraków, Poland" for photos and recordings (any file whose date comes from its contents or name);
+    /// nil when there is nothing to say. The country is named by macOS, in its language.
+    public static func whenWhere(_ r: SearchResult, locale: Locale = .current) -> String? {
+        guard r.isVisual || r.isMedia || ["exif", "quicktime", "name"].contains(r.dateSource ?? "") else { return nil }
+        var parts: [String] = []
+        if let text = r.date, let day = isoDay.date(from: text) {
+            // parsed and shown in UTC: the date is a calendar day, never shifted by this Mac's time zone
+            parts.append(day.formatted(Date.FormatStyle(date: .long, time: .omitted, locale: locale,
+                                                        timeZone: TimeZone(identifier: "UTC")!)))
+        }
+        let country = r.country.flatMap { locale.localizedString(forRegionCode: $0) }
+        if let place = r.place {
+            parts.append(country.map { "\(place), \($0)" } ?? place)
+        } else if let country {  // a camera without GPS, in a folder named after the country
+            parts.append(country)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private static let isoDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// Folder (and line range) shown under the title; photos and recordings start with when and where.
     public static func subtitle(_ r: SearchResult) -> String {
+        if let when = whenWhere(r) {
+            return "\(when)  —  \(shortPath((r.path as NSString).deletingLastPathComponent))"
+        }
         if r.isApp { return appCategory(r.appCategory) }
         if r.isSetting {
             let settings = r.settingsAppName ?? String(localized: "System Settings")

@@ -1203,6 +1203,127 @@ M4A, MP3, MOV and Ogg Opus.
   measured: `purge` needs root. The index lives on the internal disk; an I/O error under mmap would be a SIGBUS instead
   of an SQLite error, accepted for a local file.
 
+## `in:folder` measured (2026-10-19)
+
+- 150 known-item queries on a copy of the user's index (5 900 files): 5 random words of 5+ letters from a random text,
+  PDF or code passage (the files of the phase 16 worktree left out), the passage's file as the answer; real model,
+  files section, top 20.
+
+  | | hit@1 | hit@5 | in top 20 | MRR | median |
+  |---|---|---|---|---|---|
+  | no scope | 0.39 | 0.60 | 0.68 | 0.479 | 181 ms |
+  | `in:<top folder>` (`in:Downloads`, `in:Studia`) | 0.43 | 0.61 | 0.69 | 0.503 | 234 ms |
+  | `in:<its own folder>` | 0.49 | 0.74 | 0.82 | 0.608 | 146 ms |
+
+- A coarse scope barely helps here (7 queries better, 1 worse, 142 the same): most of this index is in `~/Downloads`,
+  so scoping to it removes little, and a large scope takes the wider KNN pool (slower). A folder close to the file is
+  the real gain: +14 points of hit@5, +27% MRR, and faster (an exact score of a small scope). The queries are words of
+  the passage, which favours keyword search; queries by meaning were not measured.
+
+## Phase 16: time and place (2026-10-19, branch `phase16-time-place`)
+
+- **Metadata in pure Python** (`extractors/metadata.py`): EXIF through Pillow; HEIC/HEIF through a small reader of the
+  `meta` box (`iinf` + `iloc` → the Exif item → Pillow), checked on files made by `sips`; QuickTime through the `moov`
+  atom: `com.apple.quicktime.creationdate` and `…location.ISO6709` (iPhone keys), `mvhd` (UTC), `©xyz` (Apple,
+  Android) and 3GPP `loci` (what ffmpeg writes in MP4). Not PyObjC/ImageIO: the daemon must never import PyObjC, and
+  it is the daemon that fills dates of files indexed before 0.2 (`filemeta.refresh`, 50 files per tick, paused like
+  indexing), so an upgrade re-embeds nothing (test `test_upgrade_fills_dates_without_reindexing`). Only file headers
+  are read (the HEIF `meta` box alone, the `moov` atom capped at 32 MB), never iCloud-only files.
+- **Dates are wall-clock time** where the file was made, stored as `timegm` of the naive local time: "May 2023" is the
+  calendar of the person who took the photo. `mvhd` is UTC and is shown in this Mac's zone (the recording's zone is
+  not in it). Cascade: EXIF `DateTimeOriginal` / `Digitized` / `DateTime` → QuickTime → a date in the file name, its
+  folder, the folder above → the earlier of creation and modification time. Plausible only: 1990-01-01 to tomorrow,
+  not 2000-01-01 00:00:00 or the epoch. Names: separated dates with the day (`2023-05-14`, `14.05.2023`), 8 digits
+  only with a time (`20230514_123456`) or after a camera or app prefix (`IMG_`, `PXL_`, `signal-`…): `order 20230514`,
+  `report 1950` and IDs are not dates (tests).
+- **Places:** GeoNames `cities15000` (34 173 places, minus 2 401 city districts `PPLX` and historical places: without
+  that filter a photo in Paris was labelled "Paris 03 Temple") with every alternate name (all languages; one display
+  name per language from `alternateNamesV2`), 2.4 MB gzipped in the package (`scripts/build_places.py`, a development
+  step). Nearest city within 40 km, unit vectors in float64 (in float32 the cosines of points a kilometre apart are all
+  1.0 and the wrong district won). Only the cities of the user's files are copied into the index (`places`,
+  `place_names`), so place words in queries can only match places the user has been to; an inflected word must be the
+  whole name (or all but its last letter) plus a case ending (`Krakowie`, `Warszawie`, `Paryżu`; `kraken` is not
+  Kraków). Countries are named by the clients (Foundation `Locale`, `Intl.DisplayNames`), in the system language.
+  CLGeocoder rejected: it sends coordinates to Apple.
+- **Query time parser** (`search/when.py`, PL/EN only): explicit phrases are hard filters cut from the query
+  (preposition + month/season/year, month + year, a day, relative days, weeks, months, years, seasons); a bare year or
+  month name is a 30% boost and stays in the query; `may` and `march` alone are verbs, `jan` alone is a name. Winter of
+  a year = its January, February and December. A place after a preposition is a filter, a bare place name a boost.
+  Folder, time and place share one SQL condition (`search.scope.Scope`) through vector, keyword, photo and symbol
+  search. A time or place with nothing else, or only a kind word (`zdjęcia`, `filmy`, `dokumenty`, `pdfy`), browses
+  the files made then or there, newest first.
+- **Countries:** `data/countries.tsv.gz` (252 countries, every name in every language, 0.22 MB). A city's country goes
+  to `files.country`; a photo or video dated by its camera (EXIF/QuickTime) without coordinates takes the country
+  named by its folder or the two above (`Portugalia/`, `Wakacje w Portugalii 2026/`). Never screenshots or graphics
+  (no camera date), never cities (a `mobile/` folder of app screenshots would become Mobile, Alabama). Queries match
+  countries of the user's files like cities (`z Portugalii`, `in Portugal`).
+- **On the user's index** (5 900 files, 271 images, a copy; 2026-10-19): metadata for every file in 0.44 s. The 21
+  photos of `Desktop/Portugalia` (Canon EOS R10) have EXIF dates but no coordinates (its GPS block holds only the
+  version: the camera writes a location only when paired with a phone), so the folder gave them Portugal; the one
+  iPhone HEIC got Warsaw. Dates from names (`MVIMG_20260213_172120`, `…_2025-10-17.pdf`, `Zrzut ekranu 2026-01-14 o
+  09.46.50` after adding the Polish "o") and QuickTime (a game recording, a project video) were all right; no false
+  date. Browsing puts camera-dated photos before images dated by the disk (downloaded graphics).
+- **Faces, evaluated** on the same 256 readable images: Vision's public detectors (`VNDetectFaceRectanglesRequest`,
+  `VNDetectHumanRectanglesRequest`) took 16 ms per image and found people in 20 (13 with a visible face); the three
+  checked by eye (horse-show photos) were right, people in the background included. The current photo search for
+  people queries, filtered to photos, top 20: "zdjęcia z ludźmi" 2 of 20 photos with people (0 in the top 5), "osoba
+  na zdjęciu" 1, "grupa ludzi" 0, "selfie" 1 of 13, "portret" 1; English did better ("people" 5, top 5: 3/5; "a person
+  smiling" 5 of 13, top 5: 4/5). A people filter from detection would be exact by construction, so detection shows a
+  clear gain. Recognising *who* is in a photo is another matter: Vision's faceprint request
+  (`VNCreateFaceprintRequest`) exists only as private API (not in the SDK), other options need a new model, and it
+  means storing biometric data: not proposed.
+- **Faces and people on a public dataset** (COCO val2017, 320 photos chosen by their annotations: 100 without people,
+  120 with one person, 60 with 2–3, 40 with 4–8; "visible" = at least 0.5% of the image; woman/man from captions, at
+  least 3 of 5 agreeing; downloaded for the test and deleted after it):
+  - Counting, Vision, confidence ≥ 0.3: faces alone found people in 69% of the photos with people, bodies 84%,
+    max(faces, bodies, upper bodies) 93% with precision 1.00 (no photo without people counted as one), the exact
+    number in 80% and ±1 in 91%; groups of 4+ were seen as 4+ in 22 of 40 (people behind others are missed).
+    `VNGeneratePersonInstanceMaskRequest` found more (recall 0.97) but saw people in 17% of empty photos and stops at
+    4. 6–21 ms per photo. So "with people" / "without people" can be filters; counts are approximate ("a group" = 3+).
+  - Mixed filters: the same photos with EXIF dates and GPS written in three sets (Lisbon 2024, Kraków 2023, Paris 2024)
+    and indexed with both photo models in an isolated home: every time or place filter was exact (e.g. "zdjęcie
+    kobiety z 2024 w Portugalii" 20/20 from set A, "mężczyzna w Krakowie" 18/18, "kobieta z 2023" 20/20). The kind of
+    person was found by meaning only: woman photos 13/20 and 15/20 within the filters, "kobieta" alone 22 of the top 30
+    (19% of the set are photos of one woman); "zdjęcia bez ludzi z 2024" 6/27: the models do not understand "without".
+  - Woman/man as a choice between two prompts per photo ("a photo of a woman" / "a photo of a man") on the 120
+    one-person photos: whole image SigLIP 2 94%, EmbeddingGemma 2 97%; on a crop around the person (Vision's body box,
+    else the face widened) 99% and 98%. A stored per-photo attribute would filter far better than ranking by the word.
+    It is a guess from appearance, from caption-based labels; it says nothing about identity.
+- **People, built** (`people.py`, `search/people.py`): count = max(faces, bodies, upper bodies) at confidence ≥ 0.3;
+  crops of the four largest people (bodies widened 15%, faces 120%) classified with EmbeddingGemma 2's vision tower
+  (98%; no second text model in the worker). Stored as numbers on `files` (no face data). The worker computes them
+  after indexing; photos indexed before are done by a `--people-only` worker the daemon starts without approval, since
+  in "ask" mode a normal worker would index files still waiting for it. People words filter only the photos section
+  (`image_search` and the photos found by their text), so "prawa kobiet" still finds documents; people words alone,
+  or with a time, a place and `zdjęcia`, browse the photos. "A group" = 3+ people, "selfie"/"portret" = one person
+  whose face covers ≥ 3% of the photo. The user chose to keep woman/man on by default with the people switch.
+- **People, measured after building** (the same 320 COCO photos, sets and seeds as before; photos section, top 24;
+  "right" = the labelled kind, "group" = a group photo the labels give no genders for, "wrong" = surely wrong):
+
+  | query | before: right (top 5) | after: right / wrong / group (top 5) |
+  |---|---|---|
+  | zdjęcie kobiety z 2024 w Portugalii | 13/20 (3/5) | 18/24 / 0 / 6 (5/5) |
+  | mężczyzna w Krakowie | 10/18 (2/5) | 20/24 / 0 / 4 (5/5) |
+  | photos of a woman in Paris | 12/30 (2/5) | 18/24 / 1 / 5 (5/5) |
+  | kobieta z 2023 | 15/20 (3/5) | 19/24 / 1 / 4 (5/5) |
+  | kobieta / mężczyzna | 22/30, 17/30 | 23/24, 22/24 (5/5) |
+  | a woman / a man | 23/30, 19/30 | 23/24, 22/24 (5/5) |
+  | zdjęcia bez ludzi z 2024 | 6/27 (2/5) | 21/24 / 3 (4/5) |
+  | grupa ludzi w Paryżu | 12/16 (4/5) | 13/13 (5/5) |
+  | people | 28/30 | 24/24 |
+  | dwie osoby (new) | – | 15/24 / 9 (4/5) |
+
+  Time and place filters stayed exact. Stored counts: people found in 97% of photos with people (the doubt check
+  turned 10 counts into "unknown": 9 photos whose people Vision missed, 1 empty), never in an empty one; woman/man
+  right on 111 of 113 one-person photos. Exact counts stay approximate ("dwie osoby"). Browsing with people words puts
+  the photos with the fewest people first (a group query: the most). Cost: the people pass took 85 s for 320 photos
+  (~0.26 s each, Vision + crops + loading the SigLIP text tower once); indexing with it 180 s instead of 122 s.
+- **Unknown counts** (Vision saw nobody, the photo model a person) and photos not counted yet are left out of people
+  filters only; every other search sees them. With no photo counted at all (the setting off, an older index), people
+  words are searched by meaning as before instead of emptying the photos section.
+- Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
+  dictionary); time phrases in languages other than Polish and English are not understood (places are).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

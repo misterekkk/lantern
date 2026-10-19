@@ -4,6 +4,14 @@ What changed for people using Lantern, newest first.
 
 ## Unreleased
 
+- **People in photos:** `zdjęcia kobiet`, `zdjęcie kobiety z 2024 w Portugalii`, `bez ludzi`, `grupa`, `selfie`,
+  `dwie osoby`. macOS counts the people on your Mac and the photo model tells women from men by appearance; only the
+  numbers are kept. Switch: Settings → File Types → People in photos.
+- **Time and place:** `zdjęcia z maja 2023`, `umowa z 2024`, `photos from last summer`, `zdjęcia z Krakowa`,
+  `Bilder aus Krakau`. Dates come from photos' and videos' own data, then dates in file names, then the disk; places
+  from their saved location and a city table inside Lantern (nothing goes online). A time or a place alone lists what
+  was made then or there. Photos and recordings show their date and city. Switch: Settings → File Types → Places in
+  photos and videos. Updating fills dates in the background in a minute or two; nothing is indexed again.
 - **Raycast ⌘Y on a video** previews inside Raycast, like the panel: the frame at the moment, large, above the
   transcript. It used to open QuickTime, which stayed open in front after the preview; playing stays on ↩.
 

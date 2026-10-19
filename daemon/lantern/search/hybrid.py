@@ -11,14 +11,18 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
+from lantern import places as places_mod
 from lantern.answers import Answer, instant_answer
 from lantern.dictionary import Definition as WordDefinition
 from lantern.dictionary import define
 from lantern.embedding.base import Embedder
+from lantern.extractors.metadata import from_seconds
+from lantern.search import people as people_query
+from lantern.search import when
 from lantern.search.apps import APP_SECTION_SIZE, AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.music import MusicHit, music_search
-from lantern.search.scope import split_scope
+from lantern.search.scope import Scope, split_scope
 from lantern.search.settings import SettingHit, settings_search
 from lantern.search.spelling import correct
 from lantern.search.suggest import completion
@@ -106,6 +110,10 @@ class Result:
     end_ms: int | None = None
     page: int | None = None  # PDF page
     text_rank: int | None = None  # photos: rank by the text read from the image (OCR), words or meaning
+    date: str | None = None  # when the file was made (extractors/metadata.py), "2023-05-14"
+    date_source: str | None = None  # exif | quicktime | name | fs
+    place: str | None = None  # the city it was made in, in the user's language ("Kraków")
+    country: str | None = None  # ISO code; clients name it in the macOS language
 
 
 @dataclass(frozen=True)
@@ -234,6 +242,159 @@ def photo_results(
         ))  # fmt: skip
     fused.sort(key=lambda r: -r.score)
     return fused[:limit]
+
+
+TIME_BOOST = 0.3  # a bare year or month ("wakacje 2023"), a bare place name: files made then / there rank higher
+BROWSE_PHOTOS = 24  # "z maja 2023" alone: the photos of that time, newest first
+# file kinds of a filter pill when browsing by time or place (no query words)
+_BROWSE_KINDS = {"photos": ("image",), "media": ("audio", "video"), "code": ("code",), "docs": ("text",),
+                 "pdf": ("pdf",)}  # fmt: skip
+
+
+# Words that name a kind of file, not its content: with a time or place ("zdjęcia z maja 2023", "videos from Paris")
+# they become that kind's filter, and the rest is browsing.
+KIND_WORDS = {
+    **dict.fromkeys(("zdjecia", "zdjecie", "zdjec", "fotki", "fotka", "fotografie", "photos", "photo", "pictures",
+                     "pics", "images"), "photos"),  # fmt: skip
+    **dict.fromkeys(("filmy", "filmiki", "film", "nagrania", "wideo", "videos", "video", "recordings", "movies"),
+                    "media"),  # fmt: skip
+    **dict.fromkeys(("dokumenty", "documents", "docs", "notatki", "notes"), "docs"),
+    **dict.fromkeys(("pdfy", "pdf", "pdfs"), "pdf"),
+}
+
+
+@dataclass(frozen=True)
+class Filters:
+    """Time and place found in the query (search/when.py, places.py)."""
+
+    scope: Scope | None = None  # hard: folder, time, place
+    soft_time: when.TimeFilter | None = None
+    soft_places: tuple[int, ...] = ()
+    soft_countries: tuple[str, ...] = ()
+    narrowed: bool = False  # a time or place limits the results (not only a folder)
+    kind: str | None = None  # "zdjęcia z maja": the photos category
+    people: Scope | None = None  # "kobieta", "bez ludzi", "grupa": a condition on the photos section only
+    people_order: str = ""  # browsing with people words: "f.people ASC" (a person) or "f.people DESC" (a group)
+
+
+def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
+    query, folder = split_scope(query)  # "in:folder" first: never spell-checked, never embedded
+    query, time_filter = when.parse(query)
+    hard_time = time_filter if time_filter and time_filter.hard else None
+    place = places_mod.find_in_query(conn, query)
+    place_scope = None
+    if place and place.hard:
+        words = query.split()
+        query = " ".join(words[: place.start] + words[place.end :])
+        conditions = []
+        if place.place_ids:
+            conditions.append(f"f.place_id IN ({','.join('?' * len(place.place_ids))})")
+        if place.countries:
+            conditions.append(f"f.country IN ({','.join('?' * len(place.countries))})")
+        place_scope = Scope(" OR ".join(conditions), (*place.place_ids, *place.countries))
+    time_scope = Scope(*hard_time.sql()) if hard_time else None
+    folder_scope = Scope("f.path LIKE ? ESCAPE '\\'", (folder,)) if folder else None
+    kind = None
+    if (time_scope or place_scope) and query.split():
+        kinds = {KIND_WORDS.get(places_mod.name_key(w)) for w in query.split()}
+        if len(kinds) == 1 and None not in kinds:  # only kind words left ("zdjęcia"): browse that kind
+            kind, query = kinds.pop(), ""
+    found = people_query.parse(query) if query.strip() and _people_counted(conn) else None
+    people_scope = Scope(found.sql, found.params) if found else None
+    photo_words = {k for k, v in KIND_WORDS.items() if v == "photos"}
+    if found and people_query.only_people_words(query, found, also=photo_words):  # "zdjęcia kobiet", "selfie"
+        kind, query = "photos", ""
+    return query, Filters(
+        people=people_scope,
+        people_order=("f.people DESC" if found.crowd else "f.people ASC") if found else "",
+        kind=kind,
+        scope=Scope.all(folder_scope, time_scope, place_scope),
+        soft_time=time_filter if time_filter and not time_filter.hard else None,
+        soft_places=place.place_ids if place and not place.hard else (),
+        soft_countries=place.countries if place and not place.hard else (),
+        narrowed=bool(time_scope or place_scope or people_scope),
+    )
+
+
+def _people_counted(conn: sqlite3.Connection) -> bool:
+    """Any photo with its people counted. Without (the setting off, an older index, before the first count) people
+    words are searched by meaning, as before: a filter would hide every photo."""
+    row = conn.execute("SELECT 1 FROM files WHERE kind = 'image' AND people_version > 0 LIMIT 1").fetchone()
+    return row is not None
+
+
+def _file_facts(conn: sqlite3.Connection, paths: list[str], lang: str) -> dict[str, tuple]:
+    """path -> (inferred_date, date_source, place_id, place name, country) for result rows."""
+    if not paths:
+        return {}
+    marks = ",".join("?" * len(paths))
+    rows = conn.execute(
+        "SELECT f.path, f.inferred_date, f.date_source, f.place_id, p.name, p.display, f.country FROM files f "
+        f"LEFT JOIN places p ON p.id = f.place_id WHERE f.path IN ({marks})",
+        paths,
+    ).fetchall()
+    return {r[0]: (r[1], r[2], r[3], places_mod.display_name(r[4], r[5], lang) if r[4] else None, r[6]) for r in rows}
+
+
+def annotate(conn: sqlite3.Connection, items: list[Result], lang: str, filters: Filters | None = None) -> list[Result]:
+    """Date and place on every result; a soft time or place lifts the files made then or there."""
+    facts = _file_facts(conn, [r.path for r in items], lang)
+    out = []
+    for r in items:
+        date, source, place_id, place, country = facts.get(r.path, (None, None, None, None, None))
+        score = r.score
+        if filters and ((filters.soft_time and filters.soft_time.contains(date))
+                        or (place_id is not None and place_id in filters.soft_places)
+                        or (country is not None and country in filters.soft_countries)):  # fmt: skip
+            score *= 1 + TIME_BOOST
+        out.append(replace(r, score=score, date=from_seconds(date).date().isoformat() if date is not None else None,
+                           date_source=source, place=place, country=country))  # fmt: skip
+    if filters and (filters.soft_time or filters.soft_places or filters.soft_countries):
+        out.sort(key=lambda r: -r.score)
+    return out
+
+
+def _keep(conn: sqlite3.Connection, items: list[Result], scope: Scope) -> list[Result]:
+    """The results whose file meets the condition."""
+    if not items:
+        return items
+    marks = ",".join("?" * len(items))
+    ok = {r[0] for r in conn.execute(f"SELECT f.path FROM files f WHERE f.path IN ({marks}) AND ({scope.sql})",
+                                     (*[i.path for i in items], *scope.params))}  # fmt: skip
+    return [i for i in items if i.path in ok]
+
+
+def browse(
+    conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, category: str | None, people_order: str = ""
+) -> SearchResponse:
+    """A time or place without other words ("z maja 2023", "photos in Paris"): files made then or there, newest
+    first; photos as their own section."""
+    kinds = _BROWSE_KINDS.get(category or "")
+    kind_sql = f" AND f.kind IN ({','.join('?' * len(kinds))})" if kinds else ""
+    rows = conn.execute(
+        "SELECT f.path, f.kind, c.id AS chunk_id, c.kind AS chunk_kind FROM files f "
+        "JOIN chunks c ON c.id = (SELECT min(id) FROM chunks WHERE file_id = f.id) "
+        # photos dated by the camera (or their name) before images dated only by the disk (downloads, graphics)
+        f"WHERE f.status = 'indexed' AND {scope.sql}{kind_sql} "
+        f"ORDER BY {people_order + ', ' if people_order else ''}"
+        "f.date_source IN ('exif', 'quicktime', 'name') DESC, f.inferred_date DESC LIMIT ?",
+        (*scope.params, *(kinds or ()), BROWSE_PHOTOS + limit * 4),
+    ).fetchall()
+    photos, files = [], []
+    for r in rows:
+        item = Result(path=r["path"], chunk_id=r["chunk_id"], start_line=None, end_line=None, symbol=None, preview="",
+                      score=0.0, vector_rank=None, vector_score=None, keyword_rank=None, keyword_score=None,
+                      kind=r["chunk_kind"])  # fmt: skip
+        if r["kind"] == "image" and len(photos) < BROWSE_PHOTOS:
+            photos.append(item)
+        elif r["kind"] != "image" and len(files) < limit:
+            files.append(item)
+    photos, files = annotate(conn, photos, lang), annotate(conn, files, lang)
+    scores = {**({"photos": 0.8} if photos else {}), **({"files": 0.7} if files else {})}
+    kinds_found = {f.kind for f in files} | ({"image"} if photos else set())
+    present = [name for name, members in CATEGORIES.items() if kinds_found & members]
+    return SearchResponse(files, None, 0.0, 0.0, photos=photos, photos_first=bool(photos), section_scores=scores,
+                          categories=present, category=category)  # fmt: skip
 
 
 def _categories(vector: list[Hit], keyword: list[Hit], image: list[Hit], definitions: list) -> list[str]:
@@ -387,9 +548,14 @@ def search(
     """query_embedder: text side of the second photo model (SigLIP 2), when loaded; lang: system language, used to
     give short photo queries a language cue; category: only results of one CATEGORIES entry (filter pill);
     spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
-    query, scope = split_scope(query)  # "in:folder" first: never spell-checked, never embedded
-    if scope is not None and not query.strip():
-        return SearchResponse([], None, 0.0, 0.0, category=category)
+    query, filters = parse_filters(conn, query)  # folder, time, place: never spell-checked, never embedded
+    scope = filters.scope
+    if (scope is not None or filters.people is not None) and not query.strip():
+        if not filters.narrowed:
+            return SearchResponse([], None, 0.0, 0.0, category=category)  # a folder alone is not a query
+        resp = browse(conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind,
+                      filters.people_order)
+        return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query
     scoped = scope is not None  # files under a folder: apps, settings, shortcuts, music and answers are not in it
@@ -428,7 +594,8 @@ def search(
     t1 = time.perf_counter()
     keyword = keyword_search(conn, query, CANDIDATES, scope=scope)
     t2 = time.perf_counter()
-    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=scope)
+    photo_scope = Scope.all(scope, filters.people)
+    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=photo_scope)
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query, scope=scope)
     t4 = time.perf_counter()
@@ -478,8 +645,13 @@ def search(
         scores["music"] = _music_score(music[0], query)
     if category == "photos" and photos:
         scores.setdefault("photos", 0.5)  # the Photos filter shows them all, however weak
+    if filters.people is not None:
+        photos = _keep(conn, photos, filters.people)  # also the photos found by their text or name
+        if photos:  # the people asked for were counted, not guessed from the look of the photo: shown
+            scores["photos"] = max(scores.get("photos", 0.0), 0.62)
     if "photos" not in scores:
         photos = []  # photos that only look a bit like the query: noise, not shown
+    results, photos = annotate(conn, results, lang, filters), annotate(conn, photos, lang, filters)
     resp = SearchResponse(
         results, None, (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, photos=photos,
         photos_first=photos_first, definitions=definitions, symbol_ms=(t4 - t3) * 1000,

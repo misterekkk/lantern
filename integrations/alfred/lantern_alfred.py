@@ -137,7 +137,10 @@ def search(query: str) -> dict:
                     "chunk": h["chunk_id"],
                     "key": key,
                 }
-                sub = " · ".join(x for x in (at, short(str(Path(h["path"]).parent))) if x)
+                # photos and recordings: when and where they were made (the city is already in the system language)
+                where_made = h.get("place") or h.get("country")  # no city: the country of a camera photo's folder
+                made = (h.get("date"), where_made) if name == "photos" or h.get("start_ms") is not None else ()
+                sub = " · ".join(x for x in (at, *made, short(str(Path(h["path"]).parent))) if x)
                 icon = {"path": h["path"]} if name == "photos" else None
                 items.append(item(h["path"], Path(h["path"]).name, sub, payload, icon))
     if not items:

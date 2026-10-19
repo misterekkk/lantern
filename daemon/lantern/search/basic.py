@@ -176,7 +176,7 @@ def _drop_hub_audio(conn: sqlite3.Connection, embedder: Embedder, table: str, hi
     return [h for h in hits if h.kind != "audio" or h.chunk_id in keep]
 
 
-def _knn(conn, table: str, qv: np.ndarray, k: int, scope: str | None) -> list[tuple[int, float]]:
+def _knn(conn, table: str, qv: np.ndarray, k: int, scope: "str | scope_mod.Scope | None") -> list[tuple[int, float]]:
     """(chunk id, cosine) of the nearest vectors; within a scope (search/scope.py) every vector of a small scope is
     scored exactly, a large one takes a wider KNN pool kept to the scope."""
     if scope is not None:
@@ -197,7 +197,11 @@ def _knn(conn, table: str, qv: np.ndarray, k: int, scope: str | None) -> list[tu
 
 
 def vector_search(
-    conn: sqlite3.Connection, embedder: Embedder, query: str, limit: int = 10, scope: str | None = None
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    query: str,
+    limit: int = 10,
+    scope: "str | scope_mod.Scope | None" = None,
 ) -> list[Hit]:
     model_id = db.find_model(conn, embedder.model_info())
     if model_id is None:  # nothing indexed with this model yet
@@ -207,16 +211,19 @@ def vector_search(
     return _best_per_file(_drop_hub_audio(conn, embedder, db.vec_table(model_id), hits), limit)
 
 
-def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10, scope: str | None = None) -> list[Hit]:
+def keyword_search(
+    conn: sqlite3.Connection, query: str, limit: int = 10, scope: "str | scope_mod.Scope | None" = None
+) -> list[Hit]:
     expr = fts_query(query)
     if expr is None:
         return []
-    if scope is not None:  # joined, so SQLite filters the matches by path (a rowid IN subquery took ~700 ms)
+    if scope is not None:  # joined, so SQLite filters the matches by file (a rowid IN subquery took ~700 ms)
+        where, params = scope_mod.condition(scope)
         rows = conn.execute(
             f"SELECT chunks_fts.rowid, bm25(chunks_fts, {BM25_WEIGHTS}) AS s FROM chunks_fts "
             "JOIN chunks c ON c.id = chunks_fts.rowid JOIN files f ON f.id = c.file_id "
-            f"WHERE chunks_fts MATCH ? AND {scope_mod.PATH_CONDITION} ORDER BY s LIMIT ?",
-            (expr, scope, limit * 5),
+            f"WHERE chunks_fts MATCH ? AND {where} ORDER BY s LIMIT ?",
+            (expr, *params, limit * 5),
         ).fetchall()
     else:
         rows = conn.execute(
@@ -293,7 +300,7 @@ def image_search(
     limit: int = 10,
     lang: str = "en",
     query_embedder=None,
-    scope: str | None = None,
+    scope: "str | scope_mod.Scope | None" = None,
 ) -> list[Hit]:
     """Photos and video frames, ranked by both photo models. Candidates from each model's KNN are pooled; for every
     candidate both similarities are computed exactly, z-normalised per model over the pool and summed (raw
