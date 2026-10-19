@@ -1187,6 +1187,14 @@ M4A, MP3, MOV and Ogg Opus.
   | FTS global / scoped | 6.1 / 3.4–7.4 | 6.1 / 2.9–7.0 | 6.1 / 2.9–6.9 |
   | photo KNN | 0.6 | 0.4 | 0.4 |
 
+- Smaller and larger indexes (synthetic 768-dim vec0 tables, same method, 20 queries × 5 rounds, KNN k = 50):
+
+  | vectors (file) | 1 000 (3 MB) | 5 000 (15 MB) | 20 000 (60 MB) | 60 000 (178 MB) | 150 000 (444 MB) |
+  |---|---|---|---|---|---|
+  | no mmap | 0.92 | 3.90 | 16.0 | 49.7 | 122.9 |
+  | mmap 1 GiB | 0.68 | 2.68 | 10.8 | 31.6 | 80.7 |
+  | gain | 26% | 31% | 33% | 36% | 34% |
+
 - vec0 KNN scans every vector block, so it reads the whole vector table on each query; through mmap SQLite skips the
   copy into its page cache (2 MB by default). FTS touches few pages and does not change. Decision: `PRAGMA mmap_size =
   1 GiB` in `store/db.connect()` (daemon, worker, CLI). Mapped pages are clean file-backed memory the system can drop:
