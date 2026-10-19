@@ -1172,6 +1172,29 @@ M4A, MP3, MOV and Ogg Opus.
   commands (`vacuum`, `daemon start/restart/logs`, `--json`, `--socket`, `--kind`), files (`lantern.db`,
   `config.json`), formats (DOCX, EPUB) and a Neural Engine claim (the models run on the GPU with MLX).
 
+## mmap for the index (2026-10-19)
+
+- Measured on a backup of the real index (515 MB; 61 315 text vectors, 265 photos, 5 690 files), warm OS cache, a
+  fresh connection per round, 5 rounds alternating the order, medians in ms (stored vectors as queries, KNN k = 50;
+  `keyword_search` for 10 words; scopes of 2 233, 6 818 and 54 729 chunks):
+
+  | | mmap 0 | 256 MiB | 1 GiB |
+  |---|---|---|---|
+  | KNN global | 59.8 | 47.1 | 34.4 |
+  | KNN, scope 2 233 / 6 818 (exact) | 17.6 / 31.3 | 15.4 / 25.4 | 12.3 / 22.5 |
+  | KNN, scope 54 729 (pool 4 096) | 114.5 | 102.1 | 89.2 |
+  | first KNN on a new connection | 61.3 | 54.1 | 47.8 |
+  | FTS global / scoped | 6.1 / 3.4–7.4 | 6.1 / 2.9–7.0 | 6.1 / 2.9–6.9 |
+  | photo KNN | 0.6 | 0.4 | 0.4 |
+
+- vec0 KNN scans every vector block, so it reads the whole vector table on each query; through mmap SQLite skips the
+  copy into its page cache (2 MB by default). FTS touches few pages and does not change. Decision: `PRAGMA mmap_size =
+  1 GiB` in `store/db.connect()` (daemon, worker, CLI). Mapped pages are clean file-backed memory the system can drop:
+  after 5 KNN queries the footprint the Performance pane shows was the same (17.7 MB without, 17.4 MB with mmap),
+  only RSS grew (37 → 285 MB max). A cold cache (after a reboot) was not
+  measured: `purge` needs root. The index lives on the internal disk; an I/O error under mmap would be a SIGBUS instead
+  of an SQLite error, accepted for a local file.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5

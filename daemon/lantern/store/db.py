@@ -159,6 +159,9 @@ class NewerSchemaError(RuntimeError):
     """The index was upgraded by a newer Lantern (e.g. an index worker started from updated code)."""
 
 
+MMAP_SIZE = 1 << 30  # bytes of the index file read through mmap; a larger file reads the rest as before
+
+
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, isolation_level=None)  # explicit transactions via transaction()
@@ -170,6 +173,7 @@ def connect(path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA secure_delete = ON")  # overwrite deleted content instead of leaving it in free pages
+    conn.execute(f"PRAGMA mmap_size = {MMAP_SIZE}")  # reads without copying pages: KNN ~40% faster (DECISIONS.md)
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     if version == 0:
         conn.executescript(_SCHEMA.read_text())
