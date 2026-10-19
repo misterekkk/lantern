@@ -117,7 +117,7 @@ brew install --cask misterekkk/tap/lantern
      ```
 3. On first launch a **welcome window** walks through the setup, in the system's language: how often you will search
    (always ready, or when needed), which models to download (recommended for this Mac's memory: on an 8 GB Mac only
-   the search model, ~1.2 GB; with 16 GB and more also Whisper for recordings and SigLIP 2 for photos), which folders
+   the search model, ~1.3 GB; with 16 GB and more also Whisper for recordings and SigLIP 2 for photos), which folders
    to search, and whether to search from Lantern's panel, Raycast or Alfred. Closed early, it leaves one reminder
    notification; the menu bar icon shows a download arrow until the search model is there, and the menu offers the
    same download. Models can also be added later in **Settings → Performance**. Quick search (apps, System Settings,
@@ -161,7 +161,7 @@ cd lantern
 uv sync
 
 # 3. One-time model download (needs internet; models go to ~/.cache/huggingface/hub/)
-#    a) EmbeddingGemma 2, MLX 8-bit (~1.2 GB) — required
+#    a) EmbeddingGemma 2, MLX 8-bit (~1.3 GB) — required
 uv run hf download mlx-community/embeddinggemma-2-8bit --revision 7505ef2f8ddef45efef6d060865f27989b3c9cec
 #    b) Whisper for transcripts (~1.6 GB) — skip if you do not index recordings or use --no-transcribe
 uv run hf download mlx-community/whisper-large-v3-turbo --revision a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb

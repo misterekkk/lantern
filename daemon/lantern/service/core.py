@@ -510,7 +510,7 @@ class Daemon:
         if out.get("running") and repo:
             from lantern import models as models_mod
 
-            out["downloaded_mb"] = round(models_mod.blob_bytes(repo) / 2**20)
+            out["downloaded_mb"] = models_mod.blob_bytes(repo) // 10**6  # decimal MB, like size_mb and Finder
         return out
 
     def api_status(self, settings_open: bool | None = None) -> dict:
@@ -1065,6 +1065,7 @@ class Daemon:
         need = {"whisper": machine.NEEDS["whisper"], "siglip_image": machine.NEEDS["siglip_image"]}
         items = [
             {"key": m.key, "group": m.group, "label": m.label, "approx_mb": m.approx_mb,
+             "group_mb": sum(o.approx_mb for o in models_mod.catalogue() if o.group == m.group),
              "downloaded": models_mod.is_downloaded(m.repo, m.revision),
              "recommended": m.group == "required" or prof == "full",
              "heavy": m.key in need, "needs_gb": round(need.get(m.key, 0) / machine.GB, 1)}

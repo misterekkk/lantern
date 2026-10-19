@@ -208,3 +208,16 @@ def test_warnings_carry_a_code_for_the_app_to_translate(lantern_home):
     assert s["warnings"][-1].endswith("indexing paused: the Mac is short of memory; it resumes by itself")  # CLI
     event = s["warning_events"][-1]
     assert event["code"] == "memory_pause" and event["args"] == {} and event["time"]
+
+
+def test_model_sizes_are_exact_and_decimal():
+    from lantern import models
+
+    cat = {m.key: m for m in models.catalogue()}
+    assert cat["embeddinggemma"].approx_mb == 1266 and cat["whisper"].approx_mb == 1613
+    assert cat["siglip_image"].approx_mb + cat["siglip_text"].approx_mb == 1977  # "~2.0 GB", not "~1 GB"
+    for m in cat.values():  # a pinned revision that was downloaded must weigh exactly what the catalogue says
+        if models.is_downloaded(m.repo, m.revision):
+            from lantern.service.perf import _snapshot_size
+
+            assert _snapshot_size(m.repo, m.revision) == m.size_bytes, m.key

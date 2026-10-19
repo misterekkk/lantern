@@ -202,7 +202,7 @@ final class AppState: ObservableObject {
         guard status?.modelsMissing == true else { return }
         Task {
             if setup == nil { await loadSetup() }
-            let gb = Double(setup?.recommendedMb ?? 1200) / 1000
+            let gb = Double(setup?.recommendedMb ?? 1266) / 1000
             let content = UNMutableNotificationContent()
             content.title = String(localized: "Finish setting up Lantern")
             content.body = String(localized: "Download the search model (about \(gb.formatted(.number.precision(.fractionLength(1)))) GB). It takes one click; after that Lantern works offline.")

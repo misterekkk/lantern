@@ -20,8 +20,13 @@ class RepoSpec:
     group: str  # required | whisper | photos
     repo: str
     revision: str
-    approx_mb: int
+    size_bytes: int  # of the pinned revision, measured on the downloaded snapshot (fixed while the revision is)
     label: str
+
+    @property
+    def approx_mb(self) -> int:
+        """Decimal megabytes, as Finder counts them; fractions cut off."""
+        return self.size_bytes // 10**6
 
 
 def catalogue() -> list[RepoSpec]:
@@ -31,13 +36,13 @@ def catalogue() -> list[RepoSpec]:
     from lantern.transcription.whisper import REVISION as WHISPER_REVISION
 
     return [
-        RepoSpec("embeddinggemma", "required", REPO, REVISION, 1200, "EmbeddingGemma 2 (search, ~1.2 GB)"),
-        RepoSpec("whisper", "whisper", WHISPER_REPO, WHISPER_REVISION, 1600,
+        RepoSpec("embeddinggemma", "required", REPO, REVISION, 1_266_584_562, "EmbeddingGemma 2 (search, ~1.3 GB)"),
+        RepoSpec("whisper", "whisper", WHISPER_REPO, WHISPER_REVISION, 1_613_979_758,
                  "Whisper large-v3-turbo (transcripts of recordings, ~1.6 GB)"),
-        RepoSpec("siglip_image", "photos", siglip.IMAGE_REPO, siglip.IMAGE_REVISION, 800,
-                 "SigLIP 2 image side (better photo search, ~0.8 GB)"),
-        RepoSpec("siglip_text", "photos", siglip.TEXT_REPO, siglip.TEXT_REVISION, 200,
-                 "SigLIP 2 text side (~0.2 GB)"),
+        RepoSpec("siglip_image", "photos", siglip.IMAGE_REPO, siglip.IMAGE_REVISION, 1_539_458_338,
+                 "SigLIP 2 image side (better photo search, ~1.5 GB)"),
+        RepoSpec("siglip_text", "photos", siglip.TEXT_REPO, siglip.TEXT_REVISION, 438_241_882,
+                 "SigLIP 2 text side (~0.4 GB)"),
     ]  # fmt: skip
 
 
@@ -104,7 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     targets = [m for m in resolve_targets(args) if not is_downloaded(m.repo, m.revision)]
     for i, m in enumerate(targets, 1):
         print(json.dumps({"event": "ModelDownload", "key": m.key, "group": m.group, "repo": m.repo,
-                          "step": i, "total": len(targets), "approx_mb": m.approx_mb}), flush=True)  # fmt: skip
+                          "step": i, "total": len(targets), "approx_mb": m.approx_mb, "size_mb": m.approx_mb}),
+              flush=True)  # fmt: skip
         snapshot_download(m.repo, revision=m.revision)
     print(json.dumps({"event": "done", "downloaded": [m.key for m in targets]}), flush=True)
     return 0

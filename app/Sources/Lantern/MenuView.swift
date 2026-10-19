@@ -137,18 +137,18 @@ struct MenuView: View {
             if let dl = s.modelDownload, dl.running {
                 Text("Downloading models…")
                     .font(.callout.weight(.semibold))
-                let approx = max(dl.approxMb ?? 1200, 1)
-                let got = min(dl.downloadedMb ?? 0, approx)
-                ProgressView(value: Double(got), total: Double(approx))
+                let total = dl.totalMb
+                let got = min(dl.downloadedMb ?? 0, total)
+                ProgressView(value: Double(got), total: Double(total))
                     .animation(.smooth(duration: 0.4), value: got)
-                Text("\(dl.step ?? 1)/\(dl.total ?? 1) · \(got) / ~\(approx) MB")
+                Text("\(dl.step ?? 1)/\(dl.total ?? 1) · \(got) / \(total) MB")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 Text("Download the search model")
                     .font(.callout.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                Text("One-time download from Hugging Face (~1.2 GB); after that Lantern works completely offline.")
+                Text("One-time download from Hugging Face (~1.3 GB); after that Lantern works completely offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ struct MenuView: View {
                 }
                 .font(.caption)
                 Toggle(isOn: $wantPhotos) {
-                    Text("SigLIP 2 — better photo search (~1 GB)").fixedSize(horizontal: false, vertical: true)
+                    Text("SigLIP 2 — better photo search (~2.0 GB)").fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.caption)
                     .task {  // the optional models follow this Mac's memory: on by default from 16 GB, off on 8 GB

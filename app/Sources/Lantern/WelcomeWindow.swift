@@ -209,7 +209,7 @@ struct WelcomeView: View {
     private func modelsStep(_ setup: SetupInfo) -> some View {
         let setup: SetupInfo? = setup
         let chosen = setup?.models.filter { model.models.contains($0.key) && !$0.downloaded } ?? []
-        let mb = chosen.reduce(0) { $0 + $1.approxMb }
+        let mb = chosen.reduce(0) { $0 + ($1.key == "siglip_image" ? $1.groupMb ?? $1.approxMb : $1.approxMb) }
         return StepPage(icon: AnyView(Symbol(name: "arrow.down.circle", color: .blue)),
                         title: "Download the models",
                         text: setup?.profile == "light"
@@ -293,10 +293,12 @@ struct WelcomeView: View {
                  text: "Lantern is getting your files ready in the background. You can search right away; results fill in as it goes.",
                  fine: "Progress is in the menu bar. Indexing pauses on battery, when the Mac is hot, or short of memory, and resumes by itself.") {
             if let dl = state.status?.modelDownload, dl.running {
-                let approx = max(dl.approxMb ?? 1200, 1)
+                let total = dl.totalMb
+                let got = min(dl.downloadedMb ?? 0, total)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Downloading models…").font(.callout.weight(.semibold))
-                    ProgressView(value: Double(min(dl.downloadedMb ?? 0, approx)), total: Double(approx))
+                    ProgressView(value: Double(got), total: Double(total))
+                    Text(verbatim: "\(got) / \(total) MB").font(.caption).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: 360)
             }
@@ -399,7 +401,7 @@ extension SetupInfo.Model {
         case "siglip_image": "SigLIP 2"
         default: key
         }
-        let mb = key == "siglip_image" ? approxMb + 200 : approxMb
+        let mb = key == "siglip_image" ? groupMb ?? approxMb : approxMb
         return "\(name) · ~\((Double(mb) / 1000).formatted(.number.precision(.fractionLength(1)))) GB"
     }
 }

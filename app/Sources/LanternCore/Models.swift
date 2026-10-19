@@ -31,6 +31,9 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
         public var total: Int?
         public var downloadedMb: Int?
         public var approxMb: Int?
+        public var sizeMb: Int?  // exact size of the model being downloaded (decimal MB, 0.2.1 and later)
+        /// The total for the progress bar: the exact size when the daemon gives it.
+        public var totalMb: Int { max(sizeMb ?? approxMb ?? 1266, 1) }
         public var error: String?
     }
 
@@ -436,6 +439,7 @@ public struct SetupInfo: Decodable, Equatable, Sendable {
         public var group: String  // required | whisper | photos
         public var label: String
         public var approxMb: Int
+        public var groupMb: Int?  // the whole download with this model (SigLIP's two halves come together)
         public var downloaded: Bool
         public var recommended: Bool
         public var heavy: Bool

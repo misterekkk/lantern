@@ -18,7 +18,7 @@ import SwiftUI
         ("menu-2-setup", ["models_missing": true]),
         ("menu-3-downloading", ["models_missing": true,
                                 "model_download": ["running": true, "key": "embeddinggemma", "step": 1, "total": 1,
-                                                   "downloaded_mb": 540, "approx_mb": 1200]]),
+                                                   "downloaded_mb": 540, "approx_mb": 1266, "size_mb": 1266]]),
         ("menu-4-download-failed", ["models_missing": true,
                                     "model_download": ["running": false, "error": "download failed (code 1)"]]),
         ("menu-5-index-newer", ["index_problem": "newer", "files": [String: Int](), "chunks": 0]),
@@ -45,20 +45,20 @@ import SwiftUI
 
     private static var sampleSetup: SetupInfo? {
         try? DaemonClient.decoder.decode(SetupInfo.self, from: Data("""
-            {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1200, "models": [
-             {"key": "embeddinggemma", "group": "required", "label": "", "approx_mb": 1200, "downloaded": false,
+            {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1266, "models": [
+             {"key": "embeddinggemma", "group": "required", "label": "", "approx_mb": 1266, "downloaded": false,
               "recommended": true, "heavy": false, "needs_gb": 0},
-             {"key": "whisper", "group": "whisper", "label": "", "approx_mb": 1600, "downloaded": false,
+             {"key": "whisper", "group": "whisper", "label": "", "approx_mb": 1613, "downloaded": false,
               "recommended": false, "heavy": true, "needs_gb": 1.8}]}
             """.utf8))
     }
 
     static func run(to dir: URL) async {
         let setup = try? DaemonClient.decoder.decode(SetupInfo.self, from: Data("""
-            {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1200, "models": [
-             {"key": "embeddinggemma", "group": "required", "label": "", "approx_mb": 1200, "downloaded": false,
+            {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1266, "models": [
+             {"key": "embeddinggemma", "group": "required", "label": "", "approx_mb": 1266, "downloaded": false,
               "recommended": true, "heavy": false, "needs_gb": 0},
-             {"key": "whisper", "group": "whisper", "label": "", "approx_mb": 1600, "downloaded": false,
+             {"key": "whisper", "group": "whisper", "label": "", "approx_mb": 1613, "downloaded": false,
               "recommended": false, "heavy": true, "needs_gb": 1.8}]}
             """.utf8))
         for (name, change) in states {
