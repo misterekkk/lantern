@@ -2,7 +2,7 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.1.3 — 2026-10-19
 
 - **`in:folder`:** `in:down umowa`, `in:"Moje dokumenty" faktura` or `in:~/Projects/x readme` keeps results to files
   under that folder, in the panel, Raycast, Alfred and the CLI.
