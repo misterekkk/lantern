@@ -11,7 +11,7 @@ from pathlib import Path
 
 THUMBNAIL_DIR = Path.home() / "Library" / "Caches" / "Lantern" / "thumbnails"
 THUMBNAIL_TTL_S = 600
-MAX_SIZE = 640
+MAX_SIZE = 1280  # Raycast's ⌘Y preview asks for 1024
 
 
 def prune(folder: Path = THUMBNAIL_DIR, max_age_s: float = THUMBNAIL_TTL_S) -> None:

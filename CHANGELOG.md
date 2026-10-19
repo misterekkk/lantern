@@ -2,6 +2,11 @@
 
 What changed for people using Lantern, newest first.
 
+## Unreleased
+
+- **Raycast ⌘Y on a video** previews inside Raycast, like the panel: the frame at the moment, large, above the
+  transcript. It used to open QuickTime, which stayed open in front after the preview; playing stays on ↩.
+
 ## 0.1.3 — 2026-10-19
 
 - **`in:folder`:** `in:down umowa`, `in:"Moje dokumenty" faktura` or `in:~/Projects/x readme` keeps results to files
