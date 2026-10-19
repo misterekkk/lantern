@@ -69,6 +69,15 @@ def make_query_embedder():
     return siglip.SiglipQueryEmbedder() if siglip.available() else None
 
 
+def _room_for_whisper() -> bool:
+    """Transcripts wait (queued) while the Mac has no room for Whisper now (service/machine.py)."""
+    if os.environ.get("LANTERN_EMBEDDER") == "fake":
+        return True
+    from lantern.service import machine
+
+    return machine.fits("whisper")
+
+
 def emit(**event) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 
@@ -107,7 +116,7 @@ def main() -> int:
         conn,
         make_embedder(),
         progress=progress,
-        transcriber=make_transcriber(settings.transcribe),
+        transcriber=make_transcriber(settings.transcribe and _room_for_whisper()),
         should_stop=lambda: stop,
         image_embedder=make_image_embedder(settings),
         video_frames=settings.index_video_frames,

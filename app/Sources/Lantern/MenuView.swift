@@ -101,6 +101,7 @@ struct MenuView: View {
             case "low_power": "Paused: Low Power Mode"
             case "thermal": "Paused: heat"
             case "low_disk": "Paused: disk almost full"
+            case "memory": "Paused: the Mac is short of memory"
             default: "Paused"
             }
         case .awaitingApproval: "Waiting for approval"

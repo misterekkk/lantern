@@ -7,6 +7,7 @@ from pathlib import Path
 from lantern.config import lantern_home
 
 INDEX_MODES = ("ask", "auto")
+MODES = ("ready", "on_demand")  # the search model stays in memory, or is released after a few idle minutes
 
 
 @dataclass
@@ -20,6 +21,7 @@ class Settings:
     index_video_frames: bool = True
     index_audio_video: bool = True  # audio files and videos (sound, transcripts, frames)
     index_image_text: bool = True  # read text in photos and screenshots (Apple Vision OCR, on device)
+    mode: str = "ready"  # MODES; the welcome window suggests one from the Mac's memory
     places: bool = True  # GPS of photos and videos -> city (bundled GeoNames table, offline); off: coordinates deleted
     people: bool = True  # people in photos: how many, women/men by appearance (Vision + photo model); off: deleted
     notify: bool = True
@@ -34,6 +36,8 @@ class Settings:
     def validate(self) -> None:
         if self.index_mode not in INDEX_MODES:
             raise ValueError(f"index_mode must be one of {INDEX_MODES}")
+        if self.mode not in MODES:
+            raise ValueError(f"mode must be one of {MODES}")
         if self.debounce_s < 0:
             raise ValueError("debounce_s must be >= 0")
 
@@ -42,7 +46,24 @@ def path() -> Path:
     return lantern_home() / "config.toml"
 
 
+def defaults_for(profile: str) -> Settings:
+    """First-launch defaults: on an 8 GB Mac ("light") the heavy optional work is off (Whisper, video frames), and
+    the search model is released when idle; switching them on later shows what they need (phase 17)."""
+    s = Settings()
+    if profile == "light":
+        s.transcribe = False
+        s.index_video_frames = False
+        s.mode = "on_demand"
+    return s
+
+
 def load() -> Settings:
+    if not path().exists():  # first launch: defaults for this Mac's memory
+        from lantern.service import machine
+
+        settings = defaults_for(machine.profile())
+        settings.validate()
+        return settings
     settings = Settings()
     if path().exists():
         data = tomllib.loads(path().read_text())

@@ -26,9 +26,9 @@ from lantern import config, filemeta
 from lantern.api import protocol
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
 from lantern.search.hybrid import clear_history, learned_choice, mark_opened, search
+from lantern.service import machine, qos
 from lantern.service import notify as notify_mod
 from lantern.service import power as power_mod
-from lantern.service import qos
 from lantern.service import settings as settings_mod
 from lantern.service import tree as tree_mod
 from lantern.service.perf import PerfMonitor
@@ -40,6 +40,8 @@ META_IDLE_S = 5.0
 PEOPLE_CHECK_S = 30.0  # how often an idle daemon looks for photos whose people are not counted yet
 QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
+MEMORY_CHECK_S = 5.0  # macOS's memory pressure and swap, read with sysctl (cheap)
+MEMORY_CALM_S = 180.0  # this long without pressure before indexing resumes
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
 # counts as closed (app quit or crashed), so a hold never outlives the app.
 SETTINGS_HOLD_S = 30.0
@@ -69,8 +71,14 @@ def logs_dir() -> Path:
 
 
 class Daemon:
-    def __init__(self, embedder=None, watch: bool = True, power_reader=power_mod.read, worker_env: dict | None = None):
+    def __init__(self, embedder=None, watch: bool = True, power_reader=power_mod.read, worker_env: dict | None = None,
+                 memory_reader=machine.read):  # fmt: skip
         self.settings = settings_mod.load()
+        self.memory_reader = memory_reader
+        self.memory_pause: str | None = None  # "memory" while macOS is short of memory (phase 17)
+        self._memory_calm_since: float | None = None
+        self._last_memory_check = 0.0
+        self.swap_watch = machine.SwapWatch()
         self.embedder = embedder
         self.watch_enabled = watch
         self.power_reader = power_reader
@@ -150,11 +158,17 @@ class Daemon:
         ).fetchall()
         out: dict[str, int] = {}
         for r in rows:
-            if r["job"] == "transcribe" and not self._transcription_on():
+            if r["job"] == "transcribe" and not (self._transcription_on() and self._whisper_fits()):
                 continue
             key = "transcribe" if r["job"] == "transcribe" else r["file"]
             out[key] = out.get(key, 0) + r["n"]
         return out
+
+    def _whisper_fits(self) -> bool:
+        """Whisper (~1.8 GB) only while the Mac has room for it now: a 24 GB Mac busy training a model waits too."""
+        if "fake" in (self.worker_env.get("LANTERN_EMBEDDER"), os.environ.get("LANTERN_EMBEDDER")):
+            return True
+        return machine.fits("whisper", self.memory_reader())
 
     def _transcription_on(self) -> bool:
         if not (self.settings.index_audio_video and self.settings.transcribe):
@@ -254,7 +268,40 @@ class Daemon:
     def _paused(self) -> str | None:
         if self.manual_pause:
             return "manual"
-        return self.auto_pause
+        return self.auto_pause or self.memory_pause
+
+    def _check_memory(self) -> None:
+        """macOS short of memory (pressure "warn" or swap growing fast): the worker finishes its file and waits;
+        "critical": it is stopped at once and the photo query model released. Resumes after MEMORY_CALM_S of calm, so
+        the worker does not start and stop every few seconds."""
+        now = time.monotonic()
+        if now - self._last_memory_check < MEMORY_CHECK_S:
+            return
+        self._last_memory_check = now
+        mem = self.memory_reader()
+        short = mem.pressure >= machine.PRESSURE_WARN or self.swap_watch.growing(mem, now)
+        with self.lock:
+            was = self.memory_pause
+            if short:
+                self.memory_pause, self._memory_calm_since = "memory", None
+            elif was:
+                self._memory_calm_since = self._memory_calm_since or now
+                if now - self._memory_calm_since >= MEMORY_CALM_S:
+                    self.memory_pause, self._memory_calm_since = None, None
+            worker = self.worker
+        if short and not was:
+            self._warn("indexing paused: the Mac is short of memory; it resumes by itself")
+        if mem.pressure >= machine.PRESSURE_CRITICAL:
+            if worker is not None and worker.poll() is None:
+                worker.kill()  # no time to finish the file: its transaction rolls back, the job is queued again
+                with suppress(subprocess.TimeoutExpired):
+                    worker.wait(timeout=5)
+                with self.lock:
+                    self.worker_terminating = True
+                self._reap_worker()
+            q = self.query_embedder
+            if q is not None and getattr(q, "loaded", False):
+                self.model_thread.submit(q.unload)
 
     def _start_worker(self, people_only: bool = False) -> None:
         logs_dir().mkdir(parents=True, exist_ok=True)
@@ -954,6 +1001,26 @@ class Daemon:
             self.perf.tick(worker.pid, progress)
         return self.perf.snapshot(progress, loaded, self.settings.index_video_frames)
 
+    def api_setup(self) -> dict:
+        """For the welcome window: this Mac's memory and profile, the models with what each needs, the recommended
+        ones for this profile, and the suggested mode."""
+        from lantern import models as models_mod
+
+        mem = self.memory_reader()
+        prof = machine.profile(mem.total)
+        need = {"whisper": machine.NEEDS["whisper"], "siglip_image": machine.NEEDS["siglip_image"]}
+        items = [
+            {"key": m.key, "group": m.group, "label": m.label, "approx_mb": m.approx_mb,
+             "downloaded": models_mod.is_downloaded(m.repo, m.revision),
+             "recommended": m.group == "required" or prof == "full",
+             "heavy": m.key in need, "needs_gb": round(need.get(m.key, 0) / machine.GB, 1)}
+            for m in models_mod.catalogue()
+        ]  # fmt: skip
+        missing_mb = sum(i["approx_mb"] for i in items if i["recommended"] and not i["downloaded"])
+        suggested = "on_demand" if prof == "light" else "ready"
+        return {"ram_gb": round(mem.total / machine.GB), "profile": prof, "models": items,
+                "suggested_mode": suggested, "recommended_mb": missing_mb}  # fmt: skip
+
     def api_download_models(self, models: list[str] | None = None) -> dict:
         """Start downloading models in a child process (`python -m lantern.models`) so this process stays offline."""
         targets = [str(m) for m in (models or ["required"])]
@@ -1122,6 +1189,7 @@ class Daemon:
                     for root in self.watcher.take_quiet(self.settings.debounce_s):
                         self.scan(root)
                 self._check_power()
+                self._check_memory()
                 self._refresh_apps()
                 self._manage_worker()
                 self._refresh_meta()
