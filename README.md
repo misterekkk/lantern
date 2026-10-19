@@ -351,30 +351,36 @@ uv run lantern clear-history               # delete the local search history
   panel, Raycast, Alfred and the CLI: `in:down umowa najmu`, `in:Studia`, `in:"Moje dokumenty" faktura`, or a path,
   `in:~/Projects/lantern readme`. The folder word is never spell-checked or sent to the model; apps, settings and
   answers are left out, since they are not in a folder.
-- **When and where:** a time in the query keeps results to files made then, in Polish or English: `zdjęcia z maja
-  2023`, `umowa z 2024`, `faktura wczoraj`, `photos from last summer`, `dokumenty w zeszłym tygodniu`, `14.05.2023`.
-  A place keeps photos and videos to those made there, in any language: `zdjęcia z Krakowa`, `photos in Kraków`,
-  `Bilder aus Krakau`. A time or a place alone (or with `zdjęcia`, `filmy`, `dokumenty`) lists what was made then or
-  there, newest first. A bare year or month (`wakacje 2023`) only lifts files made then, since the word may as well be
-  in a document. Photos and recordings show the date and the city in their row.
-  - The date comes from the photo's EXIF data, a video's or recording's own creation date, a date in the file or
-    folder name (`IMG_20230514_…`, `2023-05-14 Wakacje/`), and only then the file's dates on the disk. Implausible
-    dates (before 1990, in the future, a camera's reset clock such as 2000-01-01 00:00) and numbers that only look
-    like years are ignored.
+- **When and where** (Polish and English): a time in the query keeps results to files made then.
+  - Examples: `zdjęcia z maja 2023`, `umowa z 2024`, `faktura wczoraj`, `photos from last summer`,
+    `dokumenty w zeszłym tygodniu`, `14.05.2023`.
+  - A bare year or month (`wakacje 2023`, `sierpień`) only moves files made then higher; nothing is hidden, since the
+    word may as well be in a document's text.
+  - A time or a place alone, or with `zdjęcia`, `filmy`, `dokumenty`, lists what was made then or there, newest first.
+  - Where a date comes from: a photo's EXIF data, a video's or recording's own creation date, a date in the file or
+    folder name (`IMG_20230514_…`, `2023-05-14 Wakacje/`), and otherwise the file's dates on the disk. So for most
+    documents "from 2024" means *created or last changed in 2024*, not *mentions 2024*. Impossible dates (before 1990,
+    in the future, a camera's reset clock such as 2000-01-01 00:00) and numbers that only look like years are ignored.
+- **Places** (any language): `zdjęcia z Krakowa`, `photos in Kraków`, `Bilder aus Krakau`, `zdjęcia z Portugalii`.
   - The city comes from the location saved in photos and videos, matched to the nearest city of 15,000+ people in a
-    table built into Lantern (GeoNames): nothing is looked up online. A camera without GPS: a photo in a folder named
-    after a country (`Portugalia/`, `Wakacje w Portugalii 2026/`) gets that country (`zdjęcia z Portugalii`). Switch: Settings → File Types → Places in photos
-    and videos, or `lantern config places false`, which also deletes the saved locations from the index.
-  - After an update from 0.1.x, dates and places are filled in the background from file headers in a minute or two;
-    nothing is indexed again.
-- **People in photos:** `zdjęcia kobiet`, `mężczyzna w Krakowie`, `zdjęcie kobiety z 2024 w Portugalii`, `z ludźmi`,
-  `bez ludzi`, `grupa` (three or more), `selfie` / `portret`, `dwie osoby`, `kobieta i mężczyzna`, and the same in
-  English. These words filter the photos section only; documents containing them are found as before. macOS (Vision,
-  on this Mac) counts the people; the photo model guesses woman or man from appearance on a crop around each of the
-  four largest. On a public test set: people found in 93% of photos with people and never in a photo without, the
-  exact count in 80%, woman/man right in 98% of one-person photos (docs/DECISIONS.md). Photos indexed before 0.2 are
-  analysed in the background (a few milliseconds per photo; files waiting for your approval stay waiting). Switch:
-  Settings → File Types → People in photos, or `lantern config people false`, which deletes the counts.
+    table built into Lantern (GeoNames). Nothing is looked up online.
+  - A camera without GPS: a photo in a folder named after a country (`Portugalia/`, `Wakacje w Portugalii 2026/`) gets
+    that country. Screenshots and graphics never do.
+  - Photos and recordings show the date and the city in their row.
+  - Switch: Settings → File Types → Places in photos and videos, or `lantern config places false`; switching it off
+    deletes the saved locations from the index.
+- **People in photos** (Polish and English): `zdjęcia kobiet`, `mężczyzna w Krakowie`,
+  `zdjęcie kobiety z 2024 w Portugalii`, `z ludźmi`, `bez ludzi`, `grupa` (three or more people), `selfie` / `portret`,
+  `dwie osoby`, `kobieta i mężczyzna`.
+  - These words narrow the photos section only; documents containing them are found as before.
+  - macOS (Vision, on this Mac) counts the people; the photo model guesses woman or man from appearance on a crop
+    around each of the four largest. Only the numbers are stored.
+  - Measured on a public test set: people found in 97% of photos with people and never in a photo without; the exact
+    count in 80% (groups are undercounted); woman/man right in 98% of one-person photos (docs/DECISIONS.md).
+  - Switch: Settings → File Types → People in photos, or `lantern config people false`, which deletes the counts.
+- **After an update from 0.1.x** nothing is indexed again: dates and places are read from file headers in a minute or
+  two, people are counted in the background (about a quarter of a second per photo; files waiting for your approval
+  stay waiting). `lantern status` shows what is left.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and

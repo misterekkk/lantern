@@ -1203,6 +1203,23 @@ M4A, MP3, MOV and Ogg Opus.
   measured: `purge` needs root. The index lives on the internal disk; an I/O error under mmap would be a SIGBUS instead
   of an SQLite error, accepted for a local file.
 
+## `in:folder` measured (2026-10-19)
+
+- 150 known-item queries on a copy of the user's index (5 900 files): 5 random words of 5+ letters from a random text,
+  PDF or code passage (the files of the phase 16 worktree left out), the passage's file as the answer; real model,
+  files section, top 20.
+
+  | | hit@1 | hit@5 | in top 20 | MRR | median |
+  |---|---|---|---|---|---|
+  | no scope | 0.39 | 0.60 | 0.68 | 0.479 | 181 ms |
+  | `in:<top folder>` (`in:Downloads`, `in:Studia`) | 0.43 | 0.61 | 0.69 | 0.503 | 234 ms |
+  | `in:<its own folder>` | 0.49 | 0.74 | 0.82 | 0.608 | 146 ms |
+
+- A coarse scope barely helps here (7 queries better, 1 worse, 142 the same): most of this index is in `~/Downloads`,
+  so scoping to it removes little, and a large scope takes the wider KNN pool (slower). A folder close to the file is
+  the real gain: +14 points of hit@5, +27% MRR, and faster (an exact score of a small scope). The queries are words of
+  the passage, which favours keyword search; queries by meaning were not measured.
+
 ## Phase 16: time and place (2026-10-19, branch `phase16-time-place`)
 
 - **Metadata in pure Python** (`extractors/metadata.py`): EXIF through Pillow; HEIC/HEIF through a small reader of the

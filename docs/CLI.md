@@ -84,6 +84,11 @@ definitions and photos come in their own sections, in the order the daemon decid
 (`lantern search "in:down umowa"`), `in:"two words"` for a name with spaces, or `in:~/path` / `in:/path` for
 everything under a path. Apps, System Settings, Shortcuts, music and answers are left out of a scoped search.
 
+A time, a place and people words work the same way in the CLI as in the panel (README, *When and where* and *People in
+photos*): `lantern search "zdjęcia z maja 2023"`, `lantern search "umowa z 2024"`, `lantern search "zdjęcie kobiety z
+Krakowa"`, `lantern search "bez ludzi"`. A time or place with nothing else lists what was made then or there, newest
+first.
+
 Output:
 
 ```
@@ -96,13 +101,14 @@ Files:
    3. /Users/me/Bills/invoices_2025.pdf  (page 10)   (meaning #2)
    4. /Users/me/Movies/vlog.mp4 @ 1:48–2:13   (meaning #3 · keywords #1)
 Photos:
-   5. /Users/me/Desktop/Screenshot 2025-10-14.png   (image #1 · keywords #1)
+   5. /Users/me/Pictures/Lizbona/IMG_6794.JPG   (image #1 · 2026-02-18 · Lisbon)
 open a result with: lantern open <number>
 ```
 
 - Locations: `path:start-end [symbol]` for text and code, `path (page N)` for PDFs, `path @ m:ss–m:ss` for
   recordings, `path:line` with the signature for definitions.
 - The sources in brackets show why a result matched: `meaning #k`, `keywords #k`, `image #k` (rank in that list).
+  Photos and recordings add the day they were made and the city (or only the country), when known.
 - Queries are folded like the index: case, accents and letters such as ł, ø, ß are ignored (`lodz` finds `Łódź`).
   Numbers and codes with separators (`187,15`, `FV/2025/10/1187`) must match as a whole.
 
@@ -141,7 +147,8 @@ the app uses it.
 
 With the daemon: process, memory, mode, pause reason, power (source, Low Power Mode, thermal state), current work,
 queue, files per state, roots and warnings. Without it: the index file, its free space, roots, files, jobs, the model
-and the history size.
+and the history size. Both add, while there is any, the background work after an update or new files: `dates and
+places: N files still to read` and `people in photos: N photos still to count`.
 
 ### `lantern pending | approve | decline | pause | resume`
 

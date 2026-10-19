@@ -68,7 +68,30 @@ def _sources(r) -> str:
         parts.append(f"image #{r.image_rank}")
     if r.keyword_rank:
         parts.append(f"keywords #{r.keyword_rank}")
-    return " · ".join(parts)
+    return " · ".join([*parts, *_made(r)])
+
+
+def _made(r) -> list[str]:
+    """When and where a photo or recording was made (the date of a document only when its name or contents say it)."""
+    visual = getattr(r, "kind", "") in ("image", "frame") or getattr(r, "start_ms", None) is not None
+    if not getattr(r, "date", None) or not (visual or getattr(r, "date_source", None) in ("exif", "quicktime", "name")):
+        return []
+    where = getattr(r, "place", None) or getattr(r, "country", None)
+    return [r.date, *([where] if where else [])]
+
+
+def _people_pending(conn) -> int:
+    from lantern import people
+
+    return people.pending(conn)
+
+
+def _print_enriching(dates: int, people: int) -> None:
+    """Background work after an update or new files: dates and places from headers, people in photos."""
+    if dates:
+        print(f"dates and places: {dates} files still to read (in the background, no re-indexing)")
+    if people:
+        print(f"people in photos: {people} photos still to count (in the background)")
 
 
 def _print_scan(s: dict) -> None:
@@ -363,6 +386,7 @@ def _print_local_status() -> None:
     chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
     print(f"files: {sum(files.values())} " + " ".join(f"{k}={v}" for k, v in sorted(files.items())))
     print(f"chunks: {chunks}")
+    _print_enriching(filemeta.pending(conn), _people_pending(conn))
     print("jobs: " + (" ".join(f"{k}={v}" for k, v in sorted(jobs.counts(conn).items())) or "none"))
     for r in conn.execute("SELECT name, revision, backend, dtype, dim FROM embedding_models"):
         print(f"model: {r['name']}@{r['revision'][:8]} ({r['backend']}, {r['dtype']}, {r['dim']}d)")
@@ -397,6 +421,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     files = s["files"]
     print(f"files: {sum(files.values())} " + " ".join(f"{k}={v}" for k, v in sorted(files.items())))
     print(f"chunks: {s['chunks']}")
+    if "dates_pending" in s:  # a daemon from before 0.2 does not say
+        _print_enriching(s["dates_pending"], s["people_pending"])
     for r in s["roots"]:
         state = "" if r["available"] else "  (not available: disconnected?)"
         print(f"root: {r['path']}{state}")
@@ -484,6 +510,12 @@ def cmd_config(args: argparse.Namespace) -> int:
             s = settings_mod.load()
             settings_mod.update(s, args.key, args.value)
             settings_mod.save(s)
+            if args.key in ("places", "people") and not getattr(s, args.key) and config.db_path().exists():
+                from lantern import people  # switched off with no daemon: the data goes now, as the daemon would do
+
+                conn = _connect()
+                filemeta.forget_places(conn) if args.key == "places" else people.forget(conn)
+                conn.close()
     except (KeyError, ValueError, protocol.DaemonError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

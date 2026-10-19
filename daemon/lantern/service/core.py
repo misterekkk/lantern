@@ -460,6 +460,9 @@ class Daemon:
                 r[0]: r[1]
                 for r in conn.execute("SELECT kind, COUNT(*) FROM files WHERE status = 'indexed' GROUP BY kind")
             }
+            from lantern import people
+
+            enriching = {"dates_pending": filemeta.pending(conn), "people_pending": people.pending(conn)}
         finally:
             conn.close()
         from lantern.transcription import whisper
@@ -473,6 +476,7 @@ class Daemon:
                 "paused": self._paused(), "power": asdict(self.power_state),
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
+                **enriching,  # files whose date/place, photos whose people are still to be read (phase 16)
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
                 "whisper_downloaded": whisper.available(),
                 "models_missing": self.models_missing, "model_download": self._download_status(),

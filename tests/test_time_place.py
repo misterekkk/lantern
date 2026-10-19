@@ -531,3 +531,19 @@ def test_unknown_counts_are_left_out_of_people_filters_only(conn, embedder, tmp_
     paris = search(conn, embedder, "zdjęcia z Paryża", log=False)  # no people words: it is there like any photo
     assert "pejzaz_paris.jpg" in {Path(p.path).name for p in paris.photos}
     assert people_query.parse("zdjęcie nie wiadomo kim z Paryża") is None  # "unknown" is not something to search
+
+
+def test_switching_off_in_the_cli_without_a_daemon_deletes_the_data(lantern_home, tmp_path, monkeypatch, capsys):
+    from lantern import cli
+
+    conn = db.connect(lantern_home / "index.db")
+    _people_index(conn, tmp_path / "zdjecia")
+    conn.close()
+    monkeypatch.setattr(cli, "_daemon", lambda: False)
+    for key in ("people", "places"):
+        assert cli.main(["config", key, "false"]) == 0
+    conn = db.connect(lantern_home / "index.db")
+    assert conn.execute("SELECT count(*) FROM files WHERE people IS NOT NULL OR place_id IS NOT NULL "
+                        "OR country IS NOT NULL OR lat IS NOT NULL").fetchone()[0] == 0  # fmt: skip
+    assert conn.execute("SELECT count(*) FROM places").fetchone()[0] == 0
+    conn.close()
