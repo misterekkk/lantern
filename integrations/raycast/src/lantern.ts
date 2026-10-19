@@ -45,6 +45,26 @@ export function call<T>(method: string, params: Record<string, unknown>, timeout
   });
 }
 
+/** What the extension needs from Lantern's status to explain itself (service/core.py api_status). */
+export interface LanternStatus {
+  models_missing?: boolean;
+  model_download?: { running: boolean; downloaded_mb?: number; approx_mb?: number } | null;
+  index_problem?: string | null;
+  worker: { running: boolean; stage?: string; done?: number; total?: number };
+  files: Record<string, number>;
+}
+export function status(): Promise<LanternStatus> {
+  return call<LanternStatus>("status", {}, 3000);
+}
+
+/* Where Lantern can be installed (the .dmg and Homebrew both put it in Applications). */
+const APP_PATHS = ["/Applications/Lantern.app", path.join(os.homedir(), "Applications", "Lantern.app")];
+export function installedApp(): string | null {
+  return APP_PATHS.find((p) => existsSync(p)) ?? null;
+}
+export const DOWNLOAD_URL = "https://github.com/misterekkk/lantern/releases/latest";
+export const BREW_COMMAND = "brew install --cask misterekkk/tap/lantern";
+
 /* The parts of the search reply this extension shows (service/core.py api_search). */
 export interface FileHit {
   chunk_id: number;
