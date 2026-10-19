@@ -39,6 +39,7 @@ import {
   clock,
   installedApp,
   lines,
+  openLanternApp,
   openAt,
   opened,
   passage,
@@ -132,7 +133,7 @@ export default function Command(props: LaunchProps) {
                 title="Open Lantern"
                 icon={Icon.AppWindow}
                 onAction={async () => {
-                  await open(installedApp() ?? "/Applications/Lantern.app");
+                  await openLanternApp();
                   setTimeout(revalidate, 1500);
                 }}
               />
@@ -217,7 +218,7 @@ function setupView(st: LanternStatus) {
       <Action
         title="Open Lantern"
         icon={Icon.AppWindow}
-        onAction={() => open(installedApp() ?? "/Applications/Lantern.app")}
+        onAction={openLanternApp}
       />
     </ActionPanel>
   );
