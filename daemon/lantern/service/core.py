@@ -74,9 +74,9 @@ def logs_dir() -> Path:
 
 class Daemon:
     def __init__(self, embedder=None, watch: bool = True, power_reader=power_mod.read, worker_env: dict | None = None,
-                 memory_reader=machine.read):  # fmt: skip
+                 memory_reader=None):  # fmt: skip
         self.settings = settings_mod.load()
-        self.memory_reader = memory_reader
+        self.memory_reader = memory_reader or (lambda: machine.read())  # looked up at call time (tests patch it)
         self.memory_pause: str | None = None  # "memory" while macOS is short of memory (phase 17)
         self._memory_calm_since: float | None = None
         self._last_memory_check = 0.0

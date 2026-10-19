@@ -17,6 +17,16 @@ def lantern_home(tmp_path, monkeypatch):
     return home
 
 
+@pytest.fixture(autouse=True)
+def calm_machine(monkeypatch):
+    """A Mac with room to spare: the real memory pressure of the machine running the tests must not pause daemons
+    (a busy Mac made daemon tests fail at random). Tests of the memory guard pass their own readers."""
+    from lantern.service import machine
+
+    monkeypatch.setattr(machine, "read", lambda: machine.Memory(total=16 * machine.GB, pressure=1, free_percent=50,
+                                                                swap_used=0))  # fmt: skip
+
+
 @pytest.fixture
 def conn(lantern_home):
     c = db.connect(lantern_home / "index.db")

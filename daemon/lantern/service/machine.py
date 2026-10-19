@@ -48,6 +48,11 @@ class Memory:
 
 
 def read() -> Memory:
+    """This Mac's memory now (tests replace it with a calm machine: conftest.py)."""
+    return read_system()
+
+
+def read_system() -> Memory:
     total = _sysctl("hw.memsize", ctypes.c_uint64)
     pressure = _sysctl("kern.memorystatus_vm_pressure_level", ctypes.c_int)
     level = _sysctl("kern.memorystatus_level", ctypes.c_int)

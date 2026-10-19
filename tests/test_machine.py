@@ -16,7 +16,7 @@ def mem(total=16, pressure=1, free=50, swap=0):
 
 
 def test_the_real_mac_can_be_read():
-    m = machine.read()
+    m = machine.read_system()
     assert m.total >= 4 * GB and m.pressure in (1, 2, 4) and 0 <= m.free_percent <= 100
 
 
