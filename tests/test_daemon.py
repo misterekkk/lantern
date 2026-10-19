@@ -487,3 +487,22 @@ def test_indexing_pauses_when_the_disk_is_almost_full(lantern_home, monkeypatch)
     d._last_power_check = 0.0
     d._check_power()
     assert d._paused() is None
+
+
+def test_transcripts_queued_while_transcription_is_off_do_not_wake_the_worker(lantern_home, project):
+    from lantern.queue import jobs
+    from lantern.scanner.diff import scan_root
+
+    conn = db.connect(db.Path(os.environ["LANTERN_HOME"]) / "index.db")
+    scan_root(conn, project)
+    file_id = conn.execute("SELECT id FROM files LIMIT 1").fetchone()[0]
+    conn.execute("DELETE FROM jobs")
+    jobs.enqueue(conn, file_id, "transcribe")
+    conn.commit()
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False),
+               worker_env={"LANTERN_EMBEDDER": "fake"})  # fmt: skip
+    d.settings.transcribe = False
+    assert d._queued(conn) == {}  # waits, but is not work the worker can do now
+    d.settings.transcribe = True
+    assert d._queued(conn) == {"transcribe": 1}
+    conn.close()

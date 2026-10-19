@@ -103,6 +103,7 @@ class Daemon:
         self.worker_retry_at = 0.0
         self.progress: dict = {}
         self.progress_at = 0.0  # when the worker reported the file it is on
+        self._whisper_checked = (-1e9, False)  # (when, Whisper downloaded)
         self.perf = PerfMonitor()
         self.last_run: dict = {}
         self.warnings: list[str] = []
@@ -136,15 +137,31 @@ class Daemon:
             notify_mod.notify("Lantern", message)
 
     def _queued(self, conn) -> dict[str, int]:
+        """Work the worker can do now. Transcripts queued before transcription was switched off (or Whisper removed)
+        wait without counting: otherwise the worker would be started, skip them and exit, again and again."""
         rows = conn.execute(
             "SELECT j.kind AS job, f.kind AS file, COUNT(*) AS n FROM jobs j JOIN files f ON f.id = j.file_id "
             "WHERE j.status = 'queued' GROUP BY j.kind, f.kind"
         ).fetchall()
         out: dict[str, int] = {}
         for r in rows:
+            if r["job"] == "transcribe" and not self._transcription_on():
+                continue
             key = "transcribe" if r["job"] == "transcribe" else r["file"]
             out[key] = out.get(key, 0) + r["n"]
         return out
+
+    def _transcription_on(self) -> bool:
+        if not (self.settings.index_audio_video and self.settings.transcribe):
+            return False
+        if "fake" in (self.worker_env.get("LANTERN_EMBEDDER"), os.environ.get("LANTERN_EMBEDDER")):
+            return True  # tests: the worker uses a fake transcriber
+        now = time.monotonic()
+        if now - self._whisper_checked[0] > 30:  # a cheap local lookup, not repeated on every control-loop tick
+            from lantern.transcription import whisper
+
+            self._whisper_checked = (now, whisper.available())
+        return self._whisper_checked[1]
 
     def _roots(self, conn) -> list[str]:
         return [r[0] for r in conn.execute("SELECT path FROM roots ORDER BY path")]

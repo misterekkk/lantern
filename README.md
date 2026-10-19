@@ -441,8 +441,18 @@ uv run lantern clear-history               # delete the local search history
   uv run lantern exclude list | remove <pattern>
   ```
 
-- **File types:** `lantern config index_photos false`, `index_audio_video false`, `index_video_frames false`,
-  `transcribe false` (also in Settings → File Types). Excluded files disappear from the index at the next scan.
+- **File types:** `lantern config index_photos false`, `index_audio_video false`, `index_video_frames false`
+  (also in Settings → File Types). Excluded files disappear from the index at the next scan.
+- **Transcription on and off:** Settings → File Types → *Transcribe speech (Whisper)*, or
+  `lantern config transcribe false` / `true`. The switch is off and greyed out until Whisper is downloaded
+  (Settings → Performance). With it off:
+  - new recordings and videos are indexed by their sound only (audio embeddings find what is talked about, not
+    single words or names), plus video frames;
+  - transcripts made earlier stay in the index and stay searchable; transcripts still waiting in the queue wait;
+  - switched on again, every recording without a transcript is queued for one automatically.
+
+  To delete transcripts made earlier, remove the folder (`lantern remove <folder>`) and add it again with
+  transcription off. For one run without the daemon, `lantern index <folder> --no-transcribe` skips Whisper.
 
 ## Background daemon
 

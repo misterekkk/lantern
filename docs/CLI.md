@@ -165,7 +165,7 @@ daemon applies changes at once.
 | `index_photos` | `true` | index photos (two image models) |
 | `index_image_text` | `true` | read text in photos and screenshots (Apple Vision, on device) |
 | `index_audio_video` | `true` | index audio files and videos |
-| `transcribe` | `true` | Whisper transcripts of recordings |
+| `transcribe` | `true` | Whisper transcripts of recordings (off: see *Transcription on and off* in README) |
 | `index_video_frames` | `true` | index frames of videos as photos |
 | `notify` | `true` | macOS notifications (new files found, indexing done) |
 | `debounce_s` | `3.0` | seconds of quiet after file changes before a rescan |

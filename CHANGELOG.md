@@ -2,6 +2,21 @@
 
 What changed for people using Lantern, newest first.
 
+## Unreleased
+
+- **`in:folder`:** `in:down umowa`, `in:"Moje dokumenty" faktura` or `in:~/Projects/x readme` keeps results to files
+  under that folder, in the panel, Raycast, Alfred and the CLI.
+- **⌘C / ⌥⌘C in the panel:** copy the selected file (as Finder and Spotlight do), or the matched text: the passage,
+  the code around a definition, the text read from a photo, the transcript at the moment.
+- **A stuck file never stops indexing:** after 30 minutes on one file (90 for a transcript) it is skipped with the
+  reason, and the queue goes on.
+- **Indexing pauses when less than 2 GB is free** on the disk of the index.
+- **Fixed:** transcripts queued before transcription was switched off made the index worker start and exit again and
+  again. The README now says exactly what switching transcription off does.
+- **Raycast:** play from the start rewinds an open recording, the moment preview pauses a playing video, and a moment
+  or page that cannot be set is reported instead of silently skipped; FLAC plays at the moment.
+- **Faster photo search and scoped search:** stored vectors are read straight from sqlite-vec's blocks.
+
 ## 0.1.2 — 2026-10-19
 
 - **Requirements corrected: macOS 26.2 (Tahoe) or newer.** The app said macOS 14, but the MLX libraries inside it are
