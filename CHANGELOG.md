@@ -15,7 +15,8 @@ What changed for people using Lantern, newest first.
   again. The README now says exactly what switching transcription off does.
 - **Raycast:** play from the start rewinds an open recording, the moment preview pauses a playing video, and a moment
   or page that cannot be set is reported instead of silently skipped; FLAC plays at the moment.
-- **Faster photo search and scoped search:** stored vectors are read straight from sqlite-vec's blocks.
+- **Faster search:** stored vectors are read straight from sqlite-vec's blocks, and the index through mmap (search
+  by meaning about 40% faster).
 
 ## 0.1.2 — 2026-10-19
 
