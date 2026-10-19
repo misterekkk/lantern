@@ -80,7 +80,7 @@ struct MenuView: View {
                 .transition(.opacity)
             }
             // The dot alone, in the corner (its colour says it); the word is in the tooltip and for VoiceOver.
-            Circle().fill(phaseColor).frame(width: 8, height: 8)
+            Image(nsImage: phaseImage).resizable().frame(width: 10, height: 10)
                 .help(Text(phaseLabel))
                 .accessibilityLabel(Text(phaseLabel))
         }
@@ -109,15 +109,16 @@ struct MenuView: View {
         }
     }
 
-    /// Apple's status colours (as in System Settings → Network): green ready, yellow busy or waiting for you, grey
-    /// inactive, red not working.
-    private var phaseColor: Color {
-        switch state.phase {
-        case .idle: .green
-        case .indexing, .awaitingApproval: .yellow
-        case .starting, .paused: .gray
-        case .offline: .red
+    /// macOS's own status images, as System Settings draws them (Network, Sharing): green ready, amber busy or waiting
+    /// for you, grey inactive, red not working. SwiftUI's .yellow is systemYellow (#FFCC00), brighter than their amber.
+    private var phaseImage: NSImage {
+        let name: NSImage.Name = switch state.phase {
+        case .idle: NSImage.statusAvailableName
+        case .indexing, .awaitingApproval: NSImage.statusPartiallyAvailableName
+        case .starting, .paused: NSImage.statusNoneName
+        case .offline: NSImage.statusUnavailableName
         }
+        return NSImage(named: name) ?? NSImage()
     }
 
     /// First launch of the prebuilt .dmg (or while a model is downloading): one-click download into ~/.cache/huggingface/hub.
