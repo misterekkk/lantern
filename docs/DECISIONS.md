@@ -1203,6 +1203,24 @@ M4A, MP3, MOV and Ogg Opus.
   measured: `purge` needs root. The index lives on the internal disk; an I/O error under mmap would be a SIGBUS instead
   of an SQLite error, accepted for a local file.
 
+## Phase 17 plan (agreed with the user, 2026-10-19)
+
+- Measured memory: daemon idle ~0.5 GB (EmbeddingGemma text), worker up to 3.3 GB (audio tower), Whisper ~1.8 GB,
+  SigLIP 2 image tower up to ~2.2 GB; macOS with a browser takes 5–6 GB of an 8 GB Mac.
+- **RAM profiles:** 16 GB and more: everything on (works well on the user's 16 GB Mac). 8 GB: "light" (EmbeddingGemma
+  for text and photos, plus what macOS does itself: OCR, people counts, dates, places); SigLIP, Whisper and video
+  frames off, and switching one on shows the expected memory and a warning about swap, with an explicit confirmation.
+  MLX memory limits scale with RAM.
+- **Memory pressure:** macOS "warn" or growing swap → the worker finishes its file and pauses; "critical" → it stops at
+  once and the daemon releases the photo query model; resume after a few calm minutes; the menu says why.
+- **Modes:** "always ready" (model in memory) or "on demand" (the model is released after idle minutes; apps and
+  settings still answer without it), chosen at first launch with a suggestion from the Mac's RAM; an indexing schedule
+  (on power, when the Mac is idle, a night window).
+- **Fool-proofing for users who wrongly believe they can do anything:** Advanced settings collapsed (ignored
+  extensions, OCR languages, model switches, debounce); estimates before approving a huge folder, refusal of `/` and
+  system folders, confirmation for large external disks; Restore defaults and Repair index buttons instead of
+  hand-editing files; no scores or ranks in the app; `config.toml` values validated and clamped.
+
 ## `in:folder` measured (2026-10-19)
 
 - 150 known-item queries on a copy of the user's index (5 900 files): 5 random words of 5+ letters from a random text,
