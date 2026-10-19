@@ -6,8 +6,8 @@ What changed for people using Lantern, newest first.
 
 - **`in:folder`:** `in:down umowa`, `in:"Moje dokumenty" faktura` or `in:~/Projects/x readme` keeps results to files
   under that folder, in the panel, Raycast, Alfred and the CLI.
-- **⌘C / ⌥⌘C in the panel:** copy the selected file (as Finder and Spotlight do), or the matched text: the passage,
-  the code around a definition, the text read from a photo, the transcript at the moment.
+- **⌘C / ⌥⌘C in the panel and Raycast:** copy the selected file (as Finder and Spotlight do), or the matched text:
+  the passage, the code around a definition, the text read from a photo, the transcript at the moment.
 - **A stuck file never stops indexing:** after 30 minutes on one file (90 for a transcript) it is skipped with the
   reason, and the queue goes on.
 - **Indexing pauses when less than 2 GB is free** on the disk of the index.
