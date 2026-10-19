@@ -33,7 +33,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   never System Events (it types into the frontmost app). ⇧Tab arrives as U+0019. Corners are concentric: selection
   radius = panel radius 26 − list inset 8.
 - Panel shortcuts go through `SearchModel.act(OpenAction)`: ↩ at location, ⌥↩ from start, ⌘Y preview inside the
-  panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder. Recordings: `MediaOpener` runs
+  panel (`Preview.swift`: text range, `AVPlayerView` from the moment), ⌘↩ Finder; ⌘C copies the result (a file URL
+  on the pasteboard), ⌥⌘C the matched passage (`passage` API), unless the field has a text selection (`SearchModel.copy`). Recordings: `MediaOpener` runs
   osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs
   `NSAppleEventsUsageDescription`.
 - Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,

@@ -516,6 +516,40 @@ final class SearchModel: ObservableObject {
         }
     }
 
+    /// ⌘C copies the selected result itself: a file or an app as a file (paste it in Finder, attach it), an answer as
+    /// its value, a setting, song or shortcut as its name, as Spotlight's ⌘C does. ⌥⌘C copies the matched text: the
+    /// whole passage the result was found in (code: the chunk with the definition; recordings: the transcript at the
+    /// moment; a photo: the text read from it), from the daemon's `passage`.
+    func copy(matchedText: Bool) {
+        guard let hit = selected else { return }
+        let board = NSPasteboard.general
+        if matchedText && !hit.isAction && hit.chunkId >= 0 {
+            struct Passage: Decodable { let text: String }
+            Task {
+                let passage = try? await AppState.shared.client.call("passage", ["chunk_id": hit.chunkId], as: Passage.self)
+                let text = (passage?.text ?? hit.preview).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return NSSound.beep() }
+                board.clearContents()
+                board.setString(text, forType: .string)
+                Self.copiedFeedback()
+            }
+            return
+        }
+        board.clearContents()
+        if hit.isAnswer {
+            board.setString(String(hit.path.dropFirst("answer:".count)), forType: .string)
+        } else if hit.isAction && !hit.isApp {
+            board.setString(Format.title(hit), forType: .string)
+        } else {
+            board.writeObjects([URL(fileURLWithPath: hit.path) as NSURL])
+        }
+        Self.copiedFeedback()
+    }
+
+    private static func copiedFeedback() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
+
     private func recordOpened(_ hit: SearchResult) {
         // Which row was chosen: learned choices ("sl" + ↩ -> Slack) and training data for a future ranking model.
         guard SearchHistory.enabled, let eventId, hit.chunkId >= 0 else { return }
@@ -952,6 +986,15 @@ struct SearchView: View {
         .onKeyPress(keys: ["y"], phases: .down) { press in
             guard press.modifiers.contains(.command) else { return .ignored }
             model.act(.preview)
+            return .handled
+        }
+        // ⌘C copies the result, ⌥⌘C its matched text; with text selected in the field, ⌘C copies that text as usual.
+        // (⌥ turns "c" into "ç" on most layouts, so both are listened for.)
+        .onKeyPress(keys: ["c", "ç"], phases: .down) { press in
+            guard press.modifiers.contains(.command), model.preview == nil else { return .ignored }
+            let field = NSApp.keyWindow?.firstResponder as? NSTextView
+            if !press.modifiers.contains(.option), let field, field.selectedRange().length > 0 { return .ignored }
+            model.copy(matchedText: press.modifiers.contains(.option))
             return .handled
         }
         // Filter pills, like Tab narrowing the scope in Spotlight. ⇧Tab arrives as the "backtab" character (U+0019).

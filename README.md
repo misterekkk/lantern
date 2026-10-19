@@ -226,8 +226,10 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   | ⌥↩ | open from the top | the whole recording from the start, in its default app |
   | ⌘Y | preview in the panel: the passage highlighted, with context | preview in the panel from the moment |
   | ⌘↩ | show in Finder | show in Finder |
+  | ⌘C | copy the file (paste it in Finder or attach it); an app as a file, an answer as its value, a setting, song or shortcut as its name; with text selected in the field, that text | copy the file |
+  | ⌥⌘C | copy the matched text: the whole passage (code: the chunk with the definition; a photo: the text read from it) | copy the transcript at the moment |
   | ↑↓ / Esc | select / close (from a preview: back to the list) | |
-  | Tab / ⇧Tab, ⌘1…⌘6 | next / previous filter pill, pick a pill | |
+  | Tab / ⇧Tab, ⌘1…⌘0 | next / previous filter pill, pick a pill | |
   | → | accept the grey completion | |
 
   - PDFs open in their default app (Preview cannot be told to open a page); ⌘Y shows the matching page in Lantern
