@@ -463,3 +463,5 @@
 "Copy Diagnostics" = "Kopiuj diagnostykę";
 "For a bug report: versions, memory, settings and counts, without file names or contents" = "Do zgłoszenia błędu: wersje, pamięć, ustawienia i liczby, bez nazw i treści plików";
 "Diagnostics copied. Paste them into your report." = "Skopiowano diagnostykę. Wklej ją do zgłoszenia.";
+"Show Welcome Window…" = "Pokaż okno powitalne…";
+"The first-launch setup: usage, models, folders and where to search" = "Konfiguracja z pierwszego uruchomienia: sposób używania, modele, foldery i skąd szukać";

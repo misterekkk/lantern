@@ -76,12 +76,20 @@ import SwiftUI
     @Published var confirmHeavy: SetupInfo.Model?
     private var defaultsApplied = false
 
-    func applyDefaults(_ setup: SetupInfo) {
+    /// First launch: what suits this Mac. Opened again from Settings: what is set now, so Continue changes nothing
+    /// the user did not touch (no folder they removed comes back, the mode stays).
+    func applyDefaults(_ setup: SetupInfo, roots: [String], currentMode: String?) {
         guard !defaultsApplied else { return }
         defaultsApplied = true
-        mode = setup.suggestedMode
-        models = Set(setup.models.filter { $0.recommended || $0.downloaded }.map(\.key))
         launcher = SearchLauncher.current
+        if roots.isEmpty {
+            mode = setup.suggestedMode
+            models = Set(setup.models.filter { $0.recommended || $0.downloaded }.map(\.key))
+        } else {
+            mode = currentMode ?? setup.suggestedMode
+            models = Set(setup.models.filter(\.downloaded).map(\.key))
+            folders = Set(AppState.commonFolders.filter { f in roots.contains { f == $0 || f.hasPrefix($0 + "/") } })
+        }
     }
 
     func go(_ to: Step) {
@@ -128,7 +136,9 @@ struct WelcomeView: View {
                 await state.loadSetup()
                 if state.setup == nil { try? await Task.sleep(nanoseconds: 1_000_000_000) }
             }
-            if let s = state.setup { model.applyDefaults(s) }
+            if let s = state.setup {
+                model.applyDefaults(s, roots: state.status?.roots.map(\.path) ?? [], currentMode: state.settings?.mode)
+            }
         }
         .alert("This Mac may slow down", isPresented: Binding(get: { model.confirmHeavy != nil },
                                                               set: { if !$0 { model.confirmHeavy = nil } }),

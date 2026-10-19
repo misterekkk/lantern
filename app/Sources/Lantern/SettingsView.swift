@@ -902,6 +902,11 @@ private struct AboutPane: View {
             Section {
                 LabeledContent("Models") { Text("EmbeddingGemma 2 · SigLIP 2 · Whisper").foregroundStyle(.secondary) }
                 LabeledContent {
+                    Button("Show Welcome Window…") { WelcomeWindowController.shared.show() }
+                } label: {
+                    Text("The first-launch setup: usage, models, folders and where to search")
+                }
+                LabeledContent {
                     Button("Copy Diagnostics") { state.copyDiagnostics() }
                 } label: {
                     Text("For a bug report: versions, memory, settings and counts, without file names or contents")
