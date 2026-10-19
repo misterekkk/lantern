@@ -31,10 +31,12 @@ struct MenuView: View {
                 if s.worker.running {
                     progress(s.worker).transition(.opacity)
                 }
-                Text(statsLine(s))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
+                if s.indexProblem == nil {  // an index that cannot be read has no counts worth showing ("0 files")
+                    Text(statsLine(s))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
                 // worded by the app in Lantern's language; a daemon from before 0.2.1 sends only English text
                 if let warning = s.warningEvents.map({ $0.last.flatMap(Format.warning) }) ?? s.warnings.last {
                     Label(warning, systemImage: "exclamationmark.circle")
@@ -163,8 +165,10 @@ struct MenuView: View {
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let err = s.modelDownload?.error {
-                    Text(err).font(.caption).foregroundStyle(.red)
+                if s.modelDownload?.error != nil {  // the daemon's English detail stays in logs/models.log
+                    Text("The model download failed. Check the connection and try again; details are in logs/models.log.")
+                        .font(.caption).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Button("Download") {
                     var groups = ["required"]
@@ -192,20 +196,28 @@ struct MenuView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                if problem == "newer" {
-                    Button("Get the Latest Version") {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/misterekkk/lantern/releases/latest")!)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                Button("Rebuild the Index") { state.rebuildIndex() }
-                    .buttonStyle(.bordered)
+            // side by side when they fit; one under the other when the words are longer (Polish)
+            ViewThatFits(in: .horizontal) {
+                HStack { problemButtons(problem) }
+                VStack(alignment: .leading, spacing: 6) { problemButtons(problem) }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.red.opacity(0.08)))
+    }
+
+    @ViewBuilder private func problemButtons(_ problem: String) -> some View {
+        if problem == "newer" {
+            Button("Get the Latest Version") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/misterekkk/lantern/releases/latest")!)
+            }
+            .buttonStyle(.borderedProminent)
+            .fixedSize()
+        }
+        Button("Rebuild the Index") { state.rebuildIndex() }
+            .buttonStyle(.bordered)
+            .fixedSize()
     }
 
     /// Work set up in Settings waits until they close (the folder tree may still exclude parts of it).

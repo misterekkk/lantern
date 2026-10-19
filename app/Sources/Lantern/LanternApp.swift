@@ -50,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
             return args[i + 1]
         }
+        if let dir = value(after: "--ui-snapshot") {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                await UISnapshots.run(to: URL(fileURLWithPath: dir))
+            }
+        }
         if let dir = value(after: "--welcome-snapshot") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 4_000_000_000)  // the daemon answers `setup` by then

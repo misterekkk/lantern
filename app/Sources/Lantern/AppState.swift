@@ -81,7 +81,18 @@ final class AppState: ObservableObject {
         setUpNotifications()
     }
 
+    /// Development (`--ui-snapshot`): a status set by hand stays, the 2-second poll leaves it alone.
+    private(set) var previewing = false
+
+    func preview(_ status: DaemonStatus, setup: SetupInfo? = nil) {
+        previewing = true
+        self.status = status
+        self.connectionError = nil
+        if let setup { self.setup = setup }
+    }
+
     func refresh() async {
+        guard !previewing else { return }
         do {
             // The open Settings window holds back new indexing (the daemon releases it when we stop saying so).
             let s = try await client.call("status", ["settings_open": SettingsWindowController.shared.isOpen],

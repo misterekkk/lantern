@@ -482,3 +482,4 @@
 "The index is from a newer Lantern." = "Indeks pochodzi z nowszego Lanterna.";
 "The index is damaged; Lantern can rebuild it." = "Indeks jest uszkodzony; Lantern może go przebudować.";
 "A newer Lantern upgraded the index; restarting." = "Nowszy Lantern zaktualizował indeks; uruchamiam ponownie.";
+"The model download failed. Check the connection and try again; details are in logs/models.log." = "Pobieranie modelu nie powiodło się. Sprawdź połączenie i spróbuj ponownie; szczegóły są w logs/models.log.";
