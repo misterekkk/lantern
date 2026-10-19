@@ -50,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
             return args[i + 1]
         }
+        if let name = value(after: "--preview-state") {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                await UISnapshots.preview(name)
+            }
+        }
         if let dir = value(after: "--ui-snapshot") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_500_000_000)

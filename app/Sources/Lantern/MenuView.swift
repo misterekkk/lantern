@@ -43,6 +43,7 @@ struct MenuView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)  // the whole sentence, in any language
                 }
             }
             if let message = state.lastMessage {
@@ -151,10 +152,14 @@ struct MenuView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Toggle("Whisper — transcripts of recordings (~1.6 GB)", isOn: $wantWhisper)
-                    .font(.caption)
-                Toggle("SigLIP 2 — better photo search (~1 GB)", isOn: $wantPhotos)
-                    .font(.caption)
+                Toggle(isOn: $wantWhisper) {  // labels wrap: Polish ones are longer than one line
+                    Text("Whisper — transcripts of recordings (~1.6 GB)").fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
+                Toggle(isOn: $wantPhotos) {
+                    Text("SigLIP 2 — better photo search (~1 GB)").fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
                     .task {  // the optional models follow this Mac's memory: on by default from 16 GB, off on 8 GB
                         if state.setup == nil { await state.loadSetup() }
                         if state.setup?.profile == "light" { wantWhisper = false; wantPhotos = false }

@@ -31,6 +31,28 @@ import SwiftUI
                                         "path": "/Users/x/Desktop/Portugalia/IMG_6794.JPG"]]),
     ]
 
+    /// Development: `--preview-state <name>` (e.g. `menu-3-downloading`) shows that state in the real menu, for a real
+    /// screenshot of the window (system controls included).
+    static func preview(_ name: String) async {
+        guard let change = states.first(where: { $0.0 == name })?.1 else { return }
+        let json = base.merging(change) { _, new in new }
+        guard let data = try? JSONSerialization.data(withJSONObject: json),
+              let status = try? DaemonClient.decoder.decode(DaemonStatus.self, from: data) else { return }
+        AppState.shared.preview(status, setup: sampleSetup)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        MenuBarMenu.button()?.performClick(nil)
+    }
+
+    private static var sampleSetup: SetupInfo? {
+        try? DaemonClient.decoder.decode(SetupInfo.self, from: Data("""
+            {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1200, "models": [
+             {"key": "embeddinggemma", "group": "required", "label": "", "approx_mb": 1200, "downloaded": false,
+              "recommended": true, "heavy": false, "needs_gb": 0},
+             {"key": "whisper", "group": "whisper", "label": "", "approx_mb": 1600, "downloaded": false,
+              "recommended": false, "heavy": true, "needs_gb": 1.8}]}
+            """.utf8))
+    }
+
     static func run(to dir: URL) async {
         let setup = try? DaemonClient.decoder.decode(SetupInfo.self, from: Data("""
             {"ram_gb": 8, "profile": "light", "suggested_mode": "on_demand", "recommended_mb": 1200, "models": [

@@ -42,6 +42,11 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   recommended by RAM profile), folders, launcher, done. `--welcome` shows it without recording it as done;
   `--welcome-snapshot <dir>` writes each step as PNG through ImageRenderer (with `LANTERN_FAKE_RAM_GB=8` for the
   8 GB variant, and a short `LANTERN_SOCKET` such as `/tmp/lw.sock`: socket paths are limited to 104 bytes).
+- UI checks in every language: `--ui-snapshot <dir>` (menu states + welcome steps via ImageRenderer, no daemon; system
+  controls become placeholders) and `--preview-state <menu-N-name>` (that state in the real menu, for a real capture
+  of only Lantern's window with `screencapture -l <window id>`; never the whole screen). Run with
+  `-AppleLanguages "(pl)"` / `"(en)"`. Text that may be longer in Polish needs `.fixedSize(horizontal: false,
+  vertical: true)`: offline renders wrap it, the real menu truncated it.
 - Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,
   `--hover-scope <kind>`, `--unfold-scopes` (unfolds the folded scope icons 1.5 s after they fold). Clicks posted
   with `CGEvent.postToPid` do not reach SwiftUI buttons in the panel; use a dev flag instead.
