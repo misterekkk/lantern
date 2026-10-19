@@ -11,6 +11,21 @@ struct PerformanceTab: View {
 
     var body: some View {
         SettingsPage {
+            // How often the search model stays in memory: also chosen in the welcome window (everything chosen there
+            // can be changed in Settings)
+            if let mode = state.settings?.mode {
+                Section {
+                    Picker(selection: Binding(get: { mode }, set: { state.setConfig("mode", $0) })) {
+                        Text("Always ready").tag("ready")
+                        Text("When needed").tag("on_demand")
+                    } label: {
+                        Text("Search model")
+                    }
+                } footer: {
+                    Text("Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer.")
+                        .font(.caption)
+                }
+            }
             Section {
                 if let snap {
                     Picker("Range", selection: $window) {
@@ -110,6 +125,13 @@ struct PerformanceTab: View {
 private struct ModelRow: View {
     @EnvironmentObject var state: AppState
     let model: PerfSnapshot.Model
+    @State private var confirmHeavy = false
+
+    /// On an 8 GB Mac the heavy models ask first, as in the welcome window (phase 17).
+    private var heavyOnThisMac: SetupInfo.Model? {
+        guard state.setup?.profile == "light" else { return nil }
+        return state.setup?.models.first { $0.key == model.key && $0.heavy }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -126,8 +148,10 @@ private struct ModelRow: View {
                         ProgressView().controlSize(.small)
                     } else {
                         Badge(text: String(localized: "Not downloaded"), active: false)
-                        Button("Download") { state.downloadModels([model.key]) }
-                            .controlSize(.small)
+                        Button("Download") {
+                            if heavyOnThisMac != nil { confirmHeavy = true } else { state.downloadModels([model.key]) }
+                        }
+                        .controlSize(.small)
                     }
                 }
             }
@@ -136,6 +160,13 @@ private struct ModelRow: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
+        }
+        .task { if state.setup == nil { await state.loadSetup() } }
+        .alert("This Mac may slow down", isPresented: $confirmHeavy) {
+            Button("Use It Anyway") { state.downloadModels([model.key]) }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("It needs about \((heavyOnThisMac?.needsGb ?? 2).formatted()) GB of memory while it works. On a Mac with \(state.setup?.ramGb ?? 8) GB that can push other apps into swap. Lantern starts it only when there is room, but it may still be slow.")
         }
     }
 

@@ -183,7 +183,7 @@ struct WelcomeView: View {
         StepPage(icon: AnyView(Symbol(name: "clock.arrow.circlepath", color: .purple)),
                  title: "How often will you search?",
                  text: "Lantern can stay ready all the time, or wake up when you need it.",
-                 fine: "Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer. You can change this in Settings → General.") {
+                 fine: "Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer. You can change this in Settings → Performance.") {
             VStack(spacing: 10) {
                 Choice(selected: model.mode == "ready", symbol: "bolt.fill", title: "Often, throughout the day",
                        text: "Always ready", recommended: state.setup?.suggestedMode == "ready") { model.mode = "ready" }

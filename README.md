@@ -516,7 +516,8 @@ uv run lantern daemon stop | uninstall
   pressure, or warn with swap growing fast) the worker finishes its file and indexing waits until the Mac has been calm
   for 3 minutes; at critical pressure it stops at once and the photo query model is released. Whisper (~1.8 GB) starts only while the Mac has room for it at that moment, whatever its total memory, so
   a Mac busy with something heavy (training a model, a game) is left alone. The menu says why indexing waits.
-- **Always ready or when needed** (`lantern config mode ready|on_demand`; the welcome window asks): when needed, the
+- **Always ready or when needed** (Settings → Performance → Search model, `lantern config mode ready|on_demand`; the
+  welcome window asks): when needed, the
   search model (~0.5 GB) is released after 10 minutes without a search and loaded again by the next one (apps and
   settings answer without it). An 8 GB Mac starts in this mode, with Whisper and video frames off.
 - **An index Lantern cannot use** (from a newer Lantern after going back to an older one, or a damaged file) is

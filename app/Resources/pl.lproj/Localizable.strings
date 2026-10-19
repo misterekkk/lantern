@@ -407,7 +407,7 @@
 "Everything is indexed and searched on this Mac. Nothing is uploaded." = "Wszystko jest indeksowane i przeszukiwane na tym Macu. Nic nie jest wysyłane.";
 "How often will you search?" = "Jak często będziesz szukać?";
 "Lantern can stay ready all the time, or wake up when you need it." = "Lantern może być gotowy przez cały czas albo budzić się, gdy go potrzebujesz.";
-"Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer. You can change this in Settings → General." = "„Zawsze gotowy” trzyma model wyszukiwania w pamięci (ok. 0,5 GB), więc wyniki pojawiają się od razu. „Na żądanie” zwalnia go po 10 minutach bez wyszukiwania: aplikacje i ustawienia nadal odpowiadają od razu, a pierwsze wyszukiwanie po znaczeniu po przerwie trwa chwilę dłużej. Zmienisz to w Ustawieniach → Ogólne.";
+"Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer. You can change this in Settings → Performance." = "„Zawsze gotowy” trzyma model wyszukiwania w pamięci (ok. 0,5 GB), więc wyniki pojawiają się od razu. „Na żądanie” zwalnia go po 10 minutach bez wyszukiwania: aplikacje i ustawienia nadal odpowiadają od razu, a pierwsze wyszukiwanie po znaczeniu po przerwie trwa chwilę dłużej. Zmienisz to w Ustawieniach → Wydajność.";
 "Often, throughout the day" = "Często, przez cały dzień";
 "Always ready" = "Zawsze gotowy";
 "Now and then" = "Od czasu do czasu";
@@ -483,3 +483,5 @@
 "The index is damaged; Lantern can rebuild it." = "Indeks jest uszkodzony; Lantern może go przebudować.";
 "A newer Lantern upgraded the index; restarting." = "Nowszy Lantern zaktualizował indeks; uruchamiam ponownie.";
 "The model download failed. Check the connection and try again; details are in logs/models.log." = "Pobieranie modelu nie powiodło się. Sprawdź połączenie i spróbuj ponownie; szczegóły są w logs/models.log.";
+"When needed" = "Na żądanie";
+"Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer." = "„Zawsze gotowy” trzyma model wyszukiwania w pamięci (ok. 0,5 GB), więc wyniki pojawiają się od razu. „Na żądanie” zwalnia go po 10 minutach bez wyszukiwania: aplikacje i ustawienia nadal odpowiadają od razu, a pierwsze wyszukiwanie po znaczeniu po przerwie trwa chwilę dłużej.";
