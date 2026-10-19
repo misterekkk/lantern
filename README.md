@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/macOS-14%2B%20·%20Apple%20Silicon-black" alt="macOS 14+ on Apple Silicon">
+  <img src="https://img.shields.io/badge/macOS-26.2%2B%20·%20Apple%20Silicon-black" alt="macOS 26.2+ on Apple Silicon">
   <img src="https://img.shields.io/badge/runs-offline%20by%20default-2ea44f" alt="Runs offline by default">
   <a href="https://github.com/misterekkk/lantern/actions/workflows/pages.yml"><img src="https://github.com/misterekkk/lantern/actions/workflows/pages.yml/badge.svg" alt="Demo site deployment"></a>
 </p>
@@ -17,7 +17,8 @@
 
 Search your Mac **by meaning**, not just by file name: text, code, documents, photos, recordings and videos.
 Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind's open **EmbeddingGemma 2** model
-(Apache 2.0) on Apple Silicon through MLX, and nothing ever leaves the machine.
+(Apache 2.0) on Apple Silicon through MLX; after the one-time model download nothing leaves the machine (the opt-in
+Spotify library sync is the only exception).
 
 - *"decision tree pruning"* finds the README that explains it, even if it is written in Polish.
 - *"def add_two(x, y):"* jumps to `script.py`, line 200, in your code editor.
@@ -70,7 +71,8 @@ Lantern runs entirely on your Mac. It indexes your folders with Google DeepMind'
 
 ## Requirements
 
-- **For the prebuilt app (`Lantern.dmg`):** a Mac with Apple Silicon (M1 or newer) and macOS 14 or newer. Python 3.12,
+- **For the prebuilt app (`Lantern.dmg`):** a Mac with Apple Silicon (M1 or newer) and macOS 26.2 (Tahoe) or newer:
+  the app is made for Liquid Glass, and MLX's libraries need macOS 26.2. Python 3.12,
   all packages and the `AVFoundation` media helper are inside `Lantern.app`; no Xcode, Homebrew, `uv` or `ffmpeg` is
   needed (`brew install ffmpeg` is optional if you index `.mkv` or `.webm` videos).
 - **For building from source (`./install.sh`) and the `lantern` CLI:**
@@ -127,7 +129,7 @@ git clone https://github.com/misterekkk/lantern.git && cd lantern
 ./install.sh
 ```
 
-The script checks the Mac (Apple Silicon, macOS 14+, Command Line Tools), installs `uv` and `ffmpeg` (for MKV/WebM) with Homebrew
+The script checks the Mac (Apple Silicon, macOS 26.2+, Command Line Tools), installs `uv` and `ffmpeg` (for MKV/WebM) with Homebrew
 (with Homebrew analytics off for its own calls; if Homebrew is missing it asks before running the official
 installer), runs `uv sync`, downloads the required model and asks about the optional ones, checks that search works
 offline, and builds the app into `/Applications` when Xcode 26 is present. It can be run again at any time: finished
@@ -288,7 +290,7 @@ Keys in "Search Lantern":
 
 | Key | Action |
 |---|---|
-| ↩ | open at the line (VS Code, VSCodium, Cursor, Xcode, JetBrains), play from the moment (QuickTime), play a song |
+| ↩ | open at the line (VS Code, VSCodium, Cursor, Xcode, JetBrains), play from the moment (QuickTime), a PDF at its page (Skim; Preview through its Go to Page shortcut, which needs the Accessibility permission for Raycast), play a song |
 | ⌥↩ | open from the start (a recording from 0:00) |
 | ⌘↩ | show in Finder (a song: in Music or Spotify) |
 | ⌘Y | preview at the place: the code around the line, the whole passage with your words in bold; a video in QuickTime, paused at the moment |

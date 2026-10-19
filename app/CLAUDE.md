@@ -70,7 +70,9 @@ LANTERN_HOME=/tmp/x LANTERN_SOCKET=/tmp/l.sock LANTERN_PANEL_PINNED=1 \
 
 ## Conventions
 
-- Swift 5 language mode, macOS 14+; Liquid Glass (`glassEffect`) behind `#available(macOS 26, *)` with a material
+- Swift 5 language mode; the app requires macOS 26.2 (`LSMinimumSystemVersion`: MLX's macOS 26 libraries need
+  26.2; the release workflow checks every bundled library's minimum against it). Liquid Glass (`glassEffect`) behind
+  `#available(macOS 26, *)` with a material
   fallback. The Xcode toolchain is selected with `DEVELOPER_DIR` (Command Line Tools ship an older SDK).
 - Localization follows the macOS language (English source strings as keys, `Resources/<lang>.lproj`:
   `Localizable.strings`, `Localizable.stringsdict` for plurals — Polish has one/few/many — and `InfoPlist.strings`

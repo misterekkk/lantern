@@ -14,3 +14,5 @@ site/node_modules/
 site/dist/
 site/.astro/
 site/src/content/docs/docs/
+site/public/llms.txt
+site/public/llms-full.txt

@@ -4,10 +4,16 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 
 ## Rules
 
-1. **Local and offline.** The only network traffic is the one-time installation: Homebrew packages, Python packages
-   (`uv sync`) and the model download (`hf download`), all run by `install.sh` or by hand (README). Afterwards the
-   libraries run with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
-   `HF_HUB_DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`.
+1. **Local and offline.** The only network traffic is the one-time installation and model download:
+   - the prebuilt app (`Lantern.dmg`): the models are downloaded from Hugging Face (huggingface.co) only when you click
+     **Download** in the menu bar or in Settings → Performance. The daemon then runs `python -m lantern.models` as a
+     separate process without the offline switches (`HF_HUB_DISABLE_TELEMETRY=1` and `DO_NOT_TRACK=1` stay set),
+     fetches the pinned revisions into `~/.cache/huggingface/hub/` and loads them offline;
+   - building from source: Homebrew packages, Python packages (`uv sync`) and the model download (`hf download`), run by
+     `install.sh` or by hand (README).
+
+   Everything else runs with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `HF_HUB_DISABLE_TELEMETRY=1`,
+   `DO_NOT_TRACK=1`. The one other connection is the opt-in Spotify sync (rule 15).
 2. **Read-only towards your files.** No writes, moves or deletions in indexed folders.
 3. **No telemetry** in Lantern's code: no analytics, crash reports or outbound connections. The one connection Lantern
    itself can make is the opt-in Spotify sync below, which you switch on and sign in to yourself.

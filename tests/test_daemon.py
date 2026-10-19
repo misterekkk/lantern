@@ -446,5 +446,3 @@ def test_passage_returns_transcript_for_audio_and_frame_chunks(start_daemon):
     by_kind = {r["kind"]: r["id"] for r in rows}
     assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["audio"]})["text"]
     assert "Spotkanie" in protocol.call("passage", {"chunk_id": by_kind["frame"]})["text"]
-
-

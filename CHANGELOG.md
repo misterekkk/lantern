@@ -2,6 +2,19 @@
 
 What changed for people using Lantern, newest first.
 
+## Unreleased
+
+- **Requirements corrected: macOS 26.2 (Tahoe) or newer.** The app said macOS 14, but the MLX libraries inside it are
+  built for macOS 26.2, so on older systems the app opened while search could not start. The app, the installer, the
+  website and the docs now say 26.2, and every release checks that no bundled library needs a newer macOS than the app
+  declares.
+- **Raycast:** a PDF opened in Preview gets its page only once Preview is in front with the document open, so the
+  Go to Page keystrokes can never reach another app.
+- **Website:** `llms.txt` and `llms-full.txt` are generated from the README and the docs at every build (the earlier
+  hand-written files described commands, files and formats Lantern does not have); the ineffective `robots.txt` is
+  gone (crawlers read it only at the domain root); `--no-quarantine` is no longer suggested (Homebrew removed it).
+- **Docs:** PRIVACY describes the in-app model download.
+
 ## 0.1.1 — 2026-10-17
 
 - **Fixed (Raycast):** transcripts of recordings and videos now appear in Raycast's preview pane (`passage` returns the

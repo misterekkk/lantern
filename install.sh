@@ -76,8 +76,12 @@ fi
 step "Checking this Mac"
 [[ $(uname -s) == Darwin ]] || fail "Lantern runs on macOS only."
 [[ $(uname -m) == arm64 ]] || fail "Lantern needs Apple silicon (M1 or newer): the models run on MLX."
-macos_major="$(sw_vers -productVersion | cut -d. -f1)"
-(( macos_major >= 14 )) || fail "macOS 14 or newer is required (this Mac: $(sw_vers -productVersion))."
+# macOS 26.2: MLX's macOS 26 wheels are built for 26.2 (their libraries' minimum), and the app is made for Liquid Glass.
+macos_version="$(sw_vers -productVersion)"
+macos_major="${macos_version%%.*}"; macos_rest="${macos_version#*.}"; macos_minor="${macos_rest%%.*}"
+[[ "$macos_rest" == "$macos_version" ]] && macos_minor=0
+(( macos_major > 26 || (macos_major == 26 && macos_minor >= 2) )) \
+  || fail "macOS 26.2 (Tahoe) or newer is required (this Mac: $macos_version)."
 ok "macOS $(sw_vers -productVersion), $(sysctl -n machdep.cpu.brand_string)"
 xcode-select -p >/dev/null 2>&1 || fail "Command Line Tools are missing. Run: xcode-select --install  (then this script again)"
 ok "Command Line Tools"
