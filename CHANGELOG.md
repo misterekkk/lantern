@@ -2,7 +2,7 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.1.2 — 2026-10-19
 
 - **Requirements corrected: macOS 26.2 (Tahoe) or newer.** The app said macOS 14, but the MLX libraries inside it are
   built for macOS 26.2, so on older systems the app opened while search could not start. The app, the installer, the
