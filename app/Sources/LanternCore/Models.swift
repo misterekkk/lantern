@@ -54,6 +54,11 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var roots: [Root]
     public var lastRun: LastRun?
     public var warnings: [String]
+    public var indexProblem: String?  // "newer" (an index from a newer Lantern) | "damaged" (phase 17)
+    public var searchMode: String?  // "ready" | "on_demand"
+    public var modelReloadMs: Int?  // last reload of the search model in "on demand" mode
+    public var datesPending: Int?  // background work after an update or new files (phase 16)
+    public var peoplePending: Int?
 
     public var queuedTotal: Int { queued.values.reduce(0, +) }
     public var filesTotal: Int { files.values.reduce(0, +) }
@@ -407,7 +412,36 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var indexImageText: Bool
     public var extraLanguages: [String]?
     public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
+    public var mode: String?  // "ready" | "on_demand" (nil: before phase 17)
     public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
+}
+
+/// This Mac and the models for the welcome window (`api_setup`): defaults follow its memory (phase 17).
+public struct SetupInfo: Decodable, Equatable, Sendable {
+    public struct Model: Decodable, Equatable, Sendable, Identifiable {
+        public var key: String
+        public var group: String  // required | whisper | photos
+        public var label: String
+        public var approxMb: Int
+        public var downloaded: Bool
+        public var recommended: Bool
+        public var heavy: Bool
+        public var needsGb: Double
+        public var id: String { key }
+    }
+
+    public var ramGb: Int
+    public var profile: String  // light (8 GB) | full
+    public var models: [Model]
+    public var suggestedMode: String
+    public var recommendedMb: Int
+
+    /// Download groups for the chosen models (`download_models`).
+    public static func groups(for keys: Set<String>, in models: [Model]) -> [String] {
+        Array(Set(models.filter { keys.contains($0.key) }.map(\.group))).sorted { a, b in
+            a == "required" ? true : b == "required" ? false : a < b
+        }
+    }
 }
 
 /// Preferred languages (`api_languages`): the macOS ones, the ones added in Settings, and the list in use.

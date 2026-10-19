@@ -19,7 +19,9 @@ struct MenuView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let s = state.status {
-                if s.modelsMissing == true || s.modelDownload?.running == true {
+                if let problem = s.indexProblem {
+                    problemCard(problem).transition(.move(edge: .top).combined(with: .opacity))
+                } else if s.modelsMissing == true || s.modelDownload?.running == true {
                     modelsCard(s).transition(.move(edge: .top).combined(with: .opacity))
                 } else if s.waitingForSettings == true {
                     settingsCard(s).transition(.move(edge: .top).combined(with: .opacity))
@@ -104,6 +106,8 @@ struct MenuView: View {
             case "memory": "Paused: the Mac is short of memory"
             default: "Paused"
             }
+        case .problem: "The index needs attention"
+        case .setup: "Setup not finished"
         case .awaitingApproval: "Waiting for approval"
         case .indexing: "Indexing"
         case .idle: "Ready"
@@ -115,7 +119,8 @@ struct MenuView: View {
     private var phaseImage: NSImage {
         let name: NSImage.Name = switch state.phase {
         case .idle: NSImage.statusAvailableName
-        case .indexing, .awaitingApproval: NSImage.statusPartiallyAvailableName
+        case .indexing, .awaitingApproval, .setup: NSImage.statusPartiallyAvailableName
+        case .problem: NSImage.statusUnavailableName
         case .starting, .paused: NSImage.statusNoneName
         case .offline: NSImage.statusUnavailableName
         }
@@ -147,6 +152,16 @@ struct MenuView: View {
                     .font(.caption)
                 Toggle("SigLIP 2 — better photo search (~1 GB)", isOn: $wantPhotos)
                     .font(.caption)
+                    .task {  // the optional models follow this Mac's memory: on by default from 16 GB, off on 8 GB
+                        if state.setup == nil { await state.loadSetup() }
+                        if state.setup?.profile == "light" { wantWhisper = false; wantPhotos = false }
+                    }
+                if state.setup?.profile == "light" {  // 8 GB: off by default, and why (phase 17)
+                    Text("On a Mac with \(state.setup?.ramGb ?? 8) GB these two can push other apps into swap; Lantern starts them only when there is room.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let err = s.modelDownload?.error {
                     Text(err).font(.caption).foregroundStyle(.red)
                 }
@@ -162,6 +177,34 @@ struct MenuView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.blue.opacity(0.08)))
+    }
+
+    /// An index from a newer Lantern, or a damaged one: what happened and what to do, instead of "Off".
+    private func problemCard(_ problem: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(problem == "newer" ? "This index is from a newer Lantern" : "The index is damaged")
+                .font(.callout.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(problem == "newer"
+                 ? "Update Lantern to keep using it, or rebuild it for this version (your folders stay; everything is indexed again)."
+                 : "Lantern can rebuild it: your folders stay, and everything is indexed again. Your files are not touched.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                if problem == "newer" {
+                    Button("Get the Latest Version") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/misterekkk/lantern/releases/latest")!)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                Button("Rebuild the Index") { state.rebuildIndex() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.red.opacity(0.08)))
     }
 
     /// Work set up in Settings waits until they close (the folder tree may still exclude parts of it).

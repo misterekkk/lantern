@@ -19,12 +19,13 @@ final class AppState: ObservableObject {
     private var timer: Timer?
     private var wasAwaiting = false
 
-    enum Phase { case starting, offline, paused, awaitingApproval, indexing, idle }
+    enum Phase { case starting, offline, problem, setup, paused, awaitingApproval, indexing, idle }
 
     var phase: Phase {
         guard let status else { return connectionError == nil ? .starting : .offline }
+        if status.indexProblem != nil { return .problem }
         if status.modelDownload?.running == true { return .indexing }
-        if status.modelsMissing == true { return .awaitingApproval }
+        if status.modelsMissing == true { return .setup }
         if status.paused != nil { return .paused }
         if status.awaitingApproval || status.waitingForSettings == true { return .awaitingApproval }
         if status.worker.running { return .indexing }
@@ -35,6 +36,8 @@ final class AppState: ObservableObject {
         switch phase {
         case .starting, .offline: "magnifyingglass"
         case .paused: "pause.circle"
+        case .problem: "exclamationmark.triangle"
+        case .setup: "arrow.down.circle"  // setup not finished: download the search model (not "approve files")
         case .awaitingApproval: "exclamationmark.magnifyingglass"
         case .indexing: "arrow.triangle.2.circlepath"
         case .idle: "sparkle.magnifyingglass"
@@ -92,6 +95,7 @@ final class AppState: ObservableObject {
             connectionError = nil
             if settings == nil { await loadSettings() }  // the daemon was still starting when the app asked
             if s.awaitingApproval && !wasAwaiting && s.waitingForSettings != true { notifyApprovalNeeded(s) }
+            showWelcomeIfNeeded()
             wasAwaiting = s.awaitingApproval
         } catch {
             status = nil
@@ -131,6 +135,54 @@ final class AppState: ObservableObject {
             }
             await refresh()
             await loadSettings()
+        }
+    }
+
+    /// This Mac's memory, profile and models (welcome window, the menu's download card).
+    @Published var setup: SetupInfo?
+
+    func loadSetup() async {
+        setup = try? await client.call("setup", as: SetupInfo.self)
+    }
+
+    func rebuildIndex() { run("rebuild_index", message: String(localized: "Rebuilding the index…")) }
+
+    /// One folder from the welcome window (indexing starts at once: choosing it is the approval).
+    func addFolder(_ path: String) { run("index", ["path": path]) }
+
+    // MARK: - Welcome
+
+    static let welcomeDoneKey = "welcomeDone"
+    private var welcomeChecked = false
+
+    /// First launch: the welcome window. Someone updating from an older Lantern (folders indexed, model present) is
+    /// not asked again. `--welcome` shows it anyway and never records it as done (development screenshots).
+    func showWelcomeIfNeeded() {
+        guard !welcomeChecked, let s = status else { return }
+        welcomeChecked = true
+        let forced = CommandLine.arguments.contains("--welcome")
+        if !forced {
+            if UserDefaults.standard.bool(forKey: Self.welcomeDoneKey) { return }
+            if !s.roots.isEmpty && s.modelsMissing != true {
+                UserDefaults.standard.set(true, forKey: Self.welcomeDoneKey)
+                return
+            }
+        }
+        WelcomeWindowController.shared.show()
+    }
+
+    /// The welcome window closed before the search model was downloaded: one reminder, with this Mac's sizes.
+    func notifySetupUnfinished() {
+        guard status?.modelsMissing == true else { return }
+        Task {
+            if setup == nil { await loadSetup() }
+            let gb = Double(setup?.recommendedMb ?? 1200) / 1000
+            let content = UNMutableNotificationContent()
+            content.title = String(localized: "Finish setting up Lantern")
+            content.body = String(localized: "Download the search model (about \(gb.formatted(.number.precision(.fractionLength(1)))) GB). It takes one click; after that Lantern works offline.")
+            content.categoryIdentifier = "setup"
+            try? await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(identifier: "setup", content: content, trigger: nil))
         }
     }
 
@@ -230,8 +282,10 @@ final class AppState: ObservableObject {
         let center = UNUserNotificationCenter.current()
         let index = UNNotificationAction(identifier: "approve", title: String(localized: "Index Now"), options: [])
         let later = UNNotificationAction(identifier: "decline", title: String(localized: "Later"), options: [])
+        let finish = UNNotificationAction(identifier: "setup", title: String(localized: "Finish Setup"), options: [.foreground])
         center.setNotificationCategories([
-            UNNotificationCategory(identifier: "approval", actions: [index, later], intentIdentifiers: [])
+            UNNotificationCategory(identifier: "approval", actions: [index, later], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "setup", actions: [finish], intentIdentifiers: []),
         ])
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }

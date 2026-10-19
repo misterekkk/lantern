@@ -5,6 +5,7 @@ follows the live state, so a 24 GB Mac training a model in the background is tre
 
 import ctypes
 import ctypes.util
+import os
 import time
 from dataclasses import dataclass
 
@@ -51,8 +52,9 @@ def read() -> Memory:
     pressure = _sysctl("kern.memorystatus_vm_pressure_level", ctypes.c_int)
     level = _sysctl("kern.memorystatus_level", ctypes.c_int)
     swap = _sysctl("vm.swapusage", _Swap)
+    fake = os.environ.get("LANTERN_FAKE_RAM_GB")  # development: see the 8 GB experience on a bigger Mac
     return Memory(
-        total=total.value if total else 16 * GB,
+        total=int(float(fake) * GB) if fake else total.value if total else 16 * GB,
         pressure=pressure.value if pressure else PRESSURE_NORMAL,
         free_percent=level.value if level else 50,
         swap_used=swap.used if swap else 0,

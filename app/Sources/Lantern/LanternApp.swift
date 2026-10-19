@@ -50,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
             return args[i + 1]
         }
+        if let dir = value(after: "--welcome-snapshot") {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)  // the daemon answers `setup` by then
+                await WelcomeWindowController.shared.snapshots(to: URL(fileURLWithPath: dir))
+            }
+        }
         if args.contains("--show-settings") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -104,9 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completion: @escaping () -> Void) {
         let action = response.actionIdentifier
+        let category = response.notification.request.content.categoryIdentifier
         Task { @MainActor in
             if action == "approve" { AppState.shared.approve() }
             if action == "decline" { AppState.shared.decline() }
+            if category == "setup" { WelcomeWindowController.shared.show() }  // "Finish Setup" or a click on it
             completion()
         }
     }

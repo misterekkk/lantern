@@ -318,15 +318,23 @@ private struct GeneralPane: View {
                 if launcher != SearchLauncher.lantern.rawValue {
                     LauncherRow(launcher: SearchLauncher(rawValue: launcher) ?? .lantern)
                 }
-                Picker(selection: $shortcut) {
-                    Text(verbatim: SearchShortcut.optionSpace.label).tag(SearchShortcut.optionSpace.rawValue)
-                    Text("\(SearchShortcut.commandSpace.label) (instead of Spotlight)").tag(SearchShortcut.commandSpace.rawValue)
-                    Text(verbatim: SearchShortcut.controlOptionSpace.label).tag(SearchShortcut.controlOptionSpace.rawValue)
-                } label: {
-                    Text("Search shortcut")
+                if launcher == SearchLauncher.lantern.rawValue {
+                    Picker(selection: $shortcut) {
+                        Text(verbatim: SearchShortcut.optionSpace.label).tag(SearchShortcut.optionSpace.rawValue)
+                        Text("\(SearchShortcut.commandSpace.label) (instead of Spotlight)").tag(SearchShortcut.commandSpace.rawValue)
+                        Text(verbatim: SearchShortcut.controlOptionSpace.label).tag(SearchShortcut.controlOptionSpace.rawValue)
+                    } label: {
+                        Text("Search shortcut")
+                    }
+                    .onChange(of: shortcut) { _, _ in state.registerShortcut() }
+                } else {
+                    // Raycast and Alfred keep their hotkeys to themselves (no API to read or set them): say where it
+                    // is set rather than show Lantern's own, unused shortcut
+                    LabeledContent("Search shortcut") {
+                        Text(launcher == SearchLauncher.raycast.rawValue ? "Set in Raycast" : "Set in Alfred")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .onChange(of: shortcut) { _, _ in state.registerShortcut() }
-                .disabled(launcher != SearchLauncher.lantern.rawValue)  // dimmed, not hidden: it comes back when switched
                 if launcher == SearchLauncher.lantern.rawValue && shortcut == SearchShortcut.commandSpace.rawValue && spotlightOn {
                     // macOS gives ⌘Space to Spotlight until its shortcut is turned off; Lantern does not change it.
                     VStack(alignment: .leading, spacing: 8) {
