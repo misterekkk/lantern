@@ -302,8 +302,8 @@ Keys in "Search Lantern":
 | ↩ | open at the line (VS Code, VSCodium, Cursor, Xcode, JetBrains), play from the moment (QuickTime), a PDF at its page (Skim; Preview through its Go to Page shortcut, which needs the Accessibility permission for Raycast), play a song |
 | ⌥↩ | open from the start (a recording from 0:00) |
 | ⌘↩ | show in Finder (a song: in Music or Spotify) |
-| ⌘Y | preview at the place, inside Raycast: the code around the line, the whole passage with your words in bold; a photo, or a video's frame at the moment, large, above its transcript (↩ plays it in QuickTime) |
-| ⇧⌘Y | Quick Look of the whole file |
+| ⌘Y | preview, as in the panel: the code around the line or the whole passage with your words in bold, inside Raycast; a photo, video or recording in Quick Look (the whole photo, the video playing); ⌘Y again closes it |
+| ⇧⌘Y | text and code: Quick Look of the whole file; a video or recording: its frame and transcript at the moment (Quick Look cannot start at a moment) |
 | ⌃1 … ⌃0 | filter by kind, the panel's digits (Raycast keeps ⌘1 … ⌘9 for opening the Nth result); the same again for all kinds |
 
 The pane beside the results shows the code around a result (its lines marked ▶), the passage with your words in bold

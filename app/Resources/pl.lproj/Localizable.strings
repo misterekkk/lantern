@@ -155,10 +155,10 @@
 "Range" = "Zakres";
 "Physical memory as in Activity Monitor. Peaks include short spikes between samples." = "Pamięć fizyczna jak w Monitorze aktywności. Szczyty obejmują też krótkie skoki między pomiarami.";
 "Now" = "Teraz";
-"Not running · last run peak %lld MB" = "Nie działa · szczyt ostatniego przebiegu: %lld MB";
+"Not running · Last run peak %lld MB" = "Nie działa · Szczyt ostatniego przebiegu: %lld MB";
 "Not running" = "Nie działa";
 " · %.1f files/s" = " · %.1f plików/s";
-" · peak %lld MB" = " · szczyt %lld MB";
+" · Peak %lld MB" = " · Szczyt %lld MB";
 "now" = "teraz";
 "Models" = "Modele";
 "Loaded in the daemon" = "Załadowany w demonie";

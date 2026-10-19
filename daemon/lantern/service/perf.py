@@ -148,7 +148,8 @@ class PerfMonitor:
             in_worker = sorted(a.split(":")[1] if ":" in a else "" for a in active if a.split(":")[0] == m.key)
             models.append({
                 "key": m.key, "repo": m.repo, "revision": m.revision, "where": m.where,
-                "size_mb": round(sizes[m.key] / 2**20) if sizes.get(m.key) is not None else None,
+                # on disk: decimal MB like Finder and the download progress (memory stays in Activity Monitor's MB)
+                "size_mb": sizes[m.key] // 10**6 if sizes.get(m.key) is not None else None,
                 "downloaded": sizes.get(m.key) is not None,
                 "loaded_daemon": m.key in daemon_loaded, "loaded_worker": bool(in_worker),
                 "worker_parts": [p for p in in_worker if p],

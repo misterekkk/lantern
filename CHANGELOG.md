@@ -11,7 +11,11 @@ What changed for people using Lantern, newest first.
 - **"When needed" mode** releases the search model after 10 idle minutes (`lantern config mode on_demand`).
 - **An index from a newer Lantern or a damaged one** is explained with Update / Rebuild instead of Lantern stopping.
 - **Copy Diagnostics** (Settings → About, `lantern diagnostics`): a report for bug reports without file names.
-- **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing.
+- **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y on a photo,
+  video or recording opens Quick Look (the whole photo, the video playing, ⌘Y closes it), as the panel's ⌘Y; the
+  moment and its transcript are on ⇧⌘Y. ⌘Y also closes a text preview.
+- **Settings → Performance:** a taller memory chart, "Search model" (always ready / when needed) under the models, model
+  sizes in Finder's units.
 - **Icon:** Apple's continuous corners and shadow, no light rim; the status dot uses macOS's own amber.
 
 ## 0.2.0 — 2026-10-19

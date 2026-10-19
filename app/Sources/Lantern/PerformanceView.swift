@@ -11,23 +11,10 @@ struct PerformanceTab: View {
 
     var body: some View {
         SettingsPage {
-            // How often the search model stays in memory: also chosen in the welcome window (everything chosen there
-            // can be changed in Settings)
-            if let mode = state.settings?.mode {
-                Section {
-                    Picker(selection: Binding(get: { mode }, set: { state.setConfig("mode", $0) })) {
-                        Text("Always ready").tag("ready")
-                        Text("When needed").tag("on_demand")
-                    } label: {
-                        Text("Search model")
-                    }
-                } footer: {
-                    Text("Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer.")
-                        .font(.caption)
-                }
-            }
             Section {
                 if let snap {
+                  // one row: the range right above its chart (two form rows put a separator and a gap between them)
+                  VStack(alignment: .leading, spacing: 8) {
                     Picker("Range", selection: $window) {
                         Text("60 s").tag(60.0)
                         Text("5 min").tag(300.0)
@@ -35,6 +22,7 @@ struct PerformanceTab: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .fixedSize()
                     // Clock time on the x axis, in the system's own time format (24 h in Polish, AM/PM in US English).
                     Chart(snap.points.filter { $0.t >= -window }, id: \.t) { p in
                         LineMark(x: .value("Time", fetched.addingTimeInterval(p.t)), y: .value("MB", p.mb))
@@ -52,8 +40,8 @@ struct PerformanceTab: View {
                     }
                     .chartYAxisLabel("MB")
                     .chartForegroundStyleScale([String(localized: "Daemon"): Color.teal, String(localized: "Indexing"): Color.purple])
-                    .frame(height: 180)
-                    .padding(.top, 6)
+                    .frame(height: 220)
+                  }
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 160)
                 }
@@ -73,7 +61,7 @@ struct PerformanceTab: View {
                         if snap.worker.running {
                             Text(mb(snap.worker.mb) + peak(snap.worker.peakMb))
                         } else {
-                            Text(snap.worker.lastPeakMb.map { String(localized: "Not running · last run peak \($0) MB") }
+                            Text(snap.worker.lastPeakMb.map { String(localized: "Not running · Last run peak \($0) MB") }
                                  ?? String(localized: "Not running"))
                         }
                     }
@@ -91,6 +79,21 @@ struct PerformanceTab: View {
                     ForEach(snap.models) { m in
                         ModelRow(model: m)
                     }
+                }
+            }
+            // How often the search model stays in memory, under the models it is about (also chosen in the welcome
+            // window: everything chosen there can be changed in Settings)
+            if let mode = state.settings?.mode {
+                Section {
+                    Picker(selection: Binding(get: { mode }, set: { state.setConfig("mode", $0) })) {
+                        Text("Always ready").tag("ready")
+                        Text("When needed").tag("on_demand")
+                    } label: {
+                        Text("Search model")
+                    }
+                } footer: {
+                    Text("Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer.")
+                        .font(.caption)
                 }
             }
         }
@@ -115,7 +118,7 @@ struct PerformanceTab: View {
     }
 
     private func mb(_ v: Int?) -> String { v.map { "\($0) MB" } ?? "–" }
-    private func peak(_ v: Int?) -> String { v.map { String(localized: " · peak \($0) MB") } ?? "" }
+    private func peak(_ v: Int?) -> String { v.map { String(localized: " · Peak \($0) MB") } ?? "" }
 
     private func stageLabel(_ stage: String?) -> String {
         stage == "transcribe" ? String(localized: "Transcribing") : String(localized: "Indexing files")
