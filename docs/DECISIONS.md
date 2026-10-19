@@ -1255,6 +1255,23 @@ M4A, MP3, MOV and Ogg Opus.
   clear gain. Recognising *who* is in a photo is another matter: Vision's faceprint request
   (`VNCreateFaceprintRequest`) exists only as private API (not in the SDK), other options need a new model, and it
   means storing biometric data: not proposed.
+- **Faces and people on a public dataset** (COCO val2017, 320 photos chosen by their annotations: 100 without people,
+  120 with one person, 60 with 2–3, 40 with 4–8; "visible" = at least 0.5% of the image; woman/man from captions, at
+  least 3 of 5 agreeing; downloaded for the test and deleted after it):
+  - Counting, Vision, confidence ≥ 0.3: faces alone found people in 69% of the photos with people, bodies 84%,
+    max(faces, bodies, upper bodies) 93% with precision 1.00 (no photo without people counted as one), the exact
+    number in 80% and ±1 in 91%; groups of 4+ were seen as 4+ in 22 of 40 (people behind others are missed).
+    `VNGeneratePersonInstanceMaskRequest` found more (recall 0.97) but saw people in 17% of empty photos and stops at
+    4. 6–21 ms per photo. So "with people" / "without people" can be filters; counts are approximate ("a group" = 3+).
+  - Mixed filters: the same photos with EXIF dates and GPS written in three sets (Lisbon 2024, Kraków 2023, Paris 2024)
+    and indexed with both photo models in an isolated home: every time or place filter was exact (e.g. "zdjęcie
+    kobiety z 2024 w Portugalii" 20/20 from set A, "mężczyzna w Krakowie" 18/18, "kobieta z 2023" 20/20). The kind of
+    person was found by meaning only: woman photos 13/20 and 15/20 within the filters, "kobieta" alone 22 of the top 30
+    (19% of the set are photos of one woman); "zdjęcia bez ludzi z 2024" 6/27: the models do not understand "without".
+  - Woman/man as a choice between two prompts per photo ("a photo of a woman" / "a photo of a man") on the 120
+    one-person photos: whole image SigLIP 2 94%, EmbeddingGemma 2 97%; on a crop around the person (Vision's body box,
+    else the face widened) 99% and 98%. A stored per-photo attribute would filter far better than ranking by the word.
+    It is a guess from appearance, from caption-based labels; it says nothing about identity.
 - Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
   dictionary); time phrases in languages other than Polish and English are not understood (places are).
 
