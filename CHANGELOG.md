@@ -2,7 +2,7 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.2.0 — 2026-10-19
 
 - **People in photos:** `zdjęcia kobiet`, `zdjęcie kobiety z 2024 w Portugalii`, `bez ludzi`, `grupa`, `selfie`,
   `dwie osoby`. macOS counts the people on your Mac and the photo model tells women from men by appearance; only the
