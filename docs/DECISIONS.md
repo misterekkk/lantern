@@ -1272,6 +1272,14 @@ M4A, MP3, MOV and Ogg Opus.
     one-person photos: whole image SigLIP 2 94%, EmbeddingGemma 2 97%; on a crop around the person (Vision's body box,
     else the face widened) 99% and 98%. A stored per-photo attribute would filter far better than ranking by the word.
     It is a guess from appearance, from caption-based labels; it says nothing about identity.
+- **People, built** (`people.py`, `search/people.py`): count = max(faces, bodies, upper bodies) at confidence ≥ 0.3;
+  crops of the four largest people (bodies widened 15%, faces 120%) classified with EmbeddingGemma 2's vision tower
+  (98%; no second text model in the worker). Stored as numbers on `files` (no face data). The worker computes them
+  after indexing; photos indexed before are done by a `--people-only` worker the daemon starts without approval, since
+  in "ask" mode a normal worker would index files still waiting for it. People words filter only the photos section
+  (`image_search` and the photos found by their text), so "prawa kobiet" still finds documents; people words alone,
+  or with a time, a place and `zdjęcia`, browse the photos. "A group" = 3+ people, "selfie"/"portret" = one person
+  whose face covers ≥ 3% of the photo. The user chose to keep woman/man on by default with the people switch.
 - Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
   dictionary); time phrases in languages other than Polish and English are not understood (places are).
 

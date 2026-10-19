@@ -17,6 +17,7 @@ from lantern.dictionary import Definition as WordDefinition
 from lantern.dictionary import define
 from lantern.embedding.base import Embedder
 from lantern.extractors.metadata import from_seconds
+from lantern.search import people as people_query
 from lantern.search import when
 from lantern.search.apps import APP_SECTION_SIZE, AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
@@ -272,6 +273,7 @@ class Filters:
     soft_countries: tuple[str, ...] = ()
     narrowed: bool = False  # a time or place limits the results (not only a folder)
     kind: str | None = None  # "zdjęcia z maja": the photos category
+    people: Scope | None = None  # "kobieta", "bez ludzi", "grupa": a condition on the photos section only
 
 
 def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
@@ -296,13 +298,19 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
         kinds = {KIND_WORDS.get(places_mod.name_key(w)) for w in query.split()}
         if len(kinds) == 1 and None not in kinds:  # only kind words left ("zdjęcia"): browse that kind
             kind, query = kinds.pop(), ""
+    found = people_query.parse(query) if query.strip() else None
+    people_scope = Scope(found.sql, found.params) if found else None
+    photo_words = {k for k, v in KIND_WORDS.items() if v == "photos"}
+    if found and people_query.only_people_words(query, found, also=photo_words):  # "zdjęcia kobiet", "selfie"
+        kind, query = "photos", ""
     return query, Filters(
+        people=people_scope,
         kind=kind,
         scope=Scope.all(folder_scope, time_scope, place_scope),
         soft_time=time_filter if time_filter and not time_filter.hard else None,
         soft_places=place.place_ids if place and not place.hard else (),
         soft_countries=place.countries if place and not place.hard else (),
-        narrowed=bool(time_scope or place_scope),
+        narrowed=bool(time_scope or place_scope or people_scope),
     )
 
 
@@ -335,6 +343,16 @@ def annotate(conn: sqlite3.Connection, items: list[Result], lang: str, filters: 
     if filters and (filters.soft_time or filters.soft_places or filters.soft_countries):
         out.sort(key=lambda r: -r.score)
     return out
+
+
+def _keep(conn: sqlite3.Connection, items: list[Result], scope: Scope) -> list[Result]:
+    """The results whose file meets the condition."""
+    if not items:
+        return items
+    marks = ",".join("?" * len(items))
+    ok = {r[0] for r in conn.execute(f"SELECT f.path FROM files f WHERE f.path IN ({marks}) AND ({scope.sql})",
+                                     (*[i.path for i in items], *scope.params))}  # fmt: skip
+    return [i for i in items if i.path in ok]
 
 
 def browse(conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, category: str | None) -> SearchResponse:
@@ -520,10 +538,10 @@ def search(
     spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
     query, filters = parse_filters(conn, query)  # folder, time, place: never spell-checked, never embedded
     scope = filters.scope
-    if scope is not None and not query.strip():
+    if (scope is not None or filters.people is not None) and not query.strip():
         if not filters.narrowed:
             return SearchResponse([], None, 0.0, 0.0, category=category)  # a folder alone is not a query
-        resp = browse(conn, scope, limit, lang, category or filters.kind)
+        resp = browse(conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind)
         return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query
@@ -563,7 +581,8 @@ def search(
     t1 = time.perf_counter()
     keyword = keyword_search(conn, query, CANDIDATES, scope=scope)
     t2 = time.perf_counter()
-    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=scope)
+    photo_scope = Scope.all(scope, filters.people)
+    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=photo_scope)
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query, scope=scope)
     t4 = time.perf_counter()
@@ -613,6 +632,10 @@ def search(
         scores["music"] = _music_score(music[0], query)
     if category == "photos" and photos:
         scores.setdefault("photos", 0.5)  # the Photos filter shows them all, however weak
+    if filters.people is not None:
+        photos = _keep(conn, photos, filters.people)  # also the photos found by their text or name
+        if photos:  # the people asked for were counted, not guessed from the look of the photo: shown
+            scores["photos"] = max(scores.get("photos", 0.0), 0.62)
     if "photos" not in scores:
         photos = []  # photos that only look a bit like the query: noise, not shown
     results, photos = annotate(conn, results, lang, filters), annotate(conn, photos, lang, filters)

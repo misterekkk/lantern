@@ -407,6 +407,7 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var indexImageText: Bool
     public var extraLanguages: [String]?
     public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
+    public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
 }
 
 /// Preferred languages (`api_languages`): the macOS ones, the ones added in Settings, and the list in use.

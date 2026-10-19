@@ -367,6 +367,14 @@ uv run lantern clear-history               # delete the local search history
     and videos, or `lantern config places false`, which also deletes the saved locations from the index.
   - After an update from 0.1.x, dates and places are filled in the background from file headers in a minute or two;
     nothing is indexed again.
+- **People in photos:** `zdjęcia kobiet`, `mężczyzna w Krakowie`, `zdjęcie kobiety z 2024 w Portugalii`, `z ludźmi`,
+  `bez ludzi`, `grupa` (three or more), `selfie` / `portret`, `dwie osoby`, `kobieta i mężczyzna`, and the same in
+  English. These words filter the photos section only; documents containing them are found as before. macOS (Vision,
+  on this Mac) counts the people; the photo model guesses woman or man from appearance on a crop around each of the
+  four largest. On a public test set: people found in 93% of photos with people and never in a photo without, the
+  exact count in 80%, woman/man right in 98% of one-person photos (docs/DECISIONS.md). Photos indexed before 0.2 are
+  analysed in the background (a few milliseconds per photo; files waiting for your approval stay waiting). Switch:
+  Settings → File Types → People in photos, or `lantern config people false`, which deletes the counts.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and

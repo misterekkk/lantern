@@ -125,7 +125,8 @@ def scan_root(
                     result.unreadable.append(path)
                     continue
                 conn.execute(
-                    "UPDATE files SET size = ?, mtime_ns = ?, content_hash = ?, meta_version = 0 WHERE id = ?",
+                    "UPDATE files SET size = ?, mtime_ns = ?, content_hash = ?, meta_version = 0, people_version = 0 "
+                    "WHERE id = ?",
                     (entry.size, entry.mtime_ns, digest, row["id"]),
                 )
                 if digest == row["content_hash"]:

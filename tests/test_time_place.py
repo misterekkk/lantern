@@ -325,9 +325,10 @@ def test_upgrade_fills_dates_without_reindexing(lantern_home, tmp_path):
     run_queue(conn, embedder, image_embedder=FakeImageEmbedder(), image_text=False)
     chunks = conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
     vectors = conn.execute("SELECT count(*) FROM vec_chunks_1").fetchone()[0]
-    for index in ("files_date", "files_place", "files_country", "files_meta"):  # back to schema 13
+    for index in ("files_date", "files_place", "files_country", "files_meta", "files_people"):  # back to schema 13
         conn.execute(f"DROP INDEX {index}")
-    for column in ("inferred_date", "date_source", "lat", "lon", "place_id", "country", "meta_version"):
+    for column in ("inferred_date", "date_source", "lat", "lon", "place_id", "country", "meta_version", "people",
+                   "women", "men", "face_area", "people_version"):  # fmt: skip
         conn.execute(f"ALTER TABLE files DROP COLUMN {column}")
     conn.execute("DROP TABLE place_names")
     conn.execute("DROP TABLE places")
@@ -394,3 +395,113 @@ def test_a_camera_photo_without_gps_gets_its_folders_country_and_a_screenshot_do
         assert found.photos[0].country == "PT" and found.photos[0].place is None
     filemeta.forget_places(conn)
     assert conn.execute("SELECT count(*) FROM files WHERE country IS NOT NULL").fetchone()[0] == 0
+
+
+# ---------- people in photos ----------
+
+from lantern import people as people_mod  # noqa: E402
+from lantern.search import people as people_query  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "query, sql",
+    [
+        ("zdjęcie kobiety", "(f.women >= 1)"),
+        ("mężczyźni na plaży", "(f.men >= 1)"),
+        ("photos of women", "(f.women >= 1)"),
+        ("zdjęcia z ludźmi", "(f.people >= 1)"),
+        ("bez ludzi", "(f.people = 0)"),
+        ("landscape without people", "(f.people = 0)"),
+        ("grupa znajomych", "(f.people >= 3)"),
+        ("selfie", "(f.people = 1 AND f.face_area >= 0.03)"),
+        ("kobieta i mężczyzna", "(f.women >= 1) AND (f.men >= 1)"),
+        ("dwie osoby", "(f.people = ?)"),
+        ("two women", "(f.women >= ?)"),
+    ],
+)
+def test_people_words(query, sql):
+    found = people_query.parse(query)
+    assert found is not None and found.sql == sql
+
+
+def test_words_that_are_not_about_people():
+    for q in ("umowa najmu", "people.py", "manual", "personal", "grupowanie danych"):
+        assert people_query.parse(q) is None, q
+
+
+def test_people_are_counted_and_classified_in_the_worker(conn, tmp_path, monkeypatch):
+    root = tmp_path / "zdjecia"
+    photo(root / "para.jpg", "2024:06:01 12:00:00")
+    photo(root / "pusto.jpg", "2024:06:02 12:00:00")
+    scan_root(conn, root)
+    run_queue(conn, FakeEmbedder(), image_embedder=FakeImageEmbedder(), image_text=False)
+    boxes = {"para.jpg": (2, 0.05, [(0.1, 0.1, 0.3, 0.8), (0.6, 0.1, 0.3, 0.8)]), "pusto.jpg": (0, 0.0, [])}
+    monkeypatch.setattr(people_mod, "detect", lambda path: boxes[Path(path).name])
+    monkeypatch.setattr(people_mod.Classifier, "__call__", lambda self, crops: (1, len(crops) - 1))
+    assert people_mod.pending(conn) == 2
+    assert people_mod.refresh(conn, FakeEmbedder()) == 2 and people_mod.pending(conn) == 0
+    query = "SELECT path, people, women, men, face_area FROM files"
+    rows = {Path(r[0]).name: tuple(r[1:]) for r in conn.execute(query)}
+    assert rows == {"para.jpg": (2, 1, 1, 0.05), "pusto.jpg": (0, 0, 0, 0.0)}
+    people_mod.forget(conn)
+    assert people_mod.pending(conn) == 2
+    assert conn.execute("SELECT count(*) FROM files WHERE people IS NOT NULL OR women IS NOT NULL").fetchone()[0] == 0
+
+
+def test_vision_detection_runs_on_a_photo_without_people(tmp_path):
+    pytest.importorskip("Vision")
+    count, face, boxes = people_mod.detect(photo(tmp_path / "pasy.jpg"))
+    assert (count, face, boxes) == (0, 0.0, [])
+
+
+def _people_index(conn, root: Path) -> None:
+    """Six photos in two places and years with their people already counted."""
+    rows = [
+        ("kobieta_krk.jpg", "2023:05:01 12:00:00", KRAKOW, (1, 1, 0, 0.06)),
+        ("mezczyzna_krk.jpg", "2023:05:02 12:00:00", KRAKOW, (1, 0, 1, 0.01)),
+        ("kobieta_paris.jpg", "2024:07:01 12:00:00", PARIS, (1, 1, 0, 0.02)),
+        ("grupa_paris.jpg", "2024:07:02 12:00:00", PARIS, (5, 2, 2, 0.004)),
+        ("pejzaz_krk.jpg", "2023:05:03 12:00:00", KRAKOW, (0, 0, 0, 0.0)),
+        ("pejzaz_paris.jpg", "2024:07:03 12:00:00", PARIS, (0, 0, 0, 0.0)),
+    ]
+    for i, (name, taken, gps, _) in enumerate(rows):
+        photo(root / name, taken, gps, color=(40 * i, 200 - 30 * i, 90))
+    scan_root(conn, root)
+    run_queue(conn, FakeEmbedder(), image_embedder=FakeImageEmbedder(), image_text=False)
+    while filemeta.refresh(conn):
+        pass
+    with db.transaction(conn):
+        for name, _, _, (n, w, m, face) in rows:
+            conn.execute("UPDATE files SET people = ?, women = ?, men = ?, face_area = ?, people_version = ? "
+                         "WHERE path = ?", (n, w, m, face, people_mod.PEOPLE_VERSION, str(root / name)))  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("zdjęcia kobiet", {"kobieta_krk.jpg", "kobieta_paris.jpg", "grupa_paris.jpg"}),
+        ("zdjęcie kobiety z 2024 w Paryżu", {"kobieta_paris.jpg", "grupa_paris.jpg"}),
+        ("mężczyzna w Krakowie", {"mezczyzna_krk.jpg"}),
+        ("zdjęcia bez ludzi z 2023", {"pejzaz_krk.jpg"}),
+        ("grupa ludzi", {"grupa_paris.jpg"}),
+        ("selfie", {"kobieta_krk.jpg"}),
+        ("kobieta i mężczyzna", {"grupa_paris.jpg"}),
+        ("photos of men in Paris", {"grupa_paris.jpg"}),
+    ],
+)
+def test_people_mix_with_time_and_place(conn, embedder, tmp_path, query, expected):
+    _people_index(conn, tmp_path / "zdjecia")
+    found = search(conn, embedder, query, log=False, lang="pl")
+    assert {Path(p.path).name for p in found.photos} == expected
+
+
+def test_a_people_word_never_hides_documents(conn, embedder, tmp_path):
+    from conftest import write
+
+    _people_index(conn, tmp_path / "zdjecia")
+    write(tmp_path / "docs", "prawa-kobiet.txt", "Prawa kobiet w historii: kobieta, równość i głosowanie.")
+    scan_root(conn, tmp_path / "docs")
+    run_queue(conn, embedder)
+    found = search(conn, embedder, "prawa kobiet historia", log=False)
+    assert "prawa-kobiet.txt" in {Path(r.path).name for r in found.results}
+    assert all(Path(p.path).name in {"kobieta_krk.jpg", "kobieta_paris.jpg", "grupa_paris.jpg"} for p in found.photos)

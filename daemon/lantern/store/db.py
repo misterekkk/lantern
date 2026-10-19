@@ -55,11 +55,14 @@ def _add_opened_key(conn: sqlite3.Connection) -> None:
 
 
 def _add_file_meta(conn: sqlite3.Connection) -> None:
-    """Time and place (phase 16): columns filled afterwards by filemeta.refresh, reading only file headers."""
+    """Time, place and people (phase 16): columns filled afterwards (filemeta.refresh from file headers, people.refresh
+    in the worker); nothing is re-embedded."""
     have = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
     for column, kind in (("inferred_date", "INTEGER"), ("date_source", "TEXT"), ("lat", "REAL"), ("lon", "REAL"),
                          ("place_id", "INTEGER"), ("country", "TEXT"),
-                         ("meta_version", "INTEGER NOT NULL DEFAULT 0")):  # fmt: skip
+                         ("meta_version", "INTEGER NOT NULL DEFAULT 0"), ("people", "INTEGER"), ("women", "INTEGER"),
+                         ("men", "INTEGER"), ("face_area", "REAL"),
+                         ("people_version", "INTEGER NOT NULL DEFAULT 0")):  # fmt: skip
         if column not in have:
             conn.execute(f"ALTER TABLE files ADD COLUMN {column} {kind}")
     # one statement at a time: executescript would commit the migration's transaction halfway
@@ -67,6 +70,7 @@ def _add_file_meta(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS files_place ON files(place_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS files_country ON files(country)")
     conn.execute("CREATE INDEX IF NOT EXISTS files_meta ON files(meta_version)")
+    conn.execute("CREATE INDEX IF NOT EXISTS files_people ON files(people_version) WHERE kind = 'image'")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS places (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL, "
         "lat REAL NOT NULL, lon REAL NOT NULL, display TEXT NOT NULL DEFAULT '{}')"

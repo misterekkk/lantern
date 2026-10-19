@@ -451,6 +451,12 @@ private struct FileTypesPane: View {
                             Text("Places in photos and videos")
                         }
                     }
+                    if let people = s.people {
+                        Toggle(isOn: binding("people", people)) {
+                            Text("People in photos")
+                        }
+                        .disabled(!s.indexPhotos)
+                    }
                     Toggle(isOn: binding("index_audio_video", s.indexAudioVideo)) {
                         Text("Recordings and videos")
                     }
@@ -464,7 +470,7 @@ private struct FileTypesPane: View {
                     }
                     .disabled(!s.indexAudioVideo)  // dimmed, not indented: like dependent rows in System Settings
                 } footer: {
-                    Text("Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable. Places come from the location saved in photos and videos, matched to a city with a table built into Lantern: nothing is sent anywhere. Switching places off deletes the saved locations.").font(.caption)
+                    Text("Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable. Places come from the location saved in photos and videos, matched to a city with a table built into Lantern: nothing is sent anywhere. Switching places off deletes the saved locations. People in photos: macOS counts them and the photo model guesses woman or man from appearance, on this Mac, so you can search “zdjęcia kobiet z 2024” or “bez ludzi”; switching it off deletes the counts.").font(.caption)
                 }
                 Section {
                     ExtensionField()

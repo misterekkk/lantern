@@ -87,6 +87,12 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     `places` off (Settings → File Types) deletes every coordinate and city from the index; a city whose last photo
     is deleted is removed with it. Dates stay. Reading them opens only file headers, never iCloud-only files.
 
+20. **People in photos** (phase 16): macOS's Vision framework counts the faces and bodies in each photo, on the Mac,
+    and the photo model (already on the Mac) guesses from appearance whether each of the four largest people looks
+    like a woman or a man. The index stores only the numbers (how many people, how many women and men, the size of
+    the largest face), never face images, face prints or who anyone is. Switching `people` off (Settings → File
+    Types) deletes every count.
+
 ## Where the data is
 
 | Data | Location | Notes |

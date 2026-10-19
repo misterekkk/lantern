@@ -93,17 +93,26 @@ def main() -> int:
 
         vision.use_languages(preferred_languages(settings.extra_languages))
     conn = db.connect(config.db_path())
+    progress = lambda stage, done, total, path: emit(  # noqa: E731
+        event="progress", stage=stage, done=done, total=total, path=path
+    )
+    if "--people-only" in sys.argv:  # photos already indexed: count their people, nothing else (no queued jobs)
+        from lantern import people
+
+        n = people.refresh(conn, make_embedder(), lambda: stop, progress) if settings.people else 0
+        emit(event="done", indexed=0, chunks=0, skipped=0, failed=0, transcribed=0, images=0, frames=0,
+             image_texts=0, people=n, stopped=stop, errors=[])  # fmt: skip
+        return 0
     stats = run_queue(
         conn,
         make_embedder(),
-        progress=lambda stage, done, total, path: emit(
-            event="progress", stage=stage, done=done, total=total, path=path
-        ),
+        progress=progress,
         transcriber=make_transcriber(settings.transcribe),
         should_stop=lambda: stop,
         image_embedder=make_image_embedder(settings),
         video_frames=settings.index_video_frames,
         image_text=settings.index_image_text,
+        people=settings.people and settings.index_photos,
     )
     emit(
         event="done", indexed=stats.indexed, chunks=stats.chunks, skipped=stats.skipped, failed=stats.failed,

@@ -28,13 +28,20 @@ CREATE TABLE IF NOT EXISTS files (
     lon           REAL,
     place_id      INTEGER,                   -- nearest city (places.id = GeoNames id)
     country       TEXT,                      -- ISO code: the city's, or a camera photo's folder ("Portugalia/")
-    meta_version  INTEGER NOT NULL DEFAULT 0 -- filemeta.META_VERSION it was read with; lower -> read again
+    meta_version  INTEGER NOT NULL DEFAULT 0, -- filemeta.META_VERSION it was read with; lower -> read again
+    -- People in photos (lantern/people.py, index worker), while the "people" setting is on:
+    people        INTEGER,                   -- how many people Vision sees
+    women         INTEGER,                   -- of the largest four: how many the photo model sees as women
+    men           INTEGER,                   -- and as men
+    face_area     REAL,                      -- the largest face as a share of the image (portraits, selfies)
+    people_version INTEGER NOT NULL DEFAULT 0 -- people.PEOPLE_VERSION it was analysed with
 );
 CREATE INDEX IF NOT EXISTS files_root ON files(root_id);
 CREATE INDEX IF NOT EXISTS files_date ON files(inferred_date);
 CREATE INDEX IF NOT EXISTS files_place ON files(place_id);
 CREATE INDEX IF NOT EXISTS files_country ON files(country);
 CREATE INDEX IF NOT EXISTS files_meta ON files(meta_version);
+CREATE INDEX IF NOT EXISTS files_people ON files(people_version) WHERE kind = 'image';
 
 -- Cities the user's files were made in (from the bundled GeoNames table, lantern/places.py): only those, so place
 -- words in queries match places the user has actually been to.

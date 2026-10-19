@@ -37,6 +37,7 @@ from lantern.store import db
 TICK_S = 0.5
 META_BATCH = 50  # files whose date and place are read per control-loop tick (filemeta.refresh)
 META_IDLE_S = 5.0
+PEOPLE_CHECK_S = 30.0  # how often an idle daemon looks for photos whose people are not counted yet
 QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
@@ -104,6 +105,7 @@ class Daemon:
         self.worker_terminating = False
         self.worker_retry_at = 0.0
         self._meta_check_at = 0.0  # next time filemeta.refresh looks for files without a date
+        self._people_check_at = 0.0  # next time it looks for photos without people counted
         self.progress: dict = {}
         self.progress_at = 0.0  # when the worker reported the file it is on
         self._whisper_checked = (-1e9, False)  # (when, Whisper downloaded)
@@ -254,12 +256,12 @@ class Daemon:
             return "manual"
         return self.auto_pause
 
-    def _start_worker(self) -> None:
+    def _start_worker(self, people_only: bool = False) -> None:
         logs_dir().mkdir(parents=True, exist_ok=True)
         log = open(logs_dir() / "worker.log", "ab")  # noqa: SIM115 - owned by the child
         env = {**os.environ, **self.worker_env}
         proc = subprocess.Popen(
-            [sys.executable, "-m", "lantern.service.worker"],
+            [sys.executable, "-m", "lantern.service.worker", *(["--people-only"] if people_only else [])],
             stdout=subprocess.PIPE, stderr=log, env=env, text=True, start_new_session=True,
         )  # fmt: skip
         log.close()
@@ -351,13 +353,30 @@ class Daemon:
         if running and (paused or holding):
             self._stop_worker()
             return
-        if running or paused or not want or time.monotonic() < self.worker_retry_at:
+        if running or paused or holding or time.monotonic() < self.worker_retry_at:
             return
         conn = self._conn()
-        has_work = sum(self._queued(conn).values()) > 0
+        has_work = want and sum(self._queued(conn).values()) > 0
         conn.close()
         if has_work:
             self._start_worker()
+        elif self._people_waiting():  # needs no approval: these photos are already in the index
+            # photos indexed before (or whose analysis is out of date): counted in a worker that does nothing else, so
+            # files waiting for approval in "ask" mode stay waiting
+            self._start_worker(people_only=True)
+
+    def _people_waiting(self) -> bool:
+        if not (self.settings.people and self.settings.index_photos) or time.monotonic() < self._people_check_at:
+            return False
+        from lantern import people
+
+        conn = self._conn()
+        try:
+            n = people.pending(conn)
+        finally:
+            conn.close()
+        self._people_check_at = time.monotonic() + PEOPLE_CHECK_S
+        return n > 0
 
     def _release_idle_query_model(self) -> None:
         q = self.query_embedder
@@ -651,6 +670,19 @@ class Daemon:
             finally:
                 conn.close()
             self._meta_check_at = 0.0
+        elif key == "people":
+            if self.settings.people:
+                self._people_check_at = 0.0
+            else:
+                from lantern import people
+
+                if self.worker is not None and self.progress.get("stage") == "people":
+                    self._stop_worker(wait=True)  # it writes its last batch on the way out: before the deletion
+                conn = self._conn()
+                try:
+                    people.forget(conn)
+                finally:
+                    conn.close()
         return asdict(self.settings)
 
     def _refresh_meta(self) -> None:

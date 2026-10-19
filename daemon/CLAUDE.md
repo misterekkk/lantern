@@ -36,6 +36,9 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
   worker. A changed or moved file gets `meta_version = 0`; bump `filemeta.META_VERSION` when the cascade changes
   (headers are read again, nothing is re-embedded). `places`/`place_names` hold only cities of indexed files;
   `delete_files` and `forget_places` remove unused ones.
+- People (`people.py`): `files.people/women/men/face_area/people_version`, filled only in the worker (Vision is
+  PyObjC): after indexing, and in a `--people-only` worker the daemon starts without approval (it never touches queued
+  jobs). `search/people.py` turns people words into a condition on the photos section only.
 - `search/when.py` (time phrases) and `places.find_in_query` feed `hybrid.parse_filters`, which builds one
   `search.scope.Scope` (folder + time + place) used by every candidate list.
 
