@@ -54,18 +54,22 @@ def test_first_launch_defaults_follow_the_profile(lantern_home, monkeypatch):
 def test_the_daemon_pauses_on_memory_pressure_and_resumes_after_calm(lantern_home, monkeypatch):
     from lantern.service import core
 
-    state = {"m": mem()}
+    state = {"m": mem(swap=5 * GB)}  # gigabytes of old swap, as on a Mac in use
     d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False),
                memory_reader=lambda: state["m"])  # fmt: skip
     clock = {"t": 1000.0}
     monkeypatch.setattr(core.time, "monotonic", lambda: clock["t"])
     d._check_memory()
     assert d._paused() is None
-    state["m"] = mem(pressure=2)
+    state["m"] = mem(pressure=2, swap=5 * GB)
+    clock["t"] += 10
+    d._check_memory()
+    assert d._paused() is None  # "warn" alone: a busy Mac compressing idle memory, light indexing goes on
+    state["m"] = mem(pressure=2, swap=6 * GB)  # and now swap grows fast: the Mac is thrashing
     clock["t"] += 10
     d._check_memory()
     assert d._paused() == "memory" and any("short of memory" in w for w in d.warnings)
-    state["m"] = mem()
+    state["m"] = mem(swap=6 * GB)
     clock["t"] += 10
     d._check_memory()
     assert d._paused() == "memory"  # calm for 0 s: still waiting
@@ -193,3 +197,14 @@ def test_diagnostics_carry_no_file_names(lantern_home, tmp_path):
     assert "Tajny" not in text and "umowa" not in text and "poufne" not in text and "<path>" in text
     assert diagnostics.report(None, conn).count("- running: no") == 1
     conn.close()
+
+
+def test_warnings_carry_a_code_for_the_app_to_translate(lantern_home):
+    state = {"m": mem(pressure=4)}
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False),
+               memory_reader=lambda: state["m"])  # fmt: skip
+    d._check_memory()
+    s = d.api_status()
+    assert s["warnings"][-1].endswith("indexing paused: the Mac is short of memory; it resumes by itself")  # CLI
+    event = s["warning_events"][-1]
+    assert event["code"] == "memory_pause" and event["args"] == {} and event["time"]

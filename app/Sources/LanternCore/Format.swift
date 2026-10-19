@@ -60,6 +60,37 @@ public enum Format {
         return f
     }()
 
+    /// A daemon warning in the app's language (Lantern's own, not only the system's); nil for one that is not shown.
+    public static func warning(_ e: WarningEvent) -> String? {
+        let a = e.args
+        let root = shortPath(a["root"] ?? "")
+        switch e.code {
+        case "memory_pause": return String(localized: "Indexing paused: the Mac is short of memory. It resumes by itself.")
+        case "low_disk": return String(localized: "Indexing paused: less than 2 GB free on the disk of the index.")
+        case "stuck_file":
+            let name = ((a["path"] ?? "") as NSString).lastPathComponent
+            return String(localized: "Skipped a file that took longer than \(a["minutes"] ?? "30") min: \(name)")
+        case "worker_exited":
+            return String(localized: "Indexing stopped unexpectedly (code \(a["code"] ?? "?")). Details are in logs/worker.log.")
+        case "compacted": return String(localized: "Compacted the index after removing \(a["count"] ?? "?") files.")
+        case "no_access":
+            return String(localized: "No access to \(a["count"] ?? "?") folders in \(root); their indexed files are kept. Grant access in System Settings → Privacy & Security.")
+        case "root_unavailable": return String(localized: "\(root) is not available (disconnected?); nothing was removed.")
+        case "mass_deletion":
+            return String(localized: "\(a["missing"] ?? "?") of \(a["total"] ?? "?") files are missing in \(root); nothing was removed.")
+        case "dates_failed": return String(localized: "Reading file dates failed: \(a["detail"] ?? "")")
+        case "apps_failed": return String(localized: "Could not read the applications: \(a["detail"] ?? "")")
+        case "download_failed":
+            return String(localized: "The model download failed (code \(a["code"] ?? "?")). Details are in logs/models.log.")
+        case "model_load_failed": return String(localized: "Could not load the downloaded model: \(a["detail"] ?? "")")
+        case "index_newer": return String(localized: "The index is from a newer Lantern.")
+        case "index_damaged": return String(localized: "The index is damaged; Lantern can rebuild it.")
+        case "schema_upgraded": return String(localized: "A newer Lantern upgraded the index; restarting.")
+        case "parent_exited": return nil
+        default: return e.message.isEmpty ? nil : e.message
+        }
+    }
+
     /// Folder (and line range) shown under the title; photos and recordings start with when and where.
     public static func subtitle(_ r: SearchResult) -> String {
         if let when = whenWhere(r) {

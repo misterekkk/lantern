@@ -54,6 +54,7 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var roots: [Root]
     public var lastRun: LastRun?
     public var warnings: [String]
+    public var warningEvents: [WarningEvent]?  // the warnings with a code, worded by Format.warning (nil: older daemon)
     public var indexProblem: String?  // "newer" (an index from a newer Lantern) | "damaged" (phase 17)
     public var searchMode: String?  // "ready" | "on_demand"
     public var modelReloadMs: Int?  // last reload of the search model in "on demand" mode
@@ -414,6 +415,18 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
     public var mode: String?  // "ready" | "on_demand" (nil: before phase 17)
     public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
+}
+
+/// A daemon warning with a code and arguments (`Daemon._warn`), so the app can say it in its own language.
+public struct WarningEvent: Decodable, Equatable, Sendable {
+    public var time: String
+    public var code: String
+    public var args: [String: String]
+    public var message: String  // English, as the CLI shows it; used for codes this app does not know
+
+    public init(time: String = "", code: String, args: [String: String] = [:], message: String = "") {
+        self.time = time; self.code = code; self.args = args; self.message = message
+    }
 }
 
 /// This Mac and the models for the welcome window (`api_setup`): defaults follow its memory (phase 17).

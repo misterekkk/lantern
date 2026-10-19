@@ -60,6 +60,18 @@ import Testing
         """.utf8))
         #expect(older.places == nil)  // a daemon from before phase 16: no switch shown
     }
+
+    @Test func warningsAreWordedByTheApp() throws {
+        let json = """
+        {"time": "00:28:29", "code": "stuck_file", "args": {"minutes": "30", "path": "/Users/x/Tajne/raport.pdf"},
+         "message": "skipped a file that took longer than 30 min: /Users/x/Tajne/raport.pdf"}
+        """
+        let e = try DaemonClient.decoder.decode(WarningEvent.self, from: Data(json.utf8))
+        #expect(Format.warning(e) == "Skipped a file that took longer than 30 min: raport.pdf")
+        #expect(Format.warning(WarningEvent(code: "memory_pause"))?.hasPrefix("Indexing paused") == true)
+        #expect(Format.warning(WarningEvent(code: "parent_exited")) == nil)
+        #expect(Format.warning(WarningEvent(code: "something_new", message: "as the daemon says")) == "as the daemon says")
+    }
 }
 
 @Suite struct ProtocolTests {

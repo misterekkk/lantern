@@ -35,7 +35,8 @@ struct MenuView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
-                if let warning = s.warnings.last {
+                // worded by the app in Lantern's language; a daemon from before 0.2.1 sends only English text
+                if let warning = s.warningEvents.map({ $0.last.flatMap(Format.warning) }) ?? s.warnings.last {
                     Label(warning, systemImage: "exclamationmark.circle")
                         .font(.caption)
                         .foregroundStyle(.orange)

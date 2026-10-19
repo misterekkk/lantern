@@ -465,3 +465,20 @@
 "Diagnostics copied. Paste them into your report." = "Skopiowano diagnostykę. Wklej ją do zgłoszenia.";
 "Show Welcome Window…" = "Pokaż okno powitalne…";
 "The first-launch setup: usage, models, folders and where to search" = "Konfiguracja z pierwszego uruchomienia: sposób używania, modele, foldery i skąd szukać";
+
+/* Daemon warnings, worded by the app (Format.warning) */
+"Indexing paused: the Mac is short of memory. It resumes by itself." = "Indeksowanie wstrzymane: Macowi brakuje pamięci. Wznowi się samo.";
+"Indexing paused: less than 2 GB free on the disk of the index." = "Indeksowanie wstrzymane: na dysku z indeksem zostało mniej niż 2 GB.";
+"Skipped a file that took longer than %@ min: %@" = "Pominięto plik, który trwał dłużej niż %@ min: %@";
+"Indexing stopped unexpectedly (code %@). Details are in logs/worker.log." = "Indeksowanie niespodziewanie się zatrzymało (kod %@). Szczegóły są w logs/worker.log.";
+"Compacted the index after removing %@ files." = "Indeks zmniejszono po usunięciu %@ plików.";
+"No access to %@ folders in %@; their indexed files are kept. Grant access in System Settings → Privacy & Security." = "Brak dostępu do %@ folderów w %@; ich zindeksowane pliki zostają. Nadaj dostęp w Ustawieniach systemowych → Prywatność i ochrona.";
+"%@ is not available (disconnected?); nothing was removed." = "%@ jest niedostępny (odłączony?); nic nie zostało usunięte.";
+"%@ of %@ files are missing in %@; nothing was removed." = "Brakuje %@ z %@ plików w %@; nic nie zostało usunięte.";
+"Reading file dates failed: %@" = "Nie udało się odczytać dat plików: %@";
+"Could not read the applications: %@" = "Nie udało się odczytać aplikacji: %@";
+"The model download failed (code %@). Details are in logs/models.log." = "Pobieranie modelu nie powiodło się (kod %@). Szczegóły są w logs/models.log.";
+"Could not load the downloaded model: %@" = "Nie udało się wczytać pobranego modelu: %@";
+"The index is from a newer Lantern." = "Indeks pochodzi z nowszego Lanterna.";
+"The index is damaged; Lantern can rebuild it." = "Indeks jest uszkodzony; Lantern może go przebudować.";
+"A newer Lantern upgraded the index; restarting." = "Nowszy Lantern zaktualizował indeks; uruchamiam ponownie.";

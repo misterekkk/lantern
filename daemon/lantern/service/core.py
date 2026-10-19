@@ -125,6 +125,7 @@ class Daemon:
         self.perf = PerfMonitor()
         self.last_run: dict = {}
         self.warnings: list[str] = []
+        self.warning_events: list[dict] = []  # the same warnings with a code, for the app to word (_warn)
         self.stopping = threading.Event()
         self.watcher = None
         self.server: socketserver.ThreadingUnixStreamServer | None = None
@@ -141,13 +142,18 @@ class Daemon:
         except db.NewerSchemaError:
             # Updated code upgraded the index under this process: stop, so the app starts the daemon again from the
             # new code (DaemonSupervisor restarts it), instead of failing every search until someone restarts it.
-            self._warn("the index was upgraded by a newer Lantern; restarting")
+            self._warn("the index was upgraded by a newer Lantern; restarting", "schema_upgraded")
             self.stopping.set()
             raise
 
-    def _warn(self, message: str) -> None:
+    def _warn(self, message: str, code: str = "", **args) -> None:
+        """message: English, for the CLI and logs. code + args: the same warning for the app, which words it in its own
+        language (LanternCore Format.warning); an unknown code falls back to the message."""
+        stamp = time.strftime("%H:%M:%S")
         with self.lock:
-            self.warnings = (self.warnings + [f"{time.strftime('%H:%M:%S')} {message}"])[-20:]
+            self.warnings = (self.warnings + [f"{stamp} {message}"])[-20:]
+            event = {"time": stamp, "code": code, "args": {k: str(v) for k, v in args.items()}, "message": message}
+            self.warning_events = (self.warning_events + [event])[-20:]
 
     def _notify(self, message: str) -> None:
         # LANTERN_NOTIFY=0: a client (the menu bar app) shows its own notifications.
@@ -213,10 +219,10 @@ class Daemon:
             try:
                 result = scan_root(conn, Path(root), force=force, **settings_mod.walk_options(self.settings))
             except RootUnavailable as exc:
-                self._warn(f"{exc}; nothing removed")
+                self._warn(f"{exc}; nothing removed", "root_unavailable", root=root)
                 return {"root": root, "error": "unavailable"}
             except MassDeletionRefused as exc:
-                self._warn(f"{root}: {exc}")
+                self._warn(f"{root}: {exc}", "mass_deletion", root=root, missing=exc.missing, total=exc.total)
                 self._notify(
                     f"{exc.missing} files missing in {Path(root).name}; nothing removed. Use `lantern index --force`."
                 )
@@ -224,10 +230,12 @@ class Daemon:
             if result.unreadable:
                 self._warn(
                     f"no access to {len(result.unreadable)} folder(s) in {root} (e.g. {result.unreadable[0]}); "
-                    "their indexed files are kept. Grant access in System Settings > Privacy & Security."
+                    "their indexed files are kept. Grant access in System Settings > Privacy & Security.",
+                    "no_access", count=len(result.unreadable), root=root,
                 )
             if result.deleted and db.maybe_compact(conn):
-                self._warn(f"compacted the index after removing {len(result.deleted)} files")
+                self._warn(f"compacted the index after removing {len(result.deleted)} files", "compacted",
+                           count=len(result.deleted))  # fmt: skip
             summary = {
                 "root": root, "new": len(result.new), "changed": len(result.changed), "moved": len(result.moved),
                 "removed": len(result.deleted), "unchanged": result.unchanged + len(result.touched),
@@ -276,15 +284,18 @@ class Daemon:
         return self.auto_pause or self.memory_pause
 
     def _check_memory(self) -> None:
-        """macOS short of memory (pressure "warn" or swap growing fast): the worker finishes its file and waits;
-        "critical": it is stopped at once and the photo query model released. Resumes after MEMORY_CALM_S of calm, so
-        the worker does not start and stop every few seconds."""
+        """The Mac really short of memory: the worker finishes its file and waits; "critical": it is stopped at once and
+        the photo query model released. Resumes after MEMORY_CALM_S of calm, so it does not start and stop every few
+        seconds. "warn" alone does not pause: a busy 16 GB Mac (a browser, an editor, chat apps) sits at "warn" for
+        hours while macOS compresses idle memory, so only heavy work waits then (machine.fits); indexing pauses when
+        "warn" comes with fast-growing swap (the Mac is thrashing) or at "critical"."""
         now = time.monotonic()
         if now - self._last_memory_check < MEMORY_CHECK_S:
             return
         self._last_memory_check = now
         mem = self.memory_reader()
-        short = mem.pressure >= machine.PRESSURE_WARN or self.swap_watch.growing(mem, now)
+        swapping = self.swap_watch.growing(mem, now)
+        short = mem.pressure >= machine.PRESSURE_CRITICAL or (mem.pressure >= machine.PRESSURE_WARN and swapping)
         with self.lock:
             was = self.memory_pause
             if short:
@@ -295,7 +306,7 @@ class Daemon:
                     self.memory_pause, self._memory_calm_since = None, None
             worker = self.worker
         if short and not was:
-            self._warn("indexing paused: the Mac is short of memory; it resumes by itself")
+            self._warn("indexing paused: the Mac is short of memory; it resumes by itself", "memory_pause")
         if mem.pressure >= machine.PRESSURE_CRITICAL:
             if worker is not None and worker.poll() is None:
                 worker.kill()  # no time to finish the file: its transaction rolls back, the job is queued again
@@ -367,7 +378,7 @@ class Daemon:
         conn.close()
         with self.lock:
             if code != 0 and not self.worker_terminating:
-                self._warn(f"index worker exited with code {code}; see logs/worker.log")
+                self._warn(f"index worker exited with code {code}; see logs/worker.log", "worker_exited", code=code)
                 self.worker_retry_at = time.monotonic() + WORKER_RETRY_S
             if left == 0 and self.settings.index_mode == "ask":
                 self.approved = False
@@ -389,7 +400,8 @@ class Daemon:
                 jobs.give_up_file(conn, path, stage, f"took longer than {int(limit // 60)} min ({stage}); skipped")
         finally:
             conn.close()
-        self._warn(f"skipped a file that took longer than {int(limit // 60)} min: {path}")
+        self._warn(f"skipped a file that took longer than {int(limit // 60)} min: {path}", "stuck_file",
+                   minutes=int(limit // 60), path=path)  # fmt: skip
         with self.lock:
             self.worker_terminating = True  # an expected exit: no crash warning, no retry pause
         self._reap_worker()
@@ -469,7 +481,7 @@ class Daemon:
             self.auto_pause = reason
             self.power_state = state
         if newly_low:
-            self._warn("indexing paused: less than 2 GB free on the disk of the index")
+            self._warn("indexing paused: less than 2 GB free on the disk of the index", "low_disk")
 
     def _scan_all_soon(self) -> None:
         def scan() -> None:
@@ -511,7 +523,8 @@ class Daemon:
                 "pid": os.getpid(), "memory_mb": round(footprint_mb()), "mode": self.settings.index_mode,
                 "approved": False, "awaiting_approval": False, "paused": None, "worker": {"running": False},
                 "queued": {}, "failed_jobs": 0, "files": {}, "kinds": {}, "chunks": 0, "roots": [], "last_run": None,
-                "warnings": self.warnings[-5:], "index_problem": self.index_problem,
+                "warnings": self.warnings[-5:], "warning_events": self.warning_events[-5:],
+                "index_problem": self.index_problem,
                 "models_missing": self.models_missing, "model_download": self._download_status(),
             }  # fmt: skip
         conn = self._conn()
@@ -550,7 +563,7 @@ class Daemon:
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
                 "whisper_downloaded": whisper.available(),
                 "models_missing": self.models_missing, "model_download": self._download_status(),
-                "warnings": self.warnings[-5:],
+                "warnings": self.warnings[-5:], "warning_events": self.warning_events[-5:],
             }  # fmt: skip
 
     def _refresh_has_images(self, conn) -> None:
@@ -774,7 +787,7 @@ class Daemon:
             done = filemeta.refresh(conn, places=self.settings.places, limit=META_BATCH,
                                     should_stop=self.stopping.is_set)  # fmt: skip
         except Exception as exc:  # never stops the control loop; tried again later
-            self._warn(f"reading file dates failed: {exc}")
+            self._warn(f"reading file dates failed: {exc}", "dates_failed", detail=exc)
             done = 0
         finally:
             conn.close()
@@ -910,7 +923,7 @@ class Daemon:
             self.model_thread.submit(store).result()
             self._apps_signature = signature
         except Exception as exc:  # noqa: BLE001 - apps are an extra; never stop the daemon over them
-            self._warn(f"could not read applications: {exc}")
+            self._warn(f"could not read applications: {exc}", "apps_failed", detail=exc)
 
     def api_tree(self, path: str) -> dict:
         conn = self._conn()
@@ -1094,7 +1107,7 @@ class Daemon:
         code = proc.wait()
         self.perf._sizes = None  # refresh downloaded flags and sizes in Settings → Performance
         if code != 0:
-            self._warn(f"model download failed (code {code}); see logs/models.log")
+            self._warn(f"model download failed (code {code}); see logs/models.log", "download_failed", code=code)
             with self.lock:
                 self.downloader = None
                 self.download_state = {"running": False, "error": f"download failed (code {code}); see logs/models.log"}
@@ -1108,7 +1121,7 @@ class Daemon:
                     self.models_missing = False
                 self._languages_changed()
             except Exception as exc:  # noqa: BLE001
-                self._warn(f"could not load the downloaded model: {exc}")
+                self._warn(f"could not load the downloaded model: {exc}", "model_load_failed", detail=exc)
         with self.lock:
             if self.query_embedder is None:
                 self.query_embedder = make_query_embedder()
@@ -1144,7 +1157,8 @@ class Daemon:
         version = db.schema_version(config.db_path())
         if version is not None and version > db.SCHEMA_VERSION:
             self.index_problem = "newer"
-            self._warn(f"the index is from a newer Lantern (schema {version}, this one reads {db.SCHEMA_VERSION})")
+            self._warn(f"the index is from a newer Lantern (schema {version}, this one reads {db.SCHEMA_VERSION})",
+                       "index_newer")  # fmt: skip
             return True
         return False
 
@@ -1162,7 +1176,7 @@ class Daemon:
             self._stop_worker(wait=True)
             with self.lock:
                 self.index_problem = "damaged"
-            self._warn("the index is damaged; Lantern can rebuild it (menu bar)")
+            self._warn("the index is damaged; Lantern can rebuild it (menu bar)", "index_damaged")
 
     def api_rebuild_index(self) -> dict:
         """Start again with an empty index: the folders stay (read from the old file when it can still be read), the
@@ -1294,7 +1308,7 @@ class Daemon:
         try:
             while not self.stopping.is_set():
                 if self.parent_pid is not None and os.getppid() != self.parent_pid:
-                    self._warn("parent app exited; stopping")
+                    self._warn("parent app exited; stopping", "parent_exited")
                     break
                 if self.watcher:
                     for root in self.watcher.take_quiet(self.settings.debounce_s):

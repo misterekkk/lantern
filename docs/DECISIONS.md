@@ -1227,8 +1227,13 @@ M4A, MP3, MOV and Ogg Opus.
   `kern.memorystatus_level` (the "free percentage" `memory_pressure` prints) and `vm.swapusage`, by sysctl: no
   permissions, no PyObjC. Swap counts when it grows (512 MB within 2 minutes), not by its size: the user's Mac carried
   4.7 GB of old swap with free memory at 53%. Heavy work (`fits`) needs normal pressure and its peak plus 1.5 GB free.
-- **Guard:** pressure warn or growing swap pauses indexing ("memory"), 3 calm minutes resume it; critical kills the
-  worker (its transaction rolls back, the job is queued again) and releases the photo query model. Whisper waits in
+- **Guard:** critical pressure, or warn together with fast-growing swap, pauses indexing ("memory"), 3 calm minutes
+  resume it; critical kills the worker (its transaction rolls back, the job is queued again) and releases the photo
+  query model. First built as "warn pauses"; on the user's 16 GB Mac (2026-10-20) macOS sat at warn with 47% free:
+  Chrome ~3.4 GB, VS Code ~1.3 GB, Spotify, Discord, ~5.7 GB compressed, ~2.4 GB wired, Lantern's daemon 430 MB and no
+  worker. A busy Mac stays at warn for hours, so warn alone now only holds heavy work back (`fits`).
+- **Warnings in the app's language:** `_warn(message, code, **args)`; status carries `warning_events` and the app words
+  known codes (LanternCore `Format.warning`, Polish in pl.lproj); the English message stays for the CLI and logs. Whisper waits in
   the queue while it does not fit, in the daemon (`_queued`) and in the worker, so nothing restarts in a loop.
 - **Profiles:** below 12 GB "light" first-launch defaults (no Whisper, no video frames, on-demand mode, only the search
   model recommended); 16 GB and more everything (the user's decision). Saved settings always win.

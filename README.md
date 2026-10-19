@@ -511,9 +511,10 @@ uv run lantern daemon stop | uninstall
 - **Automatic pause** on battery power, in Low Power Mode and when macOS reports the Mac is hot (thermal state
   "serious" or worse), and when less than 2 GB is free on the disk of the index; the current file is finished, the
   rest waits. `lantern status` shows what the daemon sees.
-- **Memory:** when macOS reports memory pressure (or swap grows fast), the worker finishes its file and indexing waits
-  until the Mac has been calm for 3 minutes; at critical pressure it stops at once and the photo query model is
-  released. Whisper (~1.8 GB) starts only while the Mac has room for it at that moment, whatever its total memory, so
+- **Memory:** a busy Mac often sits at macOS's "warn" memory level for hours (it compresses idle memory); then only
+  heavy work waits (Whisper, video frames) and ordinary indexing goes on. When the Mac really runs short (critical
+  pressure, or warn with swap growing fast) the worker finishes its file and indexing waits until the Mac has been calm
+  for 3 minutes; at critical pressure it stops at once and the photo query model is released. Whisper (~1.8 GB) starts only while the Mac has room for it at that moment, whatever its total memory, so
   a Mac busy with something heavy (training a model, a game) is left alone. The menu says why indexing waits.
 - **Always ready or when needed** (`lantern config mode ready|on_demand`; the welcome window asks): when needed, the
   search model (~0.5 GB) is released after 10 minutes without a search and loaded again by the next one (apps and
