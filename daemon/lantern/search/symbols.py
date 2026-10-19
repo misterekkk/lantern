@@ -156,7 +156,9 @@ def fragment_at_word_start(name: str, key: str) -> bool:
     return any(joined.startswith(key, i) for i in starts)
 
 
-def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_SECTION_SIZE) -> list[Definition]:
+def symbol_search(
+    conn: sqlite3.Connection, query: str, limit: int = DEFINITION_SECTION_SIZE, scope: str | None = None
+) -> list[Definition]:
     q = parse_symbol_query(query)
     if q is None:
         return []
@@ -173,8 +175,10 @@ def symbol_search(conn: sqlite3.Connection, query: str, limit: int = DEFINITION_
     for match, where, params, base in levels:
         rows = conn.execute(
             "SELECT s.id, s.file_id, s.name, s.kind, s.parent, s.signature, s.line, s.end_line, f.path "
-            f"FROM symbols s JOIN files f ON f.id = s.file_id WHERE {where} LIMIT 200",
-            params,
+            f"FROM symbols s JOIN files f ON f.id = s.file_id WHERE {where}"
+            + (" AND f.path LIKE ? ESCAPE '\\'" if scope is not None else "")
+            + " LIMIT 200",
+            (*params, *([scope] if scope is not None else [])),
         ).fetchall()
         for r in rows:
             if match == "partial" and not fragment_at_word_start(r["name"], q.key):

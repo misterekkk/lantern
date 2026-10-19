@@ -1,11 +1,13 @@
 """Candidate lists for hybrid search: vector KNN and FTS5/BM25, each ranked by file (best chunk per file)."""
 
+import re
 import sqlite3
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from lantern.embedding.base import Embedder, format_query
+from lantern.search import scope as scope_mod
 from lantern.store import db
 from lantern.textnorm import excerpt, fts_query, term_coverage
 
@@ -174,28 +176,54 @@ def _drop_hub_audio(conn: sqlite3.Connection, embedder: Embedder, table: str, hi
     return [h for h in hits if h.kind != "audio" or h.chunk_id in keep]
 
 
-def vector_search(conn: sqlite3.Connection, embedder: Embedder, query: str, limit: int = 10) -> list[Hit]:
+def _knn(conn, table: str, qv: np.ndarray, k: int, scope: str | None) -> list[tuple[int, float]]:
+    """(chunk id, cosine) of the nearest vectors; within a scope (search/scope.py) every vector of a small scope is
+    scored exactly, a large one takes a wider KNN pool kept to the scope."""
+    if scope is not None:
+        ids = scope_mod.chunk_ids(conn, scope)
+        if len(ids) <= scope_mod.EXACT_SCOPE_MAX:
+            vecs = _vectors(conn, table, ids)
+            ranked = sorted(((c, float(v @ qv)) for c, v in vecs.items()), key=lambda kv: -kv[1])
+            return ranked[:k]
+        allowed = set(ids)
+        rows = conn.execute(
+            f"SELECT chunk_id, distance FROM {table} WHERE embedding MATCH ? AND k = ?", (qv.tobytes(), 4096)
+        ).fetchall()
+        return [(r[0], 1.0 - r[1]) for r in rows if r[0] in allowed][:k]
+    rows = conn.execute(
+        f"SELECT chunk_id, distance FROM {table} WHERE embedding MATCH ? AND k = ?", (qv.tobytes(), k)
+    ).fetchall()
+    return [(r[0], 1.0 - r[1]) for r in rows]
+
+
+def vector_search(
+    conn: sqlite3.Connection, embedder: Embedder, query: str, limit: int = 10, scope: str | None = None
+) -> list[Hit]:
     model_id = db.find_model(conn, embedder.model_info())
     if model_id is None:  # nothing indexed with this model yet
         return []
     qv = embedder.embed_text([format_query(query)])[0].astype(np.float32)
-    rows = conn.execute(
-        f"SELECT chunk_id, distance FROM {db.vec_table(model_id)} WHERE embedding MATCH ? AND k = ?",
-        (qv.tobytes(), limit * 5),
-    ).fetchall()
-    hits = _hits(conn, [(r[0], 1.0 - r[1]) for r in rows], query)
+    hits = _hits(conn, _knn(conn, db.vec_table(model_id), qv, limit * 5, scope), query)
     return _best_per_file(_drop_hub_audio(conn, embedder, db.vec_table(model_id), hits), limit)
 
 
-def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[Hit]:
+def keyword_search(conn: sqlite3.Connection, query: str, limit: int = 10, scope: str | None = None) -> list[Hit]:
     expr = fts_query(query)
     if expr is None:
         return []
-    rows = conn.execute(
-        f"SELECT rowid, bm25(chunks_fts, {BM25_WEIGHTS}) AS s FROM chunks_fts "
-        "WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
-        (expr, limit * 5),
-    ).fetchall()
+    if scope is not None:  # joined, so SQLite filters the matches by path (a rowid IN subquery took ~700 ms)
+        rows = conn.execute(
+            f"SELECT chunks_fts.rowid, bm25(chunks_fts, {BM25_WEIGHTS}) AS s FROM chunks_fts "
+            "JOIN chunks c ON c.id = chunks_fts.rowid JOIN files f ON f.id = c.file_id "
+            f"WHERE chunks_fts MATCH ? AND {scope_mod.PATH_CONDITION} ORDER BY s LIMIT ?",
+            (expr, scope, limit * 5),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT rowid, bm25(chunks_fts, {BM25_WEIGHTS}) AS s FROM chunks_fts "
+            "WHERE chunks_fts MATCH ? ORDER BY s LIMIT ?",
+            (expr, limit * 5),
+        ).fetchall()
     hits = _best_per_file(_hits(conn, [(r[0], -r[1]) for r in rows], query), limit)
     return [replace(h, coverage=term_coverage(query, f"{h.full_text} {h.path} {h.symbol or ''}")) for h in hits]
 
@@ -204,11 +232,54 @@ PHOTO_MATCH_Z = 1.0  # per model: a photo must score at least one standard devia
 
 
 def _vectors(conn: sqlite3.Connection, table: str, chunk_ids: list[int]) -> dict[int, np.ndarray]:
-    if not chunk_ids:
-        return {}
-    marks = ",".join("?" * len(chunk_ids))
-    rows = conn.execute(f"SELECT chunk_id, embedding FROM {table} WHERE chunk_id IN ({marks})", chunk_ids).fetchall()
-    return {r[0]: np.frombuffer(r[1], dtype=np.float32) for r in rows}
+    """Stored vectors by chunk id. vec0 keeps vectors in blocks of 1024 and copies a whole block for every vector it
+    returns (~94 µs each; `chunk_id IN (…)` is slower still), so they are read straight from its shadow tables: the
+    block and offset of each id from `<table>_rowids`, then 3 KB from the block's blob (6.8k vectors: 16 ms instead
+    of 640 ms, byte-identical). If a future sqlite-vec lays its tables out differently, plain lookups are used."""
+    try:
+        return _vectors_from_blocks(conn, table, chunk_ids)
+    except (sqlite3.Error, ValueError):
+        out = {}
+        for c in chunk_ids:
+            row = conn.execute(f"SELECT embedding FROM {table} WHERE chunk_id = ?", (c,)).fetchone()
+            if row is not None:
+                out[c] = np.frombuffer(row[0], dtype=np.float32)
+        return out
+
+
+def _vectors_from_blocks(conn: sqlite3.Connection, table: str, chunk_ids: list[int]) -> dict[int, np.ndarray]:
+    size = _dim(conn, table) * 4
+    located: list[tuple[int, int, int]] = []
+    for i in range(0, len(chunk_ids), 900):
+        part = chunk_ids[i : i + 900]
+        located += conn.execute(
+            f"SELECT rowid, chunk_id, chunk_offset FROM {table}_rowids WHERE rowid IN ({','.join('?' * len(part))})",
+            part,
+        ).fetchall()
+    out: dict[int, np.ndarray] = {}
+    blobs = {}
+    try:
+        for cid, block, offset in sorted(located, key=lambda r: (r[1], r[2])):
+            blob = blobs.get(block)
+            if blob is None:
+                blob = blobs[block] = conn.blobopen(f"{table}_vector_chunks00", "vectors", block, readonly=True)
+            blob.seek(offset * size)
+            data = blob.read(size)
+            if len(data) != size:
+                raise ValueError("unexpected vec0 block layout")
+            out[cid] = np.frombuffer(data, dtype=np.float32)
+    finally:
+        for blob in blobs.values():
+            blob.close()
+    return out
+
+
+def _dim(conn: sqlite3.Connection, table: str) -> int:
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE name = ?", (table,)).fetchone()
+    m = re.search(r"FLOAT\[(\d+)\]", row[0] if row else "")
+    if not m:
+        raise ValueError("vector size not found")
+    return int(m.group(1))
 
 
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
@@ -222,6 +293,7 @@ def image_search(
     limit: int = 10,
     lang: str = "en",
     query_embedder=None,
+    scope: str | None = None,
 ) -> list[Hit]:
     """Photos and video frames, ranked by both photo models. Candidates from each model's KNN are pooled; for every
     candidate both similarities are computed exactly, z-normalised per model over the pool and summed (raw
@@ -241,11 +313,7 @@ def image_search(
 
     pool: set[int] = set()
     for table, qv in lists:
-        rows = conn.execute(
-            f"SELECT chunk_id FROM {table} WHERE embedding MATCH ? AND k = ?",
-            (qv.astype(np.float32).tobytes(), limit * 5),
-        ).fetchall()
-        pool.update(r[0] for r in rows)
+        pool.update(c for c, _ in _knn(conn, table, qv.astype(np.float32), limit * 5, scope))
     ids = sorted(pool)
     if not ids:
         return []

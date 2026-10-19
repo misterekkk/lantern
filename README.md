@@ -345,6 +345,10 @@ uv run lantern clear-history               # delete the local search history
   `(meaning #1 · keywords #3)`. Keyword search skips stop words and matches Polish inflections by stem.
   Letters match without their accents and strokes in any language: `lodz` finds `Łódź`, `soren` finds `Søren`,
   `strasse` finds `Straße`.
+- **One folder only:** `in:` and a folder name keeps results to files under folders whose name starts with it, in the
+  panel, Raycast, Alfred and the CLI: `in:down umowa najmu`, `in:Studia`, `in:"Moje dokumenty" faktura`, or a path,
+  `in:~/Projects/lantern readme`. The folder word is never spell-checked or sent to the model; apps, settings and
+  answers are left out, since they are not in a folder.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and

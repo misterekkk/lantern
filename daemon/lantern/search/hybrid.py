@@ -18,6 +18,7 @@ from lantern.embedding.base import Embedder
 from lantern.search.apps import APP_SECTION_SIZE, AppHit, ShortcutHit, app_search, shortcut_search
 from lantern.search.basic import Hit, image_search, keyword_search, vector_search
 from lantern.search.music import MusicHit, music_search
+from lantern.search.scope import split_scope
 from lantern.search.settings import SettingHit, settings_search
 from lantern.search.spelling import correct
 from lantern.search.suggest import completion
@@ -386,18 +387,22 @@ def search(
     """query_embedder: text side of the second photo model (SigLIP 2), when loaded; lang: system language, used to
     give short photo queries a language cue; category: only results of one CATEGORIES entry (filter pill);
     spelling: spell-checker guesses per word (search/spelling.py), applied only when the index knows the guess."""
+    query, scope = split_scope(query)  # "in:folder" first: never spell-checked, never embedded
+    if scope is not None and not query.strip():
+        return SearchResponse([], None, 0.0, 0.0, category=category)
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query
+    scoped = scope is not None  # files under a folder: apps, settings, shortcuts, music and answers are not in it
     if quick and category in (None, "apps", "settings", "shortcuts", "music", "code"):
         # The first phase of a search, a few ms: everything found by name or words, no model. The panel shows it at
         # once and replaces it with the full search (files, photos, meaning) a moment later; ↩ acts on what is shown.
-        code_like = looks_like_code(query)
-        definitions = symbol_search(conn, query) if category in (None, "code") else []
+        code_like = looks_like_code(query) or scoped
+        definitions = symbol_search(conn, query, scope=scope) if category in (None, "code") else []
         apps = [] if code_like or category not in (None, "apps") else app_search(conn, query, None)
         settings = [] if code_like or category not in (None, "settings") else settings_search(conn, query, None)
         shortcuts = [] if code_like or category not in (None, "shortcuts") else shortcut_search(conn, query)
         music = [] if code_like or category not in (None, "music") else music_search(conn, query, None)
-        answer = None if category else instant_answer(query)
+        answer = None if category or scoped else instant_answer(query)
         scores = _section_scores(query, [], [], [], [], [], False, apps, settings, shortcuts, definitions, answer, None)
         if music:
             scores["music"] = _music_score(music[0], query)
@@ -410,7 +415,7 @@ def search(
                               settings_app_name=_settings_app_name(conn) if settings else None)  # fmt: skip
         # logged like any search (↩ on a quick result teaches learned choices); the full search updates the row
         return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
-    if len(query.strip()) == 1 and category in (None, "apps"):
+    if len(query.strip()) == 1 and category in (None, "apps") and not scoped:
         # One letter: apps only, by name and by how much they are used, no models (an answer at once, like Spotlight;
         # learned choices are added by the API). Any other kind of result for a letter would be noise.
         apps = app_search(conn, query, None, limit=limit if category else APP_SECTION_SIZE)
@@ -419,25 +424,25 @@ def search(
                               section_scores={"apps": _NAME_SCORES["letter"]} if apps else {})  # fmt: skip
         return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     t0 = time.perf_counter()
-    vector = vector_search(conn, embedder, query, CANDIDATES)
+    vector = vector_search(conn, embedder, query, CANDIDATES, scope=scope)
     t1 = time.perf_counter()
-    keyword = keyword_search(conn, query, CANDIDATES)
+    keyword = keyword_search(conn, query, CANDIDATES, scope=scope)
     t2 = time.perf_counter()
-    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder)
+    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=scope)
     t3 = time.perf_counter()
-    definitions = symbol_search(conn, query)
+    definitions = symbol_search(conn, query, scope=scope)
     t4 = time.perf_counter()
     code_like = looks_like_code(query)
-    apps = app_search(conn, query, None if code_like else embedder)
-    settings = [] if code_like else settings_search(conn, query, embedder)
-    shortcuts = [] if code_like else shortcut_search(conn, query)
-    music = [] if code_like else music_search(conn, query, embedder)
-    answer = None if category else instant_answer(query)
-    word_definition = None if category or code_like else define(query)
+    apps = [] if scoped else app_search(conn, query, None if code_like else embedder)
+    settings = [] if code_like or scoped else settings_search(conn, query, embedder)
+    shortcuts = [] if code_like or scoped else shortcut_search(conn, query)
+    music = [] if code_like or scoped else music_search(conn, query, embedder)
+    answer = None if category or scoped else instant_answer(query)
+    word_definition = None if category or code_like or scoped else define(query)
     present = _categories(vector, keyword, image, definitions)
     extras = [("apps", apps), ("settings", settings), ("shortcuts", shortcuts)]
     present = [name for name, found in extras if found] + present + (["music"] if music else [])
-    if category in ("apps", "settings", "shortcuts", "music"):  # only that kind, with room for more of it
+    if category in ("apps", "settings", "shortcuts", "music") and not scoped:  # only that kind, with room for more
         apps = app_search(conn, query, embedder, limit=limit) if category == "apps" else []
         settings = settings_search(conn, query, embedder, limit=limit) if category == "settings" else []
         shortcuts = shortcut_search(conn, query, limit=limit) if category == "shortcuts" else []

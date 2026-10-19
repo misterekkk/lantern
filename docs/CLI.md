@@ -80,6 +80,10 @@ definitions and photos come in their own sections, in the order the daemon decid
 | `--only KIND` | `apps`, `settings` (System Settings), `shortcuts`, `code`, `docs`, `pdf`, `photos`, `media` (recordings and videos) or `music` (Apple Music songs and playlists, sent by the app): the panel's filter pills |
 | `--no-log` | do not record this search in the local history |
 
+`in:<folder>` anywhere in the query keeps results to files under folders whose name starts with that word
+(`lantern search "in:down umowa"`), `in:"two words"` for a name with spaces, or `in:~/path` / `in:/path` for
+everything under a path. Apps, System Settings, Shortcuts, music and answers are left out of a scoped search.
+
 Output:
 
 ```
