@@ -7,6 +7,7 @@ condition on the file path, not a filter applied after ranking.
 import os
 import re
 import sqlite3
+from dataclasses import dataclass
 
 _SCOPE = re.compile(r'(?:^|\s)in:(?:"([^"]+)"|(\S+))', re.IGNORECASE)
 EXACT_SCOPE_MAX = 20000  # chunks: up to this many, vectors in the scope are scored exactly instead of by KNN
@@ -38,9 +39,31 @@ def like_pattern(token: str) -> str:
 PATH_CONDITION = "f.path LIKE ? ESCAPE '\\'"
 
 
-def chunk_ids(conn: sqlite3.Connection, pattern: str, kinds: tuple[str, ...] | None = None) -> list[int]:
-    sql = f"SELECT c.id FROM chunks c JOIN files f ON f.id = c.file_id WHERE {PATH_CONDITION}"
-    params: list = [pattern]
+@dataclass(frozen=True)
+class Scope:
+    """A condition on the file (alias `f`) that every result must meet: a folder, a time, a place, or several."""
+
+    sql: str
+    params: tuple = ()
+
+    @staticmethod
+    def all(*parts: "Scope | None") -> "Scope | None":
+        parts = tuple(p for p in parts if p is not None)
+        if not parts:
+            return None
+        return Scope(" AND ".join(f"({p.sql})" for p in parts), tuple(v for p in parts for v in p.params))
+
+
+def condition(scope: "str | Scope") -> tuple[str, list]:
+    """SQL and parameters of a scope: a Scope, or a LIKE pattern for the path (split_scope)."""
+    if isinstance(scope, Scope):
+        return scope.sql, list(scope.params)
+    return PATH_CONDITION, [scope]
+
+
+def chunk_ids(conn: sqlite3.Connection, scope: "str | Scope", kinds: tuple[str, ...] | None = None) -> list[int]:
+    where, params = condition(scope)
+    sql = f"SELECT c.id FROM chunks c JOIN files f ON f.id = c.file_id WHERE {where}"
     if kinds:
         sql += f" AND c.kind IN ({','.join('?' * len(kinds))})"
         params += list(kinds)

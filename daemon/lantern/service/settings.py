@@ -20,6 +20,7 @@ class Settings:
     index_video_frames: bool = True
     index_audio_video: bool = True  # audio files and videos (sound, transcripts, frames)
     index_image_text: bool = True  # read text in photos and screenshots (Apple Vision OCR, on device)
+    places: bool = True  # GPS of photos and videos -> city (bundled GeoNames table, offline); off: coordinates deleted
     notify: bool = True
     debounce_s: float = 3.0  # file events are grouped for this long before a rescan
     # Extra exclusions: absolute paths (~ allowed) or .gitignore-style patterns matched inside every indexed folder.

@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from lantern import __version__, config
+from lantern import __version__, config, filemeta
 from lantern.api import protocol
 
 
@@ -174,6 +174,8 @@ def cmd_index(args: argparse.Namespace) -> int:
         image_embedder=make_image_embedder(settings), video_frames=settings.index_video_frames,
         image_text=settings.index_image_text,
     )  # fmt: skip
+    while filemeta.refresh(conn, places=settings.places):  # dates and places (file headers only)
+        pass
     if sys.stderr.isatty():
         print("\r" + " " * 70 + "\r", end="", file=sys.stderr)
     stale = f", {stats.stale} re-indexed after a pipeline/model change" if stats.stale else ""

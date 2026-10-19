@@ -22,7 +22,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import asdict
 from pathlib import Path
 
-from lantern import config
+from lantern import config, filemeta
 from lantern.api import protocol
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
 from lantern.search.hybrid import clear_history, learned_choice, mark_opened, search
@@ -35,6 +35,8 @@ from lantern.service.perf import PerfMonitor
 from lantern.store import db
 
 TICK_S = 0.5
+META_BATCH = 50  # files whose date and place are read per control-loop tick (filemeta.refresh)
+META_IDLE_S = 5.0
 QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released after this much inactivity
 POWER_CHECK_S = 30.0
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
@@ -101,6 +103,7 @@ class Daemon:
         self.worker: subprocess.Popen | None = None
         self.worker_terminating = False
         self.worker_retry_at = 0.0
+        self._meta_check_at = 0.0  # next time filemeta.refresh looks for files without a date
         self.progress: dict = {}
         self.progress_at = 0.0  # when the worker reported the file it is on
         self._whisper_checked = (-1e9, False)  # (when, Whisper downloaded)
@@ -638,7 +641,34 @@ class Daemon:
             self._scan_all_soon()
         elif key == "transcribe" and self.settings.transcribe:
             self._enqueue_missing_transcripts()
+        elif key == "places":
+            conn = self._conn()
+            try:
+                if self.settings.places:
+                    filemeta.read_places_again(conn)
+                else:
+                    filemeta.forget_places(conn)
+            finally:
+                conn.close()
+            self._meta_check_at = 0.0
         return asdict(self.settings)
+
+    def _refresh_meta(self) -> None:
+        """Dates and places of new files and of files indexed before phase 16, a small batch per tick (file headers
+        only), paused like indexing."""
+        if self._paused() or time.monotonic() < self._meta_check_at:
+            return
+        conn = self._conn()
+        try:
+            done = filemeta.refresh(conn, places=self.settings.places, limit=META_BATCH,
+                                    should_stop=self.stopping.is_set)  # fmt: skip
+        except Exception as exc:  # never stops the control loop; tried again later
+            self._warn(f"reading file dates failed: {exc}")
+            done = 0
+        finally:
+            conn.close()
+        if done < META_BATCH:  # nothing (more) to read: look again in a while (new files, a changed setting)
+            self._meta_check_at = time.monotonic() + META_IDLE_S
 
     def api_exclude(self, action: str, pattern: str) -> dict:
         with self.lock:
@@ -1058,6 +1088,7 @@ class Daemon:
                 self._check_power()
                 self._refresh_apps()
                 self._manage_worker()
+                self._refresh_meta()
                 self._release_idle_query_model()
                 with self.lock:
                     worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)

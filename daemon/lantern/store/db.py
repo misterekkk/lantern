@@ -11,7 +11,7 @@ import sqlite_vec
 
 from lantern.textnorm import fold, is_blob
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 
@@ -52,6 +52,27 @@ def _add_opened_key(conn: sqlite3.Connection) -> None:
     """Which row was opened (apps, settings and songs all have chunk 0): learned choices per query."""
     if "opened_key" not in {r[1] for r in conn.execute("PRAGMA table_info(search_events)")}:
         conn.execute("ALTER TABLE search_events ADD COLUMN opened_key TEXT")
+
+
+def _add_file_meta(conn: sqlite3.Connection) -> None:
+    """Time and place (phase 16): columns filled afterwards by filemeta.refresh, reading only file headers."""
+    have = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
+    for column, kind in (("inferred_date", "INTEGER"), ("date_source", "TEXT"), ("lat", "REAL"), ("lon", "REAL"),
+                         ("place_id", "INTEGER"), ("meta_version", "INTEGER NOT NULL DEFAULT 0")):  # fmt: skip
+        if column not in have:
+            conn.execute(f"ALTER TABLE files ADD COLUMN {column} {kind}")
+    # one statement at a time: executescript would commit the migration's transaction halfway
+    conn.execute("CREATE INDEX IF NOT EXISTS files_date ON files(inferred_date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS files_place ON files(place_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS files_meta ON files(meta_version)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS places (id INTEGER PRIMARY KEY, name TEXT NOT NULL, country TEXT NOT NULL, "
+        "lat REAL NOT NULL, lon REAL NOT NULL, display TEXT NOT NULL DEFAULT '{}')"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS place_names (name TEXT NOT NULL, place_id INTEGER NOT NULL REFERENCES places(id) "
+        "ON DELETE CASCADE, PRIMARY KEY (name, place_id)) WITHOUT ROWID"
+    )
 
 
 # Upgrades from version N to N + 1. A fresh database gets schema.sql directly.
@@ -126,6 +147,7 @@ _MIGRATIONS: dict[int, list[str | Callable[[sqlite3.Connection], None]]] = {
     ],
     11: [_add_music_source],
     12: [_add_opened_key],
+    13: [_add_file_meta],
 }
 
 # Auto-compaction threshold: free pages as a share of the file.
@@ -289,6 +311,8 @@ def delete_files(conn: sqlite3.Connection, file_ids: Iterable[int]) -> int:
         delete_file_chunks(conn, file_id)
         conn.execute("DELETE FROM files WHERE id = ?", (file_id,))  # cascades to jobs
         n += 1
+    if n:  # a city no remaining file was made in goes too (with its names: ON DELETE CASCADE)
+        conn.execute("DELETE FROM places WHERE id NOT IN (SELECT place_id FROM files WHERE place_id IS NOT NULL)")
     return n
 
 
@@ -365,7 +389,7 @@ def replace_file_symbols(conn: sqlite3.Connection, file_id: int, symbols: Sequen
 
 def update_file_path(conn: sqlite3.Connection, file_id: int, new_path: str, new_rel_path: str) -> None:
     """Move: change the path and the FTS path column, keep chunks and vectors."""
-    conn.execute("UPDATE files SET path = ? WHERE id = ?", (new_path, file_id))
+    conn.execute("UPDATE files SET path = ?, meta_version = 0 WHERE id = ?", (new_path, file_id))  # a dated folder
     conn.execute(
         "UPDATE chunks_fts SET path = ? WHERE rowid IN (SELECT id FROM chunks WHERE file_id = ?)",
         (fold(new_rel_path), file_id),

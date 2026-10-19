@@ -1,4 +1,4 @@
--- Lantern index schema (version 4; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
+-- Lantern index schema (version 14; migrations from older versions live in store/db.py). Requires the sqlite-vec extension.
 -- Vector tables are created per embedding model at runtime: vec_chunks_<embedding_models.id> (see store/db.py).
 
 -- Indexed root folders. A root that is unavailable must never trigger a purge.
@@ -20,9 +20,35 @@ CREATE TABLE IF NOT EXISTS files (
     error         TEXT,
     indexed_at    INTEGER,
     pipeline_version INTEGER NOT NULL DEFAULT 0,  -- chunking/prompt rules used; mismatch -> reindex
-    model_id      INTEGER                        -- embedding model of its vectors; mismatch -> reindex
+    model_id      INTEGER,                       -- embedding model of its vectors; mismatch -> reindex
+    -- When and where (extractors/metadata.py, filled by filemeta.refresh without re-indexing):
+    inferred_date INTEGER,                   -- wall-clock seconds (timegm of the local time it was made)
+    date_source   TEXT,                      -- exif | quicktime | name | fs
+    lat           REAL,                      -- GPS, only while the "places" setting is on
+    lon           REAL,
+    place_id      INTEGER,                   -- nearest city (places.id = GeoNames id)
+    meta_version  INTEGER NOT NULL DEFAULT 0 -- filemeta.META_VERSION it was read with; lower -> read again
 );
 CREATE INDEX IF NOT EXISTS files_root ON files(root_id);
+CREATE INDEX IF NOT EXISTS files_date ON files(inferred_date);
+CREATE INDEX IF NOT EXISTS files_place ON files(place_id);
+CREATE INDEX IF NOT EXISTS files_meta ON files(meta_version);
+
+-- Cities the user's files were made in (from the bundled GeoNames table, lantern/places.py): only those, so place
+-- words in queries match places the user has actually been to.
+CREATE TABLE IF NOT EXISTS places (
+    id       INTEGER PRIMARY KEY,           -- GeoNames id
+    name     TEXT NOT NULL,                 -- GeoNames' name ("Kraków")
+    country  TEXT NOT NULL,                 -- ISO 3166 code; the app shows the country in the macOS language
+    lat      REAL NOT NULL,
+    lon      REAL NOT NULL,
+    display  TEXT NOT NULL DEFAULT '{}'     -- JSON: language code -> name ("de": "Krakau")
+);
+CREATE TABLE IF NOT EXISTS place_names (
+    name      TEXT NOT NULL,                -- folded, lower case, without accents ("krakau", "cracovia")
+    place_id  INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE,
+    PRIMARY KEY (name, place_id)
+) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS files_hash ON files(content_hash);
 
 -- One embedding model = one row. Vectors from different models are never mixed.

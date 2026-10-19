@@ -506,3 +506,35 @@ def test_transcripts_queued_while_transcription_is_off_do_not_wake_the_worker(la
     d.settings.transcribe = True
     assert d._queued(conn) == {"transcribe": 1}
     conn.close()
+
+
+def test_dates_and_places_are_filled_in_the_background_and_follow_the_switch(lantern_home, tmp_path):
+    from PIL import Image
+
+    from lantern.scanner.diff import scan_root
+
+    root = tmp_path / "zdjecia"
+    root.mkdir()
+    img = Image.new("RGB", (320, 240), (200, 30, 30))
+    exif = Image.Exif()
+    exif.get_ifd(0x8769)[0x9003] = "2023:05:14 12:00:00"
+    gps = exif.get_ifd(0x8825)
+    gps[1], gps[2], gps[3], gps[4] = "N", (50.0, 3.0, 41.0), "E", (19.0, 56.0, 12.0)
+    img.save(root / "a.jpg", exif=exif)
+    conn = db.connect(db.Path(os.environ["LANTERN_HOME"]) / "index.db")
+    scan_root(conn, root)
+    conn.commit()
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False))
+    d.manual_pause = True
+    d._refresh_meta()  # paused like indexing
+    assert conn.execute("SELECT meta_version FROM files").fetchone()[0] == 0
+    d.manual_pause = False
+    d._refresh_meta()
+    assert conn.execute("SELECT date_source, place_id FROM files").fetchone()[:] == ("exif", 3094802)
+    d.api_config_set("places", "false")
+    assert conn.execute("SELECT place_id, lat FROM files").fetchone()[:] == (None, None)
+    assert conn.execute("SELECT count(*) FROM places").fetchone()[0] == 0
+    d.api_config_set("places", "true")
+    d._refresh_meta()
+    assert conn.execute("SELECT place_id FROM files").fetchone()[0] == 3094802
+    conn.close()
