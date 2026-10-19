@@ -40,3 +40,14 @@ def test_man_page_describes_every_command_and_option():
             for flag in action.option_strings:
                 if flag not in ("-h", "--help"):
                     assert flag in text, f"option {name} {flag} missing"
+
+
+def test_version_matches_pyproject():
+    """`lantern --version` and the app's bundle version (build.sh reads pyproject.toml) must agree."""
+    import tomllib
+    from pathlib import Path
+
+    from lantern import __version__
+
+    pyproject = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    assert __version__ == pyproject["project"]["version"]
