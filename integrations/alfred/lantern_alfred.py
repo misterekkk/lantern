@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 SOCKET = Path.home() / "Library" / "Application Support" / "Lantern" / "lantern.sock"
-QUICKTIME_TYPES = {".mp4", ".mov", ".m4v", ".m4a", ".mp3", ".wav", ".aiff", ".aif", ".caf"}
+QUICKTIME_TYPES = {".mp4", ".mov", ".m4v", ".m4a", ".mp3", ".wav", ".aiff", ".aif", ".caf", ".flac"}
 
 
 class NotRunning(Exception):
@@ -232,8 +232,8 @@ def main(argv: list[str]) -> int:
     opened(payload)
     if mode == "reveal":
         run("/usr/bin/open", "-R", payload["path"])
-    elif mode == "start":  # ⌥↩: the file from its beginning (a recording from 0:00)
-        run("/usr/bin/open", payload["path"])
+    elif mode == "start":  # ⌥↩: the file from its beginning; a recording seeks to 0:00 even if already open later on
+        open_at(payload["path"], None, 0 if payload.get("ms") is not None else None)
     else:
         open_at(payload["path"], payload.get("line"), payload.get("ms"))
     return 0
