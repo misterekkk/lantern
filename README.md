@@ -544,6 +544,11 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-pa
 
 The website in `site/` needs Node.js (`brew install node`); see [site/README.md](site/README.md).
 
+Optional, for coding agents: a local code graph with [graphify](https://github.com/Graphify-Labs/graphify)
+(`uv tool install graphifyy==0.9.76`, then `GRAPHIFY_BACKEND=none graphify update .`: code only, parsed locally,
+nothing sent anywhere). Its output (`graphify-out/`) and personal agent files (`CLAUDE.local.md`,
+`.claude/settings.local.json`) are gitignored.
+
 ```
 README.md, LICENSE, NOTICE, CLAUDE.md, pyproject.toml
 site/        the website: landing page, docs built from this README and docs/, the interactive demo

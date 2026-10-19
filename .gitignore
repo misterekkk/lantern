@@ -16,3 +16,8 @@ site/.astro/
 site/src/content/docs/docs/
 site/public/llms.txt
 site/public/llms-full.txt
+# personal Claude Code workflow (graphify knowledge graph, session hand-off), never published
+graphify-out/
+CLAUDE.local.md
+.claude/settings.local.json
+TASK.md
