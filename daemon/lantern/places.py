@@ -20,6 +20,7 @@ import numpy as np
 from lantern.textnorm import fold
 
 DATA = Path(__file__).with_name("data") / "places.tsv.gz"
+COUNTRIES = DATA.with_name("countries.tsv.gz")
 MAX_KM = 40.0  # farther from every city of 15 000+ people: no place (a lake, the sea, wilderness)
 EARTH_KM = 6371.0
 
@@ -125,7 +126,8 @@ MIN_WORD = 4
 
 @dataclass(frozen=True)
 class PlaceMatch:
-    place_ids: tuple[int, ...]
+    place_ids: tuple[int, ...]  # cities
+    countries: tuple[str, ...]  # ISO codes
     start: int  # word span in the query (index of the first and one past the last word, preposition included)
     end: int
     hard: bool
@@ -145,45 +147,98 @@ def _close(word: str, name: str) -> bool:
     return any(word.startswith(name[:keep]) and word[keep:] in ENDINGS for keep in (len(name), len(name) - 1))
 
 
-_names_cache: dict[str, tuple[int, dict]] = {}
+Target = tuple[str, int | str]  # ("city", GeoNames id) or ("country", ISO code)
+NameIndex = dict[str, list[tuple[list[str], Target]]]
 
 
-def _known_names(conn: sqlite3.Connection) -> dict[str, list[tuple[list[str], int]]]:
-    """Place names of the index grouped by their first letters, cached until the places change."""
+def _index(entries) -> NameIndex:
+    """(name key, target) pairs grouped by the first letters of the name."""
+    by_first: NameIndex = {}
+    for name, target in entries:
+        parts = name.split()
+        if parts:
+            by_first.setdefault(parts[0][:MIN_WORD], []).append((parts, target))
+    return by_first
+
+
+def _match(by_first: NameIndex, keys: list[str]) -> tuple[set[Target], int, int] | None:
+    """Targets of the longest name found in the words (name keys), with its word span."""
+    for n in (3, 2, 1):  # longest names first ("Nowy Sącz", "New York", "Costa Rica")
+        for i in range(len(keys) - n + 1):
+            span = keys[i : i + n]
+            if not all(span) or len(span[0]) < 3:
+                continue
+            hits = {
+                target
+                for parts, target in by_first.get(span[0][:MIN_WORD], [])
+                if len(parts) == n
+                and all(a == b for a, b in zip(span[:-1], parts[:-1], strict=False))
+                and _close(span[-1], parts[-1])
+            }
+            if hits:
+                return hits, i, i + n
+    return None
+
+
+@lru_cache(maxsize=1)
+def _country_names() -> dict[str, tuple[str, ...]]:
+    """ISO code -> name keys of the country in every language (bundled data/countries.tsv.gz). Names shorter than
+    four letters (codes, "UK") are left out."""
+    out = {}
+    with gzip.open(COUNTRIES, "rt", encoding="utf-8") as f:
+        for line in f:
+            code, names = line.rstrip("\n").split("\t")
+            keys = {name_key(n) for n in names.split("|")}
+            out[code] = tuple(k for k in keys if len(k) >= MIN_WORD and not any(c.isdigit() for c in k))
+    return out
+
+
+@lru_cache(maxsize=1)
+def _all_countries() -> NameIndex:
+    return _index((k, ("country", code)) for code, keys in _country_names().items() for k in keys)
+
+
+def country_in_path(path: Path) -> str | None:
+    """A country named by the file's folder or the two above ("Portugalia", "Wakacje w Portugalii 2026")."""
+    for part in (path.parent.name, path.parent.parent.name, path.parent.parent.parent.name):
+        keys = [k for k in (name_key(w) for w in part.replace("_", " ").replace("-", " ").split()) if not k.isdigit()]
+        found = _match(_all_countries(), keys) if keys else None
+        if found and len(found[0]) == 1:
+            return str(next(iter(found[0]))[1])
+    return None
+
+
+_names_cache: dict[str, tuple[int, NameIndex]] = {}
+
+
+def _known_names(conn: sqlite3.Connection) -> NameIndex:
+    """Names of the cities and countries the index's files were made in, cached until they change."""
     db_file = conn.execute("PRAGMA database_list").fetchone()[2]
-    stamp = conn.execute("SELECT count(*), coalesce(sum(id), 0) FROM places").fetchone()
-    key = hash(tuple(stamp))
+    countries = tuple(r[0] for r in conn.execute("SELECT DISTINCT country FROM files WHERE country IS NOT NULL"))
+    stamp = (*conn.execute("SELECT count(*), coalesce(sum(id), 0) FROM places").fetchone(), countries)
+    key = hash(stamp)
     cached = _names_cache.get(db_file)
     if cached and cached[0] == key:
         return cached[1]
-    by_first: dict[str, list[tuple[list[str], int]]] = {}
-    for name, pid in conn.execute("SELECT name, place_id FROM place_names"):
-        parts = name.split()
-        by_first.setdefault(parts[0][:MIN_WORD], []).append((parts, pid))
+    names = _country_names()
+    entries = [(name, ("city", pid)) for name, pid in conn.execute("SELECT name, place_id FROM place_names")]
+    entries += [(k, ("country", code)) for code in countries for k in names.get(code, ())]
+    by_first = _index(entries)
     _names_cache[db_file] = (key, by_first)
     return by_first
 
 
 def find_in_query(conn: sqlite3.Connection, query: str) -> PlaceMatch | None:
+    """A city or country of the user's files named in the query, in any language and inflected."""
     by_first = _known_names(conn)
     if not by_first:
         return None
-    words = query.split()
-    keys = [name_key(w) for w in words]
-    for n in (3, 2, 1):  # longest names first ("Nowy Sącz", "New York")
-        for i in range(len(words) - n + 1):
-            span = keys[i : i + n]
-            if not all(span) or len(span[0]) < 3:
-                continue
-            hits = set()
-            for parts, pid in by_first.get(span[0][:MIN_WORD], []):
-                if (
-                    len(parts) == n
-                    and all(a == b for a, b in zip(span[:-1], parts[:-1], strict=False))
-                    and _close(span[-1], parts[-1])
-                ):
-                    hits.add(pid)
-            if hits:
-                hard = i > 0 and keys[i - 1] in PREPOSITIONS
-                return PlaceMatch(tuple(sorted(hits)), i - 1 if hard else i, i + n, hard)
-    return None
+    keys = [name_key(w) for w in query.split()]
+    found = _match(by_first, keys)
+    if found is None:
+        return None
+    hits, i, end = found
+    hard = i > 0 and keys[i - 1] in PREPOSITIONS
+    cities = tuple(sorted(int(t[1]) for t in hits if t[0] == "city"))
+    countries = tuple(sorted(str(t[1]) for t in hits if t[0] == "country"))
+    return PlaceMatch(cities, countries, i - 1 if hard else i, end, hard)

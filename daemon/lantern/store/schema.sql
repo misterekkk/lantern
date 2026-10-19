@@ -27,11 +27,13 @@ CREATE TABLE IF NOT EXISTS files (
     lat           REAL,                      -- GPS, only while the "places" setting is on
     lon           REAL,
     place_id      INTEGER,                   -- nearest city (places.id = GeoNames id)
+    country       TEXT,                      -- ISO code: the city's, or a camera photo's folder ("Portugalia/")
     meta_version  INTEGER NOT NULL DEFAULT 0 -- filemeta.META_VERSION it was read with; lower -> read again
 );
 CREATE INDEX IF NOT EXISTS files_root ON files(root_id);
 CREATE INDEX IF NOT EXISTS files_date ON files(inferred_date);
 CREATE INDEX IF NOT EXISTS files_place ON files(place_id);
+CREATE INDEX IF NOT EXISTS files_country ON files(country);
 CREATE INDEX IF NOT EXISTS files_meta ON files(meta_version);
 
 -- Cities the user's files were made in (from the bundled GeoNames table, lantern/places.py): only those, so place

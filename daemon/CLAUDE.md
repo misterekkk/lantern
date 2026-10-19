@@ -30,7 +30,8 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
 
 ## Time and place (Phase 16)
 
-- `files.inferred_date` (wall-clock seconds), `date_source`, `lat`/`lon`, `place_id`, `meta_version`: filled by
+- `files.inferred_date` (wall-clock seconds), `date_source`, `lat`/`lon`, `place_id`, `country` (the city's, or a
+  camera photo's folder: `places.country_in_path`), `meta_version`: filled by
   `filemeta.refresh` (daemon control loop, `lantern index`) from file headers (`extractors/metadata.py`), never by the
   worker. A changed or moved file gets `meta_version = 0`; bump `filemeta.META_VERSION` when the cascade changes
   (headers are read again, nothing is re-embedded). `places`/`place_names` hold only cities of indexed files;

@@ -46,6 +46,8 @@ public enum Format {
         let country = r.country.flatMap { locale.localizedString(forRegionCode: $0) }
         if let place = r.place {
             parts.append(country.map { "\(place), \($0)" } ?? place)
+        } else if let country {  // a camera without GPS, in a folder named after the country
+            parts.append(country)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

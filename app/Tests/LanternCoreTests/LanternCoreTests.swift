@@ -49,6 +49,10 @@ import Testing
         #expect(Format.whenWhere(photo, locale: Locale(identifier: "pl_PL")) == "14 maja 2023 · Kraków, Polska")
         #expect(Format.whenWhere(photo, locale: Locale(identifier: "en_US")) == "May 14, 2023 · Kraków, Poland")
         #expect(Format.whenWhere(r.photos[1]) == nil)  // a document's file-system date is not shown
+        var camera = photo
+        camera.place = nil
+        camera.country = "PT"  // no GPS: the country of its folder
+        #expect(Format.whenWhere(camera, locale: Locale(identifier: "pl_PL")) == "14 maja 2023 · Portugalia")
         let older = try DaemonClient.decoder.decode(DaemonSettings.self, from: Data("""
         {"index_mode": "ask", "pause_on_battery": true, "pause_on_low_power": true, "pause_on_thermal": true,
          "transcribe": true, "index_photos": true, "index_video_frames": true, "notify": true, "debounce_s": 3,

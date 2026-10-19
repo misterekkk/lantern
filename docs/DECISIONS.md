@@ -1235,7 +1235,26 @@ M4A, MP3, MOV and Ogg Opus.
   Folder, time and place share one SQL condition (`search.scope.Scope`) through vector, keyword, photo and symbol
   search. A time or place with nothing else, or only a kind word (`zdjęcia`, `filmy`, `dokumenty`, `pdfy`), browses
   the files made then or there, newest first.
-- **Faces:** not done; the phase plan allows them only if an evaluation shows a gain, and none was run.
+- **Countries:** `data/countries.tsv.gz` (252 countries, every name in every language, 0.22 MB). A city's country goes
+  to `files.country`; a photo or video dated by its camera (EXIF/QuickTime) without coordinates takes the country
+  named by its folder or the two above (`Portugalia/`, `Wakacje w Portugalii 2026/`). Never screenshots or graphics
+  (no camera date), never cities (a `mobile/` folder of app screenshots would become Mobile, Alabama). Queries match
+  countries of the user's files like cities (`z Portugalii`, `in Portugal`).
+- **On the user's index** (5 900 files, 271 images, a copy; 2026-10-19): metadata for every file in 0.44 s. The 21
+  photos of `Desktop/Portugalia` (Canon EOS R10) have EXIF dates but no coordinates (its GPS block holds only the
+  version: the camera writes a location only when paired with a phone), so the folder gave them Portugal; the one
+  iPhone HEIC got Warsaw. Dates from names (`MVIMG_20260213_172120`, `…_2025-10-17.pdf`, `Zrzut ekranu 2026-01-14 o
+  09.46.50` after adding the Polish "o") and QuickTime (a game recording, a project video) were all right; no false
+  date. Browsing puts camera-dated photos before images dated by the disk (downloaded graphics).
+- **Faces, evaluated** on the same 256 readable images: Vision's public detectors (`VNDetectFaceRectanglesRequest`,
+  `VNDetectHumanRectanglesRequest`) took 16 ms per image and found people in 20 (13 with a visible face); the three
+  checked by eye (horse-show photos) were right, people in the background included. The current photo search for
+  people queries, filtered to photos, top 20: "zdjęcia z ludźmi" 2 of 20 photos with people (0 in the top 5), "osoba
+  na zdjęciu" 1, "grupa ludzi" 0, "selfie" 1 of 13, "portret" 1; English did better ("people" 5, top 5: 3/5; "a person
+  smiling" 5 of 13, top 5: 4/5). A people filter from detection would be exact by construction, so detection shows a
+  clear gain. Recognising *who* is in a photo is another matter: Vision's faceprint request
+  (`VNCreateFaceprintRequest`) exists only as private API (not in the SDK), other options need a new model, and it
+  means storing biometric data: not proposed.
 - Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
   dictionary); time phrases in languages other than Polish and English are not understood (places are).
 

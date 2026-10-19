@@ -55,7 +55,7 @@ def _valid_coords(lat: float, lon: float) -> bool:
 # ---------- dates in names ----------
 
 _SEP = r"[-_. ]"
-_TIME = r"(?:[ _T-]?(?:at )?(?P<H>[01]\d|2[0-3])[.:_h-]?(?P<M>[0-5]\d)[.:_m-]?(?P<S>[0-5]\d))?"
+_TIME = r"(?:[ _T-]?(?:at |o )?(?P<H>[01]\d|2[0-3])[.:_h-]?(?P<M>[0-5]\d)[.:_m-]?(?P<S>[0-5]\d))?"
 # 2023-05-14, 2023_05_14 12.34.56, "Screenshot 2023-05-14 at 12.34.56": separated, always with the day
 _YMD = re.compile(
     rf"(?<!\d)(?P<y>(?:19|20)\d\d){_SEP}(?P<m>0[1-9]|1[0-2]){_SEP}(?P<d>0[1-9]|[12]\d|3[01])(?!\d){_TIME}"

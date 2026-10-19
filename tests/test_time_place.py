@@ -67,7 +67,7 @@ def set_mtime(path: Path, when_: datetime) -> None:
         ("IMG_20230514_123456", datetime(2023, 5, 14, 12, 34, 56)),
         ("PXL_20230514_101010123", datetime(2023, 5, 14)),  # prefix + date; the time block is longer than HHMMSS
         ("Screenshot 2023-05-14 at 12.34.56", datetime(2023, 5, 14, 12, 34, 56)),
-        ("Zrzut ekranu 2024-01-02 o 09.15.00", datetime(2024, 1, 2)),
+        ("Zrzut ekranu 2024-01-02 o 09.15.00", datetime(2024, 1, 2, 9, 15, 0)),
         ("faktura 14.05.2023", datetime(2023, 5, 14)),
         ("WhatsApp Image 2023-05-14 at 12.34.56", datetime(2023, 5, 14, 12, 34, 56)),
         ("2019_07_04 wakacje", datetime(2019, 7, 4)),
@@ -256,6 +256,13 @@ def test_browsing_by_time_and_place(conn, embedder, tmp_path):
     assert may.photos[0].date == "2023-05-14" and may.photos[0].place == "Kraków" and may.photos[0].country == "PL"
     mays = search(conn, embedder, "z maja", log=False)  # May of any year, newest first
     assert [Path(p.path).name for p in mays.photos] == ["maj.jpg", "stare.jpg"]
+    download = photo(tmp_path / "zdjecia" / "diagram.png")  # dated only by the disk, newer than both
+    set_mtime(download, datetime(2023, 5, 30))
+    scan_root(conn, tmp_path / "zdjecia")
+    run_queue(conn, FakeEmbedder(), image_embedder=FakeImageEmbedder(), image_text=False)
+    filemeta.refresh(conn)
+    may = search(conn, embedder, "zdjęcia z maja 2023", log=False)
+    assert [Path(p.path).name for p in may.photos] == ["maj.jpg", "diagram.png"]  # the camera's photo first
     paris = search(conn, embedder, "zdjęcia z Paryża", log=False, lang="de")
     assert [Path(p.path).name for p in paris.photos] == ["sierpien.jpg"] and paris.photos[0].place == "Paris"
     assert not search(conn, embedder, "z maja 2023", log=False, category="docs").photos
@@ -318,9 +325,9 @@ def test_upgrade_fills_dates_without_reindexing(lantern_home, tmp_path):
     run_queue(conn, embedder, image_embedder=FakeImageEmbedder(), image_text=False)
     chunks = conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
     vectors = conn.execute("SELECT count(*) FROM vec_chunks_1").fetchone()[0]
-    for index in ("files_date", "files_place", "files_meta"):  # back to schema 13
+    for index in ("files_date", "files_place", "files_country", "files_meta"):  # back to schema 13
         conn.execute(f"DROP INDEX {index}")
-    for column in ("inferred_date", "date_source", "lat", "lon", "place_id", "meta_version"):
+    for column in ("inferred_date", "date_source", "lat", "lon", "place_id", "country", "meta_version"):
         conn.execute(f"ALTER TABLE files DROP COLUMN {column}")
     conn.execute("DROP TABLE place_names")
     conn.execute("DROP TABLE places")
@@ -357,3 +364,33 @@ def test_a_changed_or_moved_file_is_read_again(conn, tmp_path):
     filemeta.refresh(conn)
     date = conn.execute("SELECT inferred_date FROM files").fetchone()[0]
     assert metadata.from_seconds(date) == datetime(2022, 1, 2, 12, 0, 0)
+
+
+# ---------- countries (a camera without GPS, folders named after a country) ----------
+
+
+def test_countries_in_folder_names():
+    assert places.country_in_path(Path("/Users/x/Desktop/Portugalia/IMG_6794.JPG")) == "PT"
+    assert places.country_in_path(Path("/Users/x/Wakacje w Portugalii 2026/dzien 1/IMG_1.JPG")) == "PT"
+    assert places.country_in_path(Path("/Users/x/Pictures/Japan_2019/DSC_1.jpg")) == "JP"
+    assert places.country_in_path(Path("/Users/x/Projekty/mobile/screens/a.png")) is None
+    assert places.country_in_path(Path("/Users/x/Downloads/IMG_1.JPG")) is None
+
+
+def test_a_camera_photo_without_gps_gets_its_folders_country_and_a_screenshot_does_not(conn, embedder, tmp_path):
+    root = tmp_path / "Desktop"
+    photo(root / "Portugalia" / "IMG_6794.JPG", "2026:02:18 14:06:41", None)  # Canon EOS R10: no coordinates
+    shot = photo(root / "Portugalia" / "mapa.png")  # no EXIF date: a graphic, not a photo from a camera
+    set_mtime(shot, datetime(2026, 2, 20))
+    scan_root(conn, root)
+    run_queue(conn, FakeEmbedder(), image_embedder=FakeImageEmbedder(), image_text=False)
+    while filemeta.refresh(conn):
+        pass
+    rows = dict(conn.execute("SELECT path, country FROM files").fetchall())
+    assert rows[str(root / "Portugalia" / "IMG_6794.JPG")] == "PT" and rows[str(shot)] is None
+    for query in ("zdjęcia z Portugalii", "photos in Portugal", "w Portugalii"):
+        found = search(conn, embedder, query, log=False, lang="pl")
+        assert [Path(p.path).name for p in found.photos] == ["IMG_6794.JPG"], query
+        assert found.photos[0].country == "PT" and found.photos[0].place is None
+    filemeta.forget_places(conn)
+    assert conn.execute("SELECT count(*) FROM files WHERE country IS NOT NULL").fetchone()[0] == 0

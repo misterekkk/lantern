@@ -269,6 +269,7 @@ class Filters:
     scope: Scope | None = None  # hard: folder, time, place
     soft_time: when.TimeFilter | None = None
     soft_places: tuple[int, ...] = ()
+    soft_countries: tuple[str, ...] = ()
     narrowed: bool = False  # a time or place limits the results (not only a folder)
     kind: str | None = None  # "zdjęcia z maja": the photos category
 
@@ -282,7 +283,12 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
     if place and place.hard:
         words = query.split()
         query = " ".join(words[: place.start] + words[place.end :])
-        place_scope = Scope(f"f.place_id IN ({','.join('?' * len(place.place_ids))})", place.place_ids)
+        conditions = []
+        if place.place_ids:
+            conditions.append(f"f.place_id IN ({','.join('?' * len(place.place_ids))})")
+        if place.countries:
+            conditions.append(f"f.country IN ({','.join('?' * len(place.countries))})")
+        place_scope = Scope(" OR ".join(conditions), (*place.place_ids, *place.countries))
     time_scope = Scope(*hard_time.sql()) if hard_time else None
     folder_scope = Scope("f.path LIKE ? ESCAPE '\\'", (folder,)) if folder else None
     kind = None
@@ -295,6 +301,7 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
         scope=Scope.all(folder_scope, time_scope, place_scope),
         soft_time=time_filter if time_filter and not time_filter.hard else None,
         soft_places=place.place_ids if place and not place.hard else (),
+        soft_countries=place.countries if place and not place.hard else (),
         narrowed=bool(time_scope or place_scope),
     )
 
@@ -305,7 +312,7 @@ def _file_facts(conn: sqlite3.Connection, paths: list[str], lang: str) -> dict[s
         return {}
     marks = ",".join("?" * len(paths))
     rows = conn.execute(
-        "SELECT f.path, f.inferred_date, f.date_source, f.place_id, p.name, p.display, p.country FROM files f "
+        "SELECT f.path, f.inferred_date, f.date_source, f.place_id, p.name, p.display, f.country FROM files f "
         f"LEFT JOIN places p ON p.id = f.place_id WHERE f.path IN ({marks})",
         paths,
     ).fetchall()
@@ -320,11 +327,12 @@ def annotate(conn: sqlite3.Connection, items: list[Result], lang: str, filters: 
         date, source, place_id, place, country = facts.get(r.path, (None, None, None, None, None))
         score = r.score
         if filters and ((filters.soft_time and filters.soft_time.contains(date))
-                        or (place_id is not None and place_id in filters.soft_places)):  # fmt: skip
+                        or (place_id is not None and place_id in filters.soft_places)
+                        or (country is not None and country in filters.soft_countries)):  # fmt: skip
             score *= 1 + TIME_BOOST
         out.append(replace(r, score=score, date=from_seconds(date).date().isoformat() if date is not None else None,
                            date_source=source, place=place, country=country))  # fmt: skip
-    if filters and (filters.soft_time or filters.soft_places):
+    if filters and (filters.soft_time or filters.soft_places or filters.soft_countries):
         out.sort(key=lambda r: -r.score)
     return out
 
@@ -337,7 +345,9 @@ def browse(conn: sqlite3.Connection, scope: Scope, limit: int, lang: str, catego
     rows = conn.execute(
         "SELECT f.path, f.kind, c.id AS chunk_id, c.kind AS chunk_kind FROM files f "
         "JOIN chunks c ON c.id = (SELECT min(id) FROM chunks WHERE file_id = f.id) "
-        f"WHERE f.status = 'indexed' AND {scope.sql}{kind_sql} ORDER BY f.inferred_date DESC LIMIT ?",
+        # photos dated by the camera (or their name) before images dated only by the disk (downloads, graphics)
+        f"WHERE f.status = 'indexed' AND {scope.sql}{kind_sql} "
+        "ORDER BY f.date_source IN ('exif', 'quicktime', 'name') DESC, f.inferred_date DESC LIMIT ?",
         (*scope.params, *(kinds or ()), BROWSE_PHOTOS + limit * 4),
     ).fetchall()
     photos, files = [], []

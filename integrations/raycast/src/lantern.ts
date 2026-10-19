@@ -74,15 +74,14 @@ export function whenWhere(h: FileHit, visual: boolean): string {
     // a calendar day: shown in UTC so this Mac's time zone never moves it to the day before
     parts.push(new Date(`${h.date}T00:00:00Z`).toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" }));
   }
-  if (h.place) {
-    let country: string | undefined;
-    try {
-      country = h.country ? new Intl.DisplayNames(undefined, { type: "region" }).of(h.country) : undefined;
-    } catch {
-      country = h.country ?? undefined; // an unknown code: shown as it is
-    }
-    parts.push(country ? `${h.place}, ${country}` : h.place);
+  let country: string | undefined;
+  try {
+    country = h.country ? new Intl.DisplayNames(undefined, { type: "region" }).of(h.country) : undefined;
+  } catch {
+    country = h.country ?? undefined; // an unknown code: shown as it is
   }
+  if (h.place) parts.push(country ? `${h.place}, ${country}` : h.place);
+  else if (country) parts.push(country); // a camera without GPS, in a folder named after the country
   return parts.join(" · ");
 }
 export interface DefinitionHit {

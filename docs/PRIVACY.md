@@ -82,7 +82,8 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 19. **Time and place** (phase 16): Lantern reads the date and the GPS location saved in photos and videos (EXIF,
     QuickTime) and dates in file names. The location becomes a city through a table of GeoNames cities (CC-BY 4.0)
     shipped inside Lantern, so no coordinates are sent anywhere (Apple's geocoder was rejected because it sends them
-    to Apple). The index keeps the coordinates, the city and only the cities your files were made in. Switching
+    to Apple). The index keeps the coordinates, the city (or a country named by a camera photo's folder) and only the cities your
+    files were made in. Switching
     `places` off (Settings → File Types) deletes every coordinate and city from the index; a city whose last photo
     is deleted is removed with it. Dates stay. Reading them opens only file headers, never iCloud-only files.
 

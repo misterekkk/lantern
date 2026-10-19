@@ -362,7 +362,8 @@ uv run lantern clear-history               # delete the local search history
     dates (before 1990, in the future, a camera's reset clock such as 2000-01-01 00:00) and numbers that only look
     like years are ignored.
   - The city comes from the location saved in photos and videos, matched to the nearest city of 15,000+ people in a
-    table built into Lantern (GeoNames): nothing is looked up online. Switch: Settings → File Types → Places in photos
+    table built into Lantern (GeoNames): nothing is looked up online. A camera without GPS: a photo in a folder named
+    after a country (`Portugalia/`, `Wakacje w Portugalii 2026/`) gets that country (`zdjęcia z Portugalii`). Switch: Settings → File Types → Places in photos
     and videos, or `lantern config places false`, which also deletes the saved locations from the index.
   - After an update from 0.1.x, dates and places are filled in the background from file headers in a minute or two;
     nothing is indexed again.
