@@ -1029,6 +1029,19 @@ class Daemon:
             self.perf.tick(worker.pid, progress)
         return self.perf.snapshot(progress, loaded, self.settings.index_video_frames)
 
+    def api_diagnostics(self) -> dict:
+        """A report to paste into a bug report or an AI chat (service/diagnostics.py): no file names or contents."""
+        from lantern.service import diagnostics
+
+        conn = None
+        with suppress(Exception):
+            conn = self._conn() if not self.index_problem else None
+        try:
+            return {"text": diagnostics.report(self.api_status(), conn)}
+        finally:
+            if conn is not None:
+                conn.close()
+
     def api_setup(self) -> dict:
         """For the welcome window: this Mac's memory and profile, the models with what each needs, the recommended
         ones for this profile, and the suggested mode."""

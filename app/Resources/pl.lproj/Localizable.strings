@@ -460,3 +460,6 @@
 "Set in Alfred" = "Ustawiasz w Alfredzie";
 "Install “Lantern” from the Raycast Store, then give “Search Lantern” a hotkey in Raycast’s settings (Extensions → Lantern). For ⌥Space, move Raycast’s own hotkey first: it uses ⌥Space by default." = "Zainstaluj „Lantern” z Raycast Store, a potem przypisz poleceniu „Search Lantern” skrót w ustawieniach Raycasta (Extensions → Lantern). Jeśli chcesz ⌥Spacja, najpierw zmień skrót samego Raycasta: domyślnie używa ⌥Spacja.";
 "Lantern installs its Alfred workflow when you continue; type “l” and your query in Alfred, or give the workflow a hotkey. Workflows need Alfred’s Powerpack." = "Lantern zainstaluje swój workflow Alfreda, gdy przejdziesz dalej; w Alfredzie wpisz „l” i zapytanie albo przypisz workflowowi skrót. Workflowy wymagają Alfred Powerpack.";
+"Copy Diagnostics" = "Kopiuj diagnostykę";
+"For a bug report: versions, memory, settings and counts, without file names or contents" = "Do zgłoszenia błędu: wersje, pamięć, ustawienia i liczby, bez nazw i treści plików";
+"Diagnostics copied. Paste them into your report." = "Skopiowano diagnostykę. Wklej ją do zgłoszenia.";

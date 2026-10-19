@@ -396,6 +396,21 @@ def _print_local_status() -> None:
         print(f"  error: {r['path']}: {r['error']}")
 
 
+def cmd_diagnostics(args: argparse.Namespace) -> int:
+    if _daemon():
+        print(protocol.call("diagnostics")["text"], end="")
+        return 0
+    from lantern.service import diagnostics
+
+    conn = None
+    try:
+        conn = _connect() if config.db_path().exists() else None
+    except Exception:  # noqa: BLE001 - a damaged or newer index: the report says it could not be opened
+        conn = None
+    print(diagnostics.report(None, conn), end="")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     if not _daemon():
         print("daemon: not running")
@@ -605,6 +620,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("status", help="show daemon, index and queue status")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("diagnostics", help="print a report for a bug report (no file names or contents)")
+    p.set_defaults(func=cmd_diagnostics)
 
     p = sub.add_parser("remove", help="remove a folder and all its data from the index")
     p.add_argument("path")

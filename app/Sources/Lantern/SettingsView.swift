@@ -901,6 +901,11 @@ private struct AboutPane: View {
             }
             Section {
                 LabeledContent("Models") { Text("EmbeddingGemma 2 · SigLIP 2 · Whisper").foregroundStyle(.secondary) }
+                LabeledContent {
+                    Button("Copy Diagnostics") { state.copyDiagnostics() }
+                } label: {
+                    Text("For a bug report: versions, memory, settings and counts, without file names or contents")
+                }
                 if let s = state.status {
                     LabeledContent("Search Index") { Text("\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) fragments").foregroundStyle(.secondary) }
                     LabeledContent("Daemon") { Text("PID \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }

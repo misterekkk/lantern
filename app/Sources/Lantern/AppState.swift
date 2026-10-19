@@ -147,6 +147,21 @@ final class AppState: ObservableObject {
 
     func rebuildIndex() { run("rebuild_index", message: String(localized: "Rebuilding the index…")) }
 
+    /// Settings → About: the daemon's report (Markdown, no file names or contents) on the clipboard, for a bug report.
+    func copyDiagnostics() {
+        Task {
+            struct Report: Decodable { let text: String }
+            do {
+                let r = try await client.call("diagnostics", as: Report.self, timeout: 20)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(r.text, forType: .string)
+                lastMessage = String(localized: "Diagnostics copied. Paste them into your report.")
+            } catch {
+                lastMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            }
+        }
+    }
+
     /// One folder from the welcome window (indexing starts at once: choosing it is the approval).
     func addFolder(_ path: String) { run("index", ["path": path]) }
 

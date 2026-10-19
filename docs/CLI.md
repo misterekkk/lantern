@@ -150,6 +150,13 @@ queue, files per state, roots and warnings. Without it: the index file, its free
 and the history size. Both add, while there is any, the background work after an update or new files: `dates and
 places: N files still to read` and `people in photos: N photos still to count`.
 
+### `lantern diagnostics`
+
+A report to paste into a bug report or an AI chat: Markdown with `key: value` lines (versions, the Mac's memory and
+pressure, settings, index counts, models, the daemon's state, recent warnings). It never contains file or folder
+names, contents or queries: paths in warnings become `<path>`, excluded folders are only counted. Lantern sends it
+nowhere; the same report is behind Settings → About → Copy Diagnostics.
+
 ### `lantern pending | approve | decline | pause | resume`
 
 In "ask" mode (the default) the daemon finds new and changed files but indexes nothing until you approve.
@@ -165,6 +172,7 @@ daemon applies changes at once.
 
 | Key | Default | Meaning |
 |---|---|---|
+| `mode` | `ready` (8 GB Macs: `on_demand`) | `ready` keeps the search model in memory; `on_demand` releases it after 10 idle minutes |
 | `index_mode` | `ask` | `ask`: new files wait for approval; `auto`: index right away |
 | `pause_on_battery` | `true` | pause indexing on battery power |
 | `pause_on_low_power` | `true` | pause indexing in Low Power Mode |

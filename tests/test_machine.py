@@ -173,3 +173,23 @@ def test_a_damaged_index_is_detected(lantern_home):
     assert d.index_problem == "damaged"
     d.api_rebuild_index()
     assert db.healthy(config.db_path()) and d.index_problem is None
+
+
+def test_diagnostics_carry_no_file_names(lantern_home, tmp_path):
+    from lantern import config
+    from lantern.scanner.diff import scan_root
+    from lantern.service import diagnostics
+    from lantern.store import db
+
+    folder = tmp_path / "Tajny projekt"
+    folder.mkdir()
+    (folder / "umowa-z-klientem.txt").write_text("poufne")
+    conn = db.connect(config.db_path())
+    scan_root(conn, folder)
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False), memory_reader=lambda: mem())
+    d._warn(f"skipped a file that took longer than 30 min: {folder / 'umowa-z-klientem.txt'}")
+    text = d.api_diagnostics()["text"]
+    assert text.startswith("# Lantern diagnostics") and "- ram_gb:" in text and "- files_by_kind:" in text
+    assert "Tajny" not in text and "umowa" not in text and "poufne" not in text and "<path>" in text
+    assert diagnostics.report(None, conn).count("- running: no") == 1
+    conn.close()

@@ -152,6 +152,10 @@ The menu bar app starts its own daemon, so the LaunchAgent is optional.
 Daemon, power (battery, Low Power Mode, thermal state), queue, files and folders; without a daemon a shorter report
 of the index itself.
 .TP
+.B diagnostics
+A Markdown report for a bug report or an AI chat: versions, the Mac's memory, settings, index counts, models and the
+daemon's state, never file or folder names, contents or queries. Lantern sends it nowhere.
+.TP
 .B pending
 Files the daemon found that wait for approval (in
 .B ask
@@ -174,6 +178,7 @@ Resume background indexing.
 List the settings, or change one (booleans accept true/false, 1/0, yes/no).
 Keys:
 .BR index_mode " (" ask | auto ),
+.BR mode " (" ready | on_demand ),
 .BR pause_on_battery ,
 .BR pause_on_low_power ,
 .BR pause_on_thermal ,
