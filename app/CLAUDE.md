@@ -37,6 +37,11 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   on the pasteboard), ⌥⌘C the matched passage (`passage` API), unless the field has a text selection (`SearchModel.copy`). Recordings: `MediaOpener` runs
   osascript (QuickTime `current time`, whole seconds) and falls back to the preview; needs
   `NSAppleEventsUsageDescription`.
+- Welcome window (`WelcomeWindow.swift`, phase 17): first launch (`welcomeDone` in UserDefaults; set automatically
+  for someone updating with folders and the model already there). Steps: welcome, usage mode, models (`setup` API:
+  recommended by RAM profile), folders, launcher, done. `--welcome` shows it without recording it as done;
+  `--welcome-snapshot <dir>` writes each step as PNG through ImageRenderer (with `LANTERN_FAKE_RAM_GB=8` for the
+  8 GB variant, and a short `LANTERN_SOCKET` such as `/tmp/lw.sock`: socket paths are limited to 104 bytes).
 - Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,
   `--hover-scope <kind>`, `--unfold-scopes` (unfolds the folded scope icons 1.5 s after they fold). Clicks posted
   with `CGEvent.postToPid` do not reach SwiftUI buttons in the panel; use a dev flag instead.

@@ -42,6 +42,16 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
 - `search/when.py` (time phrases) and `places.find_in_query` feed `hybrid.parse_filters`, which builds one
   `search.scope.Scope` (folder + time + place) used by every candidate list.
 
+## Memory and index health (Phase 17)
+
+- `service/machine.py` reads RAM, macOS memory pressure, free percentage and swap by sysctl. `machine.fits(work)`
+  gates heavy work by the live state (Whisper in `_queued` and in the worker); `Daemon._check_memory` pauses indexing
+  ("memory"). Tests get a calm machine from `conftest.calm_machine`; memory tests pass `memory_reader=`.
+- First-launch defaults follow `machine.profile()` (`settings.defaults_for`); `mode = on_demand` releases the search
+  model when idle (`_release_idle_search_model`), reloaded on the model thread in `_search`.
+- `index_problem` ("newer" | "damaged"): the daemon serves only the API, `api_rebuild_index` starts over keeping the
+  roots. `service/diagnostics.py` must never output names or contents (paths redacted to the end of the line).
+
 ## Job queue rules
 
 - Enqueue is an upsert on `(file_id, kind)`: re-enqueueing the same work is a no-op.

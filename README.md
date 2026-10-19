@@ -115,10 +115,13 @@ brew install --cask misterekkk/tap/lantern
      ```bash
      xattr -cr /Applications/Lantern.app
      ```
-3. Click the Lantern icon in the menu bar and click **Download** to fetch the search model (~1.2 GB; optional checkboxes
-   add Whisper for recordings and SigLIP 2 for photos). Models can also be downloaded later in **Settings →
-   Performance**. Quick search (apps, System Settings, calculator, dictionary) works immediately while the model
-   downloads.
+3. On first launch a **welcome window** walks through the setup, in the system's language: how often you will search
+   (always ready, or when needed), which models to download (recommended for this Mac's memory: on an 8 GB Mac only
+   the search model, ~1.2 GB; with 16 GB and more also Whisper for recordings and SigLIP 2 for photos), which folders
+   to search, and whether to search from Lantern's panel, Raycast or Alfred. Closed early, it leaves one reminder
+   notification; the menu bar icon shows a download arrow until the search model is there, and the menu offers the
+   same download. Models can also be added later in **Settings → Performance**. Quick search (apps, System Settings,
+   calculator, dictionary) works immediately while the model downloads.
 
 ### From source (`./install.sh`)
 
@@ -184,8 +187,9 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
 
 ## The app
 
-- **Menu bar icon:** laid out like macOS's Battery menu: a status dot in the corner in Apple's colours (green ready,
-  yellow indexing or waiting for your approval, grey paused, red not running; the word is in its tooltip), the file and fragment counts, a progress
+- **Menu bar icon:** laid out like macOS's Battery menu: a status dot in the corner, macOS's own status images (green
+  ready, amber indexing, setting up or waiting for your approval, grey paused, red not running or an index that needs
+  attention; the word is in its tooltip), the file and fragment counts, a progress
   bar while indexing, pause / resume only while it applies, and "Lantern Settings…" at the bottom. A card with Index
   Now / Later appears when new files are found in "ask" mode. Folders are added in Settings → Folders; Quit Lantern
   is in Settings → About (or ⌘Q in a Lantern window).
@@ -268,8 +272,11 @@ own panel.
 
 ### Raycast, step by step
 
-The extension is not in the Raycast Store yet, so it is added once from this repository (needs Node.js:
-`brew install node`).
+The extension is in review for the Raycast Store; until it is published it is added once from this repository (needs
+Node.js: `brew install node`). It does not install Lantern itself: without the app, "Search Lantern" shows the download
+link and the Homebrew command, and while Lantern is setting up, downloading its models or indexing for the first time
+it says so instead of showing no results. Raycast keeps its hotkeys to itself (no app can read or set them), so the
+hotkey for "Search Lantern" is set in Raycast; Lantern's Settings say so instead of showing its own shortcut.
 
 1. Install and open [Raycast](https://www.raycast.com), and have the Lantern app running.
 2. Add the extension:
@@ -504,6 +511,16 @@ uv run lantern daemon stop | uninstall
 - **Automatic pause** on battery power, in Low Power Mode and when macOS reports the Mac is hot (thermal state
   "serious" or worse), and when less than 2 GB is free on the disk of the index; the current file is finished, the
   rest waits. `lantern status` shows what the daemon sees.
+- **Memory:** when macOS reports memory pressure (or swap grows fast), the worker finishes its file and indexing waits
+  until the Mac has been calm for 3 minutes; at critical pressure it stops at once and the photo query model is
+  released. Whisper (~1.8 GB) starts only while the Mac has room for it at that moment, whatever its total memory, so
+  a Mac busy with something heavy (training a model, a game) is left alone. The menu says why indexing waits.
+- **Always ready or when needed** (`lantern config mode ready|on_demand`; the welcome window asks): when needed, the
+  search model (~0.5 GB) is released after 10 minutes without a search and loaded again by the next one (apps and
+  settings answer without it). An 8 GB Mac starts in this mode, with Whisper and video frames off.
+- **An index Lantern cannot use** (from a newer Lantern after going back to an older one, or a damaged file) is
+  explained in the menu with what to do: get the latest version, or rebuild the index (your folders stay, everything
+  is indexed again; your files are never touched). The daemon checks the index in the background after starting.
 - **A stuck file never stops the queue:** a file the worker spends more than 30 minutes on (90 for a transcript;
   e.g. a hung PDF or image decoder) is skipped with the reason in `lantern status` and the warnings, and indexing
   goes on with the next one.

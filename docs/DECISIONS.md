@@ -1221,6 +1221,39 @@ M4A, MP3, MOV and Ogg Opus.
   system folders, confirmation for large external disks; Restore defaults and Repair index buttons instead of
   hand-editing files; no scores or ranks in the app; `config.toml` values validated and clamped.
 
+## Phase 17, first stage built (2026-10-20)
+
+- **Memory state** (`service/machine.py`): `hw.memsize`, `kern.memorystatus_vm_pressure_level` (1/2/4),
+  `kern.memorystatus_level` (the "free percentage" `memory_pressure` prints) and `vm.swapusage`, by sysctl: no
+  permissions, no PyObjC. Swap counts when it grows (512 MB within 2 minutes), not by its size: the user's Mac carried
+  4.7 GB of old swap with free memory at 53%. Heavy work (`fits`) needs normal pressure and its peak plus 1.5 GB free.
+- **Guard:** pressure warn or growing swap pauses indexing ("memory"), 3 calm minutes resume it; critical kills the
+  worker (its transaction rolls back, the job is queued again) and releases the photo query model. Whisper waits in
+  the queue while it does not fit, in the daemon (`_queued`) and in the worker, so nothing restarts in a loop.
+- **Profiles:** below 12 GB "light" first-launch defaults (no Whisper, no video frames, on-demand mode, only the search
+  model recommended); 16 GB and more everything (the user's decision). Saved settings always win.
+- **On demand:** `mode = on_demand` releases the search model after 10 idle minutes; the next full search loads it on
+  the model thread and status reports the time (`model_reload_ms`), so the cold start is measured on the real daemon,
+  not in a second model process. To be measured once the user's daemon runs this code.
+- **Index health:** a newer schema (one PRAGMA) or a file SQLite cannot open serves only the API with `index_problem`;
+  `quick_check` (0.5–1.7 s on the user's 511 MB index) runs in the background after the start. Rebuild keeps the folders
+  (read from the old file when possible). A backup before schema migrations was not added: every migration runs in
+  one transaction (a crash rolls it back), and migrations so far only add columns and tables.
+- **Welcome window** (`app/…/WelcomeWindow.swift`): Setup Assistant style (plain question, small print, Back /
+  Continue, a 0.3 s cross-fade with a 36 pt slide, Liquid Glass button on macOS 26), English keys with Polish
+  translations. Checked through `--welcome-snapshot` (ImageRenderer: cacheDisplay and layer rendering leave SwiftUI
+  out, and there is no screen recording permission) with `LANTERN_FAKE_RAM_GB=8|16`; system controls come out as
+  placeholders in those images. The isolated test daemon needed a short socket path (`/tmp`): macOS limits Unix socket
+  paths to 104 bytes.
+- **Launcher hotkeys:** Raycast and Alfred expose no API to read or set an extension's hotkey, so Lantern cannot keep
+  them in sync; Settings shows "Set in Raycast" instead of Lantern's own (unused) shortcut, and the welcome window
+  says where to set it and that Raycast itself uses ⌥Space by default.
+- **Icon** measured against System Settings and Calculator (corner 212 → diagonal at 162 px; shadow 8 / 32 / 0.25
+  reproduces alpha 41 → 7), the 8% white rim removed. Notifications show Lantern's icon without a paid certificate
+  (UNUserNotificationCenter uses the bundle icon; an ad-hoc or Apple Development signature is enough).
+- **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
+  are now removed to the end of the line.
+
 ## `in:folder` measured (2026-10-19)
 
 - 150 known-item queries on a copy of the user's index (5 900 files): 5 random words of 5+ letters from a random text,

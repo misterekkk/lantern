@@ -2,6 +2,18 @@
 
 What changed for people using Lantern, newest first.
 
+## Unreleased
+
+- **Welcome window** on first launch, in the system's language: how often you search, which models (recommended for
+  this Mac's memory), which folders, and Lantern's panel, Raycast or Alfred.
+- **Careful with memory:** an 8 GB Mac starts light (search model only, Whisper and video frames off, the model
+  released when idle); heavy work starts only when the Mac has room for it; indexing waits under memory pressure.
+- **"When needed" mode** releases the search model after 10 idle minutes (`lantern config mode on_demand`).
+- **An index from a newer Lantern or a damaged one** is explained with Update / Rebuild instead of Lantern stopping.
+- **Copy Diagnostics** (Settings → About, `lantern diagnostics`): a report for bug reports without file names.
+- **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing.
+- **Icon:** Apple's continuous corners and shadow, no light rim; the status dot uses macOS's own amber.
+
 ## 0.2.0 — 2026-10-19
 
 - **People in photos:** `zdjęcia kobiet`, `zdjęcie kobiety z 2024 w Portugalii`, `bez ludzi`, `grupa`, `selfie`,
