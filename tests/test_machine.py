@@ -106,3 +106,70 @@ def test_setup_lists_models_for_this_profile(lantern_home):
     d.memory_reader = lambda: mem(16)
     assert all(m["recommended"] for m in d.api_setup()["models"])
     assert os.environ.get("LANTERN_HOME")
+
+
+class _LoadableEmbedder(FakeEmbedder):
+    def __init__(self):
+        super().__init__()
+        self.loaded, self.loads = True, 0
+
+    def load(self):
+        self.loaded, self.loads = True, self.loads + 1
+
+    def unload(self):
+        self.loaded = False
+
+
+def test_on_demand_releases_the_search_model_when_idle_and_loads_it_back(lantern_home, monkeypatch):
+    from lantern.service import core
+
+    emb = _LoadableEmbedder()
+    d = Daemon(embedder=emb, power_reader=lambda: PowerState(on_battery=False), memory_reader=lambda: mem())
+    d.settings.mode = "ready"
+    d.last_search_at -= core.MODEL_IDLE_S + 1
+    d._release_idle_search_model()
+    d.model_thread.submit(lambda: None).result()
+    assert emb.loaded  # "always ready" keeps it
+    d.settings.mode = "on_demand"
+    d._release_idle_search_model()
+    d.model_thread.submit(lambda: None).result()
+    assert not emb.loaded
+    d.api_search("umowa najmu", log=False)
+    assert emb.loaded and emb.loads == 1 and d.api_status()["model_reload_ms"] is not None
+    assert d.api_status()["search_mode"] == "on_demand"
+
+
+def test_an_index_from_a_newer_lantern_is_explained_and_can_be_rebuilt(lantern_home, tmp_path):
+    from lantern import config
+    from lantern.store import db
+
+    folder = tmp_path / "docs"
+    folder.mkdir()
+    (folder / "a.txt").write_text("umowa najmu")
+    conn = db.connect(config.db_path())
+    with db.transaction(conn):
+        conn.execute("INSERT INTO roots(path) VALUES (?)", (str(folder),))
+    conn.execute(f"PRAGMA user_version = {db.SCHEMA_VERSION + 1}")
+    conn.close()
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False), memory_reader=lambda: mem())
+    assert d._index_newer()
+    s = d.api_status()
+    assert s["index_problem"] == "newer" and s["files"] == {} and "pid" in s
+    out = d.api_rebuild_index()
+    assert out["roots"] == [str(folder)] and d.index_problem is None
+    assert db.schema_version(config.db_path()) == db.SCHEMA_VERSION
+    assert d.api_status().get("index_problem") is None
+
+
+def test_a_damaged_index_is_detected(lantern_home):
+    from lantern import config
+    from lantern.store import db
+
+    config.db_path().parent.mkdir(parents=True, exist_ok=True)
+    config.db_path().write_bytes(b"SQLite format 3\x00" + b"\xff" * 4096)  # a header and garbage
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False), memory_reader=lambda: mem())
+    assert d._index_damaged_at_start() or not db.healthy(config.db_path())
+    d._check_index_health()
+    assert d.index_problem == "damaged"
+    d.api_rebuild_index()
+    assert db.healthy(config.db_path()) and d.index_problem is None

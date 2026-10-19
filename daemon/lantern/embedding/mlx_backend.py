@@ -157,6 +157,20 @@ class MLXEmbedder:
         mx.clear_cache()
         return out
 
+    def unload(self) -> None:
+        """Release the whole model ("on demand" mode after idle minutes); the next call loads it again."""
+        if self._model is not None:
+            import mlx.core as mx
+
+            self._model = self._tokenizer = None
+            self._has_audio = self._has_vision = False
+            gc.collect()
+            mx.clear_cache()
+
+    @property
+    def loaded(self) -> bool:
+        return self._model is not None
+
     def unload_vision(self) -> None:
         if self._model is not None and self._has_vision:
             import mlx.core as mx

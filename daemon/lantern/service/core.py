@@ -12,6 +12,7 @@ import os
 import shutil
 import signal
 import socketserver
+import sqlite3
 import struct
 import subprocess
 import sys
@@ -42,6 +43,7 @@ QUERY_MODEL_IDLE_S = 300.0  # the second photo model's text encoder is released 
 POWER_CHECK_S = 30.0
 MEMORY_CHECK_S = 5.0  # macOS's memory pressure and swap, read with sysctl (cheap)
 MEMORY_CALM_S = 180.0  # this long without pressure before indexing resumes
+MODEL_IDLE_S = 10 * 60.0  # "on demand" mode: the search model is released after this long without a search
 # The app reports an open Settings window with every status poll (2 s); without a report for this long the window
 # counts as closed (app quit or crashed), so a hold never outlives the app.
 SETTINGS_HOLD_S = 30.0
@@ -113,6 +115,9 @@ class Daemon:
         self.worker_terminating = False
         self.worker_retry_at = 0.0
         self._meta_check_at = 0.0  # next time filemeta.refresh looks for files without a date
+        self.last_search_at = time.monotonic()
+        self.index_problem: str | None = None  # "newer" (from a newer Lantern) | "damaged"
+        self.model_reload_ms: int | None = None  # last reload of the search model in "on demand" mode
         self._people_check_at = 0.0  # next time it looks for photos without people counted
         self.progress: dict = {}
         self.progress_at = 0.0  # when the worker reported the file it is on
@@ -425,6 +430,14 @@ class Daemon:
         self._people_check_at = time.monotonic() + PEOPLE_CHECK_S
         return n > 0
 
+    def _release_idle_search_model(self) -> None:
+        """"On demand" mode: the search model (~0.5 GB) is released after MODEL_IDLE_S without a search; apps and
+        settings still answer without it, and the next search by meaning loads it again (time in status)."""
+        e = self.embedder
+        if (self.settings.mode == "on_demand" and e is not None and getattr(e, "loaded", False)
+                and time.monotonic() - self.last_search_at > MODEL_IDLE_S):  # fmt: skip
+            self.model_thread.submit(e.unload)
+
     def _release_idle_query_model(self) -> None:
         q = self.query_embedder
         if (
@@ -493,6 +506,14 @@ class Daemon:
             with self.lock:
                 self.settings_seen = time.monotonic() if settings_open else 0.0
                 self._holding()
+        if self.index_problem:  # the index cannot be read: what the app needs to explain it, nothing from the file
+            return {
+                "pid": os.getpid(), "memory_mb": round(footprint_mb()), "mode": self.settings.index_mode,
+                "approved": False, "awaiting_approval": False, "paused": None, "worker": {"running": False},
+                "queued": {}, "failed_jobs": 0, "files": {}, "kinds": {}, "chunks": 0, "roots": [], "last_run": None,
+                "warnings": self.warnings[-5:], "index_problem": self.index_problem,
+                "models_missing": self.models_missing, "model_download": self._download_status(),
+            }  # fmt: skip
         conn = self._conn()
         try:
             files = {r[0]: r[1] for r in conn.execute("SELECT status, COUNT(*) FROM files GROUP BY status")}
@@ -524,6 +545,8 @@ class Daemon:
                 "worker": worker, "queued": queued, "failed_jobs": failed,
                 "files": files, "kinds": kinds, "chunks": chunks, "roots": roots, "last_run": self.last_run,
                 **enriching,  # files whose date/place, photos whose people are still to be read (phase 16)
+                "search_mode": self.settings.mode, "model_loaded": bool(getattr(self.embedder, "loaded", True)),
+                "model_reload_ms": self.model_reload_ms,
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
                 "whisper_downloaded": whisper.available(),
                 "models_missing": self.models_missing, "model_download": self._download_status(),
@@ -546,6 +569,11 @@ class Daemon:
     def _search(self, query: str, limit: int, log: bool, lang: str, category: str | None = None,
                 spelling: dict | None = None, quick: bool = False):  # fmt: skip
         conn = self._conn()
+        self.last_search_at = time.monotonic()
+        if not quick and not self.models_missing and not getattr(self.embedder, "loaded", True):
+            t = time.perf_counter()  # "on demand": the model was released; measure how long it takes back
+            self.embedder.load()
+            self.model_reload_ms = round((time.perf_counter() - t) * 1000)
         try:
             if quick or self.models_missing:  # no model: never waits for the photo model either
                 return search(conn, self.embedder, query, limit, log=log, lang=lang, category=category, quick=True)
@@ -1097,6 +1125,62 @@ class Daemon:
 
     # ---------- lifecycle ----------
 
+    # ---------- index health ----------
+
+    def _index_newer(self) -> bool:
+        version = db.schema_version(config.db_path())
+        if version is not None and version > db.SCHEMA_VERSION:
+            self.index_problem = "newer"
+            self._warn(f"the index is from a newer Lantern (schema {version}, this one reads {db.SCHEMA_VERSION})")
+            return True
+        return False
+
+    def _index_damaged_at_start(self) -> bool:
+        """A file SQLite cannot even open. The full check (quick_check) runs in the background after the start."""
+        try:
+            db.schema_version(config.db_path())
+        except sqlite3.DatabaseError:
+            self.index_problem = "damaged"
+            return True
+        return False
+
+    def _check_index_health(self) -> None:
+        if config.db_path().exists() and not db.healthy(config.db_path()):
+            self._stop_worker(wait=True)
+            with self.lock:
+                self.index_problem = "damaged"
+            self._warn("the index is damaged; Lantern can rebuild it (menu bar)")
+
+    def api_rebuild_index(self) -> dict:
+        """Start again with an empty index: the folders stay (read from the old file when it can still be read), the
+        damaged or newer file is deleted, and everything is indexed again."""
+        self._stop_worker(wait=True)
+        path = config.db_path()
+        roots: list[str] = []
+        with suppress(sqlite3.DatabaseError):
+            if path.exists():
+                old = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+                roots = [r[0] for r in old.execute("SELECT path FROM roots")]
+                old.close()
+        for suffix in ("", "-wal", "-shm"):
+            with suppress(FileNotFoundError):
+                Path(str(path) + suffix).unlink()
+        db.connect(path).close()  # a fresh, empty index of this version
+        with self.lock:
+            self.index_problem = None
+        for root in roots:
+            with suppress(FileNotFoundError):
+                self.api_index(root)
+        return {"rebuilt": True, "roots": roots}
+
+    def _shutdown(self, path: Path) -> None:
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+        self.model_thread.shutdown(wait=False)
+        with suppress(FileNotFoundError):
+            path.unlink()
+
     def _serve(self, path: Path) -> None:
         daemon = self
 
@@ -1155,6 +1239,18 @@ class Daemon:
             from lantern.service.worker import make_query_embedder
 
             self.query_embedder = make_query_embedder()
+        if self._index_newer() or self._index_damaged_at_start():
+            # Only the API: the app explains and offers what to do (update Lantern, or rebuild the index), instead of
+            # the daemon exiting and being restarted until the app gives up.
+            self._serve(path)
+            served = True
+            while not self.stopping.is_set() and self.index_problem:
+                self.stopping.wait(TICK_S)
+            if self.stopping.is_set():
+                self._shutdown(path)
+                return 0
+        else:
+            served = False
         conn = self._conn()
         from lantern.queue import jobs
 
@@ -1175,7 +1271,9 @@ class Daemon:
         conn = self._conn()
         self._after_scan(conn, found_new=True)  # also files left waiting by an earlier run
         conn.close()
-        self._serve(path)
+        if not served:
+            self._serve(path)
+        threading.Thread(target=self._check_index_health, daemon=True).start()
         qos.set_thread_qos("utility")  # this thread now only scans and supervises; API threads keep default QoS
         if threading.current_thread() is threading.main_thread():  # launchd stops agents with SIGTERM
             signal.signal(signal.SIGTERM, lambda *_: self.stopping.set())
@@ -1194,6 +1292,7 @@ class Daemon:
                 self._manage_worker()
                 self._refresh_meta()
                 self._release_idle_query_model()
+                self._release_idle_search_model()
                 with self.lock:
                     worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)
                 self.perf.tick(worker_pid, progress)

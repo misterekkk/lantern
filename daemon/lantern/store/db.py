@@ -183,6 +183,29 @@ class ChunkRecord:
     page: int | None = None  # PDF page
 
 
+def schema_version(path: Path) -> int | None:
+    """The index file's schema version without opening it for writing or migrating it (None: no file)."""
+    if not path.exists():
+        return None
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def healthy(path: Path) -> bool:
+    """SQLite's quick structural check (~0.5–1.7 s for a 500 MB index): False for a damaged file."""
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            return conn.execute("PRAGMA quick_check(1)").fetchone()[0] == "ok"
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError:
+        return False
+
+
 class NewerSchemaError(RuntimeError):
     """The index was upgraded by a newer Lantern (e.g. an index worker started from updated code)."""
 
