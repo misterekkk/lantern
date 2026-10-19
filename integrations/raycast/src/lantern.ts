@@ -70,9 +70,10 @@ export interface FileHit {
 export function whenWhere(h: FileHit, visual: boolean): string {
   if (!visual && h.start_ms == null && !["exif", "quicktime", "name"].includes(h.date_source ?? "")) return "";
   const parts: string[] = [];
-  if (h.date) {
+  const day = h.date ? new Date(`${h.date}T00:00:00Z`) : null;
+  if (day && !Number.isNaN(day.getTime())) {
     // a calendar day: shown in UTC so this Mac's time zone never moves it to the day before
-    parts.push(new Date(`${h.date}T00:00:00Z`).toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" }));
+    parts.push(day.toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" }));
   }
   let country: string | undefined;
   try {
@@ -84,6 +85,7 @@ export function whenWhere(h: FileHit, visual: boolean): string {
   else if (country) parts.push(country); // a camera without GPS, in a folder named after the country
   return parts.join(" · ");
 }
+
 export interface DefinitionHit {
   path: string;
   line: number;
