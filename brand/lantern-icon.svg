@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- Lantern's icon (variant E, "lantern light"): a magnifier on a graphite tile, its sparkle in warm amber, the one
-       light in the dark. macOS icon grid: an 824 pt tile inside the 1024 pt canvas. The menu bar keeps a one-colour
-       template glyph. -->
-  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#1f2126"/>
-  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" ry="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+       light in the dark. macOS icon grid: an 824 pt tile inside the 1024 pt canvas with continuous (squircle) corners,
+       corner 212, so the diagonal meets the edge at 162 px as on Apple's own icons. No rim (it showed as a light halo
+       on dark backgrounds); svg2png.swift adds the drop shadow. The menu bar keeps a one-colour template glyph. -->
+  <path d="M 424.08 100.00 L 599.92 100.00 C 693.24 100.00 739.90 100.00 790.12 115.88 C 844.96 135.84 888.16 179.04 908.12 233.88 C 924.00 284.10 924.00 330.76 924.00 424.08 L 924.00 599.92 C 924.00 693.24 924.00 739.90 908.12 790.12 C 888.16 844.96 844.96 888.16 790.12 908.12 C 739.90 924.00 693.24 924.00 599.92 924.00 L 424.08 924.00 C 330.76 924.00 284.10 924.00 233.88 908.12 C 179.04 888.16 135.84 844.96 115.88 790.12 C 100.00 739.90 100.00 693.24 100.00 599.92 L 100.00 424.08 C 100.00 330.76 100.00 284.10 115.88 233.88 C 135.84 179.04 179.04 135.84 233.88 115.88 C 284.10 100.00 330.76 100.00 424.08 100.00 Z" fill="#1f2126"/>
   <circle cx="454" cy="454" r="184" fill="none" stroke="#f3f4f6" stroke-width="62"/>
   <path d="M594 594 L726 726" stroke="#f3f4f6" stroke-width="70" stroke-linecap="round"/>
   <path d="M454 354 C466 420 488 442 554 454 C488 466 466 488 454 554 C442 488 420 466 354 454 C420 442 442 420 454 354 Z" fill="#f2b84b"/>
