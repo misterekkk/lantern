@@ -79,6 +79,13 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     only when Raycast asks and only for indexed files; each is deleted after 10 minutes, and all of them when the
     daemon starts. This is the one place Lantern writes a picture of your files to disk.
 
+19. **Time and place** (phase 16): Lantern reads the date and the GPS location saved in photos and videos (EXIF,
+    QuickTime) and dates in file names. The location becomes a city through a table of GeoNames cities (CC-BY 4.0)
+    shipped inside Lantern, so no coordinates are sent anywhere (Apple's geocoder was rejected because it sends them
+    to Apple). The index keeps the coordinates, the city and only the cities your files were made in. Switching
+    `places` off (Settings → File Types) deletes every coordinate and city from the index; a city whose last photo
+    is deleted is removed with it. Dates stay. Reading them opens only file headers, never iCloud-only files.
+
 ## Where the data is
 
 | Data | Location | Notes |

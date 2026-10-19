@@ -28,6 +28,16 @@ schema.sql for fresh DBs and add the upgrade statements to `_MIGRATIONS` in `sto
   files are kept (`report.protects`). Never read a dataless file (it would download it). Home-folder policy, bundles,
   hidden folders and user excludes (`settings.exclude`) are applied there too.
 
+## Time and place (Phase 16)
+
+- `files.inferred_date` (wall-clock seconds), `date_source`, `lat`/`lon`, `place_id`, `meta_version`: filled by
+  `filemeta.refresh` (daemon control loop, `lantern index`) from file headers (`extractors/metadata.py`), never by the
+  worker. A changed or moved file gets `meta_version = 0`; bump `filemeta.META_VERSION` when the cascade changes
+  (headers are read again, nothing is re-embedded). `places`/`place_names` hold only cities of indexed files;
+  `delete_files` and `forget_places` remove unused ones.
+- `search/when.py` (time phrases) and `places.find_in_query` feed `hybrid.parse_filters`, which builds one
+  `search.scope.Scope` (folder + time + place) used by every candidate list.
+
 ## Job queue rules
 
 - Enqueue is an upsert on `(file_id, kind)`: re-enqueueing the same work is a no-op.

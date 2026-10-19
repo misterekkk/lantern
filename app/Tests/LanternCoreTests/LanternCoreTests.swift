@@ -32,6 +32,30 @@ import Testing
         #expect(Format.title(r.results[0]) == "vlog.mp4  ·  1:48")
         #expect(Format.sources(r.results[0]) == "meaning · words")  // English source; Polish comes from pl.lproj
     }
+
+    @Test func photosSayWhenAndWhere() throws {
+        // Phase 16: hybrid.Result date, date_source, place (in the app's language), country code.
+        let json = """
+        {"results": [], "event_id": null, "vector_ms": 0, "keyword_ms": 0,
+         "photos": [{"path": "/Users/x/Zdjęcia/IMG_1.HEIC", "chunk_id": 3, "start_line": null, "end_line": null,
+          "symbol": null, "preview": "", "score": 0, "vector_rank": null, "keyword_rank": null, "kind": "image",
+          "date": "2023-05-14", "date_source": "exif", "place": "Kraków", "country": "PL"},
+          {"path": "/Users/x/a.txt", "chunk_id": 4, "start_line": null, "end_line": null, "symbol": null,
+          "preview": "", "score": 0, "vector_rank": null, "keyword_rank": null, "kind": "text",
+          "date": "2021-04-01", "date_source": "fs"}]}
+        """
+        let r = try DaemonClient.decoder.decode(SearchResponse.self, from: Data(json.utf8))
+        let photo = try #require(r.photos.first)
+        #expect(Format.whenWhere(photo, locale: Locale(identifier: "pl_PL")) == "14 maja 2023 · Kraków, Polska")
+        #expect(Format.whenWhere(photo, locale: Locale(identifier: "en_US")) == "May 14, 2023 · Kraków, Poland")
+        #expect(Format.whenWhere(r.photos[1]) == nil)  // a document's file-system date is not shown
+        let older = try DaemonClient.decoder.decode(DaemonSettings.self, from: Data("""
+        {"index_mode": "ask", "pause_on_battery": true, "pause_on_low_power": true, "pause_on_thermal": true,
+         "transcribe": true, "index_photos": true, "index_video_frames": true, "notify": true, "debounce_s": 3,
+         "exclude": [], "exclude_extensions": [], "index_audio_video": true, "index_image_text": true}
+        """.utf8))
+        #expect(older.places == nil)  // a daemon from before phase 16: no switch shown
+    }
 }
 
 @Suite struct ProtocolTests {

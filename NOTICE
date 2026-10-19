@@ -8,6 +8,10 @@ Lantern does not include model weights. Users download them separately; each mod
 - SigLIP 2 (google/siglip2-base-patch16-224; MLX conversion mlx-community/siglip2-base-patch16-224-8bit): Apache License 2.0
 - Whisper large-v3-turbo (OpenAI; MLX conversion mlx-community/whisper-large-v3-turbo): MIT License
 
+Lantern bundles a table of cities (daemon/lantern/data/places.tsv.gz) built from GeoNames (https://www.geonames.org),
+licensed under the Creative Commons Attribution 4.0 License (CC-BY 4.0): names, coordinates and countries of cities
+with 15,000 or more inhabitants, reduced to the columns Lantern uses by scripts/build_places.py.
+
 The website (site/) bundles two fonts, each under the SIL Open Font License, Version 1.1:
 - Atkinson Hyperlegible Next, Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors
 - Instrument Sans, Copyright 2022 The Instrument Sans Project Authors

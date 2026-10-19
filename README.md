@@ -351,6 +351,21 @@ uv run lantern clear-history               # delete the local search history
   panel, Raycast, Alfred and the CLI: `in:down umowa najmu`, `in:Studia`, `in:"Moje dokumenty" faktura`, or a path,
   `in:~/Projects/lantern readme`. The folder word is never spell-checked or sent to the model; apps, settings and
   answers are left out, since they are not in a folder.
+- **When and where:** a time in the query keeps results to files made then, in Polish or English: `zdjęcia z maja
+  2023`, `umowa z 2024`, `faktura wczoraj`, `photos from last summer`, `dokumenty w zeszłym tygodniu`, `14.05.2023`.
+  A place keeps photos and videos to those made there, in any language: `zdjęcia z Krakowa`, `photos in Kraków`,
+  `Bilder aus Krakau`. A time or a place alone (or with `zdjęcia`, `filmy`, `dokumenty`) lists what was made then or
+  there, newest first. A bare year or month (`wakacje 2023`) only lifts files made then, since the word may as well be
+  in a document. Photos and recordings show the date and the city in their row.
+  - The date comes from the photo's EXIF data, a video's or recording's own creation date, a date in the file or
+    folder name (`IMG_20230514_…`, `2023-05-14 Wakacje/`), and only then the file's dates on the disk. Implausible
+    dates (before 1990, in the future, a camera's reset clock such as 2000-01-01 00:00) and numbers that only look
+    like years are ignored.
+  - The city comes from the location saved in photos and videos, matched to the nearest city of 15,000+ people in a
+    table built into Lantern (GeoNames): nothing is looked up online. Switch: Settings → File Types → Places in photos
+    and videos, or `lantern config places false`, which also deletes the saved locations from the index.
+  - After an update from 0.1.x, dates and places are filled in the background from file headers in a minute or two;
+    nothing is indexed again.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and

@@ -164,6 +164,7 @@ daemon applies changes at once.
 | `pause_on_thermal` | `true` | pause when macOS reports the Mac is hot (thermal state serious or worse) |
 | `index_photos` | `true` | index photos (two image models) |
 | `index_image_text` | `true` | read text in photos and screenshots (Apple Vision, on device) |
+| `places` | `true` | GPS of photos and videos -> city (built-in table, offline); `false` deletes saved locations |
 | `index_audio_video` | `true` | index audio files and videos |
 | `transcribe` | `true` | Whisper transcripts of recordings (off: see *Transcription on and off* in README) |
 | `index_video_frames` | `true` | index frames of videos as photos |

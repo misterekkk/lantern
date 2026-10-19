@@ -1203,6 +1203,42 @@ M4A, MP3, MOV and Ogg Opus.
   measured: `purge` needs root. The index lives on the internal disk; an I/O error under mmap would be a SIGBUS instead
   of an SQLite error, accepted for a local file.
 
+## Phase 16: time and place (2026-10-19, branch `phase16-time-place`)
+
+- **Metadata in pure Python** (`extractors/metadata.py`): EXIF through Pillow; HEIC/HEIF through a small reader of the
+  `meta` box (`iinf` + `iloc` → the Exif item → Pillow), checked on files made by `sips`; QuickTime through the `moov`
+  atom: `com.apple.quicktime.creationdate` and `…location.ISO6709` (iPhone keys), `mvhd` (UTC), `©xyz` (Apple,
+  Android) and 3GPP `loci` (what ffmpeg writes in MP4). Not PyObjC/ImageIO: the daemon must never import PyObjC, and
+  it is the daemon that fills dates of files indexed before 0.2 (`filemeta.refresh`, 50 files per tick, paused like
+  indexing), so an upgrade re-embeds nothing (test `test_upgrade_fills_dates_without_reindexing`). Only file headers
+  are read (the HEIF `meta` box alone, the `moov` atom capped at 32 MB), never iCloud-only files.
+- **Dates are wall-clock time** where the file was made, stored as `timegm` of the naive local time: "May 2023" is the
+  calendar of the person who took the photo. `mvhd` is UTC and is shown in this Mac's zone (the recording's zone is
+  not in it). Cascade: EXIF `DateTimeOriginal` / `Digitized` / `DateTime` → QuickTime → a date in the file name, its
+  folder, the folder above → the earlier of creation and modification time. Plausible only: 1990-01-01 to tomorrow,
+  not 2000-01-01 00:00:00 or the epoch. Names: separated dates with the day (`2023-05-14`, `14.05.2023`), 8 digits
+  only with a time (`20230514_123456`) or after a camera or app prefix (`IMG_`, `PXL_`, `signal-`…): `order 20230514`,
+  `report 1950` and IDs are not dates (tests).
+- **Places:** GeoNames `cities15000` (34 173 places, minus 2 401 city districts `PPLX` and historical places: without
+  that filter a photo in Paris was labelled "Paris 03 Temple") with every alternate name (all languages; one display
+  name per language from `alternateNamesV2`), 2.4 MB gzipped in the package (`scripts/build_places.py`, a development
+  step). Nearest city within 40 km, unit vectors in float64 (in float32 the cosines of points a kilometre apart are all
+  1.0 and the wrong district won). Only the cities of the user's files are copied into the index (`places`,
+  `place_names`), so place words in queries can only match places the user has been to; an inflected word must be the
+  whole name (or all but its last letter) plus a case ending (`Krakowie`, `Warszawie`, `Paryżu`; `kraken` is not
+  Kraków). Countries are named by the clients (Foundation `Locale`, `Intl.DisplayNames`), in the system language.
+  CLGeocoder rejected: it sends coordinates to Apple.
+- **Query time parser** (`search/when.py`, PL/EN only): explicit phrases are hard filters cut from the query
+  (preposition + month/season/year, month + year, a day, relative days, weeks, months, years, seasons); a bare year or
+  month name is a 30% boost and stays in the query; `may` and `march` alone are verbs, `jan` alone is a name. Winter of
+  a year = its January, February and December. A place after a preposition is a filter, a bare place name a boost.
+  Folder, time and place share one SQL condition (`search.scope.Scope`) through vector, keyword, photo and symbol
+  search. A time or place with nothing else, or only a kind word (`zdjęcia`, `filmy`, `dokumenty`, `pdfy`), browses
+  the files made then or there, newest first.
+- **Faces:** not done; the phase plan allows them only if an evaluation shows a gain, and none was run.
+- Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
+  dictionary); time phrases in languages other than Polish and English are not understood (places are).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
