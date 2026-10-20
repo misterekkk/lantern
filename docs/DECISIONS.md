@@ -1262,6 +1262,42 @@ M4A, MP3, MOV and Ogg Opus.
 - **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
   are now removed to the end of the line.
 
+## Lantern and DigUp compared (2026-10-20)
+
+- [DigUp](https://github.com/ARahim3/DigUp) (MIT, commit 7db9537, the project that inspired Lantern) uses the same
+  model: EmbeddingGemma 2 in 8 bits (llama.cpp Q8_0 GGUF, where Lantern uses MLX 8-bit), so the comparison measures
+  everything around the model: chunking, keyword search, fusion. Its CLI was built from source in a scratch folder (no
+  app installed, nothing indexed outside the test folders), each set indexed into its own folder, and its search
+  service (warm encoder, as in its app) asked the same test queries as Lantern in the same three forms (original, one
+  word in another form, every word changed). Scripts: `spikes/phase17/digup_query.py`, `compare_digup.py`.
+- Data, test queries only (pinned revisions, as in "Fusion and inflections measured"):
+  SciFact ([BEIR](https://huggingface.co/datasets/BeIR/scifact), [BEIR-PL](https://huggingface.co/datasets/clarin-knext/scifact-pl)),
+  NFCorpus ([EN](https://huggingface.co/datasets/BeIR/nfcorpus), [PL](https://huggingface.co/datasets/clarin-knext/nfcorpus-pl)),
+  Quora ([EN](https://huggingface.co/datasets/BeIR/quora), [PL](https://huggingface.co/datasets/clarin-knext/quora-pl), 500 queries, 10 000
+  documents), FiQA ([EN](https://huggingface.co/datasets/BeIR/fiqa), [PL](https://huggingface.co/datasets/clarin-knext/fiqa-pl), 500 queries,
+  10 000 documents). Relevance judgements from the matching `-qrels` repositories.
+- nDCG@10, original queries (+/- significant at 95%, paired bootstrap):
+
+  | set | Lantern | DigUp | |
+  |---|---|---|---|
+  | SciFact EN / PL | 0.822 / 0.699 | 0.849 / 0.696 | DigUp + / tie |
+  | NFCorpus EN / PL | 0.359 / 0.348 | 0.373 / 0.331 | tie / Lantern + |
+  | Quora EN / PL | 0.986 / 0.969 | 0.989 / 0.972 | tie / tie |
+  | FiQA EN / PL | 0.519 / 0.420 | 0.527 / 0.396 | tie / Lantern + |
+  | average | 0.640 | 0.641 | |
+
+  One word changed: 0.635 vs 0.633; every word changed: 0.610 vs 0.606 (Lantern ahead on Polish, DigUp on English).
+- Cost: search median 28-126 ms (Lantern, both lists in one process) vs 18-115 ms (DigUp, through its service);
+  memory while searching about the same (Lantern's daemon 430-500 MB, DigUp's service 470-580 MB resident with the
+  mapped weights); indexing DigUp ~13% faster on long texts and Lantern ~2x faster on short ones, DigUp's peak
+  0.7-0.8 GB against ~1.5 GB for Lantern's text worker.
+- **Conclusion:** with the same model, text retrieval is a tie; Lantern is better in Polish (its stemming) and DigUp
+  slightly in English, and DigUp is lighter. Lantern's differences are elsewhere: transcripts with moments, time,
+  place and people filters, the launcher (apps, settings, answers), no network by default, and integrations that are
+  thin clients of the daemon's socket (Raycast, Alfred, CLI). DigUp has a JSON search service of its own (for its
+  Windows and Linux shells) but offers no launcher integration. Not measured: photos and recordings, and a real home
+  folder (it would have meant DigUp reading the user's files).
+
 ## Reranker, convex combination and language-free query types measured (2026-10-20)
 
 - The three cheapest ideas of the search report, on the same 8 BEIR / BEIR-PL sets and the real index's keyword
