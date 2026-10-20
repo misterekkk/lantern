@@ -2,7 +2,7 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.2.1 — 2026-10-20
 
 - **Welcome window** on first launch, in the system's language: how often you search, which models (recommended for
   this Mac's memory), which folders, and Lantern's panel, Raycast or Alfred.
@@ -29,9 +29,11 @@ What changed for people using Lantern, newest first.
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
   whole file, so you can go back to the start), in a window the size of Raycast's with more of the transcript; ⌘Y
   closes the preview and stops the sound. The frame and transcript are on ⇧⌘Y.
-- **Settings → Performance:** a taller memory chart, "Search model" (always ready / when needed) under the models, model
-  sizes in Finder's units.
+- **Settings → Performance:** a taller memory chart, "Search model" (always ready / when needed / when needed on
+  battery) under the models, model sizes in Finder's units.
 - **Icon:** Apple's continuous corners and shadow, no light rim; the status dot uses macOS's own amber.
+- **Website:** the interactive tour matches the site (dusk wallpaper, new pictures, a calm outline where to click, a
+  way back to the site at any time), and the README shows Lantern in action (an animation, also as a video).
 
 ## 0.2.0 — 2026-10-19
 
