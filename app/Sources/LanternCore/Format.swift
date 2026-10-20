@@ -60,6 +60,26 @@ public enum Format {
         return f
     }()
 
+    /// The question before adding a large folder: how many files, how big, roughly how long (in the app's language).
+    public static func estimate(_ e: FolderEstimate) -> String {
+        let files = (e.files ?? 0).formatted()
+        let size = ByteCountFormatter.string(fromByteCount: e.bytes ?? 0, countStyle: .file)
+        var lines = [e.complete == false
+            ? String(localized: "At least \(files) files (\(size)); counting stopped early.")
+            : String(localized: "About \(files) files (\(size)).")]
+        if let m = e.minutes, m > 0 {
+            let time = m >= 90 ? String(localized: "\(Int((Double(m) / 60).rounded())) h") : String(localized: "\(m) min")
+            lines.append((e.recordings ?? 0) > 0
+                ? String(localized: "The first indexing takes roughly \(time), plus the recordings.")
+                : String(localized: "The first indexing takes roughly \(time)."))
+        }
+        if e.external == true {
+            lines.append(String(localized: "It is on another disk: while it is disconnected, its files stay in the index and indexing waits."))
+        }
+        lines.append(String(localized: "A smaller folder (a project, Documents) is usually enough. You can leave parts out later in Settings → Folders."))
+        return lines.joined(separator: " ")
+    }
+
     /// A daemon warning in the app's language (Lantern's own, not only the system's); nil for one that is not shown.
     public static func warning(_ e: WarningEvent) -> String? {
         let a = e.args
@@ -86,6 +106,8 @@ public enum Format {
         case "index_newer": return String(localized: "The index is from a newer Lantern.")
         case "index_damaged": return String(localized: "The index is damaged; Lantern can rebuild it.")
         case "schema_upgraded": return String(localized: "A newer Lantern upgraded the index; restarting.")
+        case "settings_fixed":
+            return String(localized: "A value in config.toml was not valid and was corrected: \(a["detail"] ?? "")")
         case "parent_exited": return nil
         default: return e.message.isEmpty ? nil : e.message
         }

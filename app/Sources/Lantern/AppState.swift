@@ -284,7 +284,100 @@ final class AppState: ObservableObject {
         panel.message = String(localized: "Choose a folder for Lantern to search.")
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK, let url = panel.url {
-            run("index", ["path": url.path], message: String(localized: "Added \(Format.shortPath(url.path)). Indexing runs in the background."))
+            Task { await addCheckedFolder(url.path) }
+        }
+    }
+
+    /// A folder chosen in Settings: the daemon refuses the whole disk and system folders, and a large one is added only
+    /// after the user saw what it means (phase 17).
+    func addCheckedFolder(_ path: String) async {
+        lastMessage = String(localized: "Counting the files in \(Format.shortPath(path))…")
+        let estimate: FolderEstimate
+        do {
+            estimate = try await client.call("estimate", ["path": path], as: FolderEstimate.self, timeout: 30)
+        } catch {
+            lastMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            return
+        }
+        lastMessage = nil
+        if let refused = estimate.refused {
+            let alert = NSAlert()
+            switch refused {
+            case "disk":
+                alert.messageText = String(localized: "Choose the folders with your files")
+                alert.informativeText = String(localized: "Lantern does not index the whole disk: it is mostly the system and apps. Choose the folders you want to search, such as Documents, Desktop or a project.")
+            case "lantern":
+                alert.messageText = String(localized: "This is Lantern's own data folder")
+                alert.informativeText = String(localized: "It holds the index itself, so Lantern does not index it.")
+            default:
+                alert.messageText = String(localized: "This is a system folder")
+                alert.informativeText = String(localized: "System folders and the Library folder hold apps' data, not your files, so Lantern does not index them. iCloud Drive and folders of cloud apps such as Dropbox can be added.")
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+            return
+        }
+        if estimate.large == true {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "\(Format.shortPath(path)) is a large folder")
+            alert.informativeText = Format.estimate(estimate)
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            alert.addButton(withTitle: String(localized: "Add Anyway"))
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+        }
+        run("index", ["path": path], message: String(localized: "Added \(Format.shortPath(path)). Indexing runs in the background."))
+    }
+
+    // MARK: - Restore defaults, delete all data
+
+    /// The app's own settings in UserDefaults that "Restore Defaults" resets (not the welcome being done, not window
+    /// positions macOS keeps).
+    private static let keptDefaults: Set<String> = [welcomeDoneKey, "spotifyRedirectPort"]
+
+    /// Settings → General: the daemon's settings to this Mac's defaults (folders and exclusions stay), the app's
+    /// own ones too, then a restart so the shortcut, language and integrations start from them.
+    func restoreDefaults() {
+        Task {
+            do {
+                try await client.callRaw("restore_defaults", timeout: 60)
+            } catch {
+                lastMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                return
+            }
+            if MusicSync.shared.enabled { MusicSync.shared.clear() }
+            if SpotifySync.shared.enabled { SpotifySync.shared.signOut() }
+            let defaults = UserDefaults.standard
+            let domain = defaults.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "") ?? [:]
+            for key in domain.keys where !Self.keptDefaults.contains(key) && !key.hasPrefix("NS") && !key.hasPrefix("AV") {
+                defaults.removeObject(forKey: key)
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)  // the music lists' clear calls go out first
+            AppLanguage.relaunch()
+        }
+    }
+
+    /// Settings → Privacy: everything Lantern stored (the daemon's index, settings and logs; the app's settings,
+    /// the Spotify keys in the keychain, its caches), then Lantern starts as on the first day. Files and models stay.
+    func deleteAllData() {
+        Task {
+            do {
+                try await client.callRaw("delete_all_data", timeout: 120)
+            } catch {
+                lastMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                return
+            }
+            SpotifySync.shared.forgetEverything()
+            ClipboardHistory.shared.clear()
+            if let id = Bundle.main.bundleIdentifier {
+                UserDefaults.standard.removePersistentDomain(forName: id)
+                let library = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library")
+                for folder in ["Caches", "HTTPStorages", "WebKit"] {  // only Lantern's own folders, by its bundle id
+                    try? FileManager.default.removeItem(at: library.appendingPathComponent(folder).appendingPathComponent(id))
+                }
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            AppLanguage.relaunch()
         }
     }
 

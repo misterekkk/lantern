@@ -247,16 +247,22 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   - ⌘Y instead of Space: the panel's focus stays in the query field, where Space types a space. ⌘Y is the Quick
     Look shortcut of Finder.
 - **Settings** (Settings… in the menu), laid out like System Settings:
-  - **General:** open at login, language, search shortcut, preferred languages (the macOS ones plus any you add:
-    used for app and setting names and for reading text in images), ask before indexing or index automatically,
-  - **File Types:** photos and the text in them (OCR), recordings and videos (with transcription and video frames),
-    ignored extensions,
+  - **General:** open at login, language, search shortcut, ask before indexing or index automatically, Restore
+    Defaults (your folders stay); under *Advanced*, preferred languages (the macOS ones plus any you add: used for
+    app and setting names and for reading text in images),
+  - **File Types:** photos and the text in them (OCR), places and people in photos, recordings and videos (with
+    transcription and video frames); ignored extensions under *Advanced*,
   - **Folders:** indexed folders, *Choose What to Index* (a folder tree with checkboxes, down to single files, with
-    name search and the number of indexed files), exclusion patterns,
-  - **Battery and Heat:** pause indexing on battery power, in Low Power Mode or when the Mac is hot,
+    name search and the number of indexed files), exclusion patterns. Adding the whole disk, a system folder or
+    `~/Library` is refused (iCloud Drive and cloud folders such as Dropbox are fine); a very large folder shows how
+    many files it has and roughly how long the first indexing takes before it is added,
+  - **When to Index:** pause indexing on battery power, in Low Power Mode or when the Mac is hot, and index any
+    time, only when the Mac is idle (5 minutes without keyboard or mouse) or at night (hours of your choice); search
+    works at any hour,
   - **Performance:** live memory chart of the daemon and the indexing process, peaks, current work and speed,
     models (revision, size on disk, where they are loaded),
-  - **Privacy:** clear history, compact the index, data folder, macOS permissions; **About**.
+  - **Privacy:** clear history, compact the index, data folder, Delete All Data (the index, history, settings,
+    the Spotify sign-in and logs; never your files or the models), macOS permissions; **About**.
 - **Language:** the app follows the macOS language (English and Polish today). To choose one for Lantern only:
   Settings → General → Language (Lantern restarts), or System Settings → General → Language & Region → Applications.
 - **The app starts the daemon** as its child process, so macOS file permissions (Desktop, Documents, Downloads) are

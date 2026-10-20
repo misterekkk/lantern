@@ -183,7 +183,6 @@
 
 /* Settings redesign */
 "File Types" = "Rodzaje plików";
-"Battery and Heat" = "Bateria i temperatura";
 "Search" = "Szukaj";
 "Indexing %lld of %lld" = "Indeksowanie %lld z %lld";
 "%lld files in the index" = "Plików w indeksie: %lld";
@@ -209,7 +208,6 @@
 "Show All Files" = "Pokaż wszystkie pliki";
 "Patterns work like .gitignore and apply inside every indexed folder." = "Wzorce działają jak .gitignore i obowiązują w każdym indeksowanym folderze.";
 "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode and pause while your Mac is hot." = "Indeksowanie korzysta z GPU. Lantern może poczekać na ładowarkę, uszanować tryb niskiego zużycia energii i wstrzymać pracę, gdy Mac jest gorący.";
-"Search always works, also while indexing is paused." = "Wyszukiwanie działa zawsze, także podczas pauzy w indeksowaniu.";
 "Everything stays on this Mac. Lantern only reads your files; it goes online only for Spotify, if you turn it on." = "Wszystko zostaje na tym Macu. Lantern tylko czyta Twoje pliki; łączy się z internetem wyłącznie dla Spotify, jeśli to włączysz.";
 "Runs offline, no telemetry" = "Działa offline, bez telemetrii";
 "Indexed files are only read, never changed" = "Indeksowane pliki są tylko czytane, nigdy zmieniane";
@@ -485,3 +483,45 @@
 "The model download failed. Check the connection and try again; details are in logs/models.log." = "Pobieranie modelu nie powiodło się. Sprawdź połączenie i spróbuj ponownie; szczegóły są w logs/models.log.";
 "When needed" = "Na żądanie";
 "Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer." = "„Zawsze gotowy” trzyma model wyszukiwania w pamięci (ok. 0,5 GB), więc wyniki pojawiają się od razu. „Na żądanie” zwalnia go po 10 minutach bez wyszukiwania: aplikacje i ustawienia nadal odpowiadają od razu, a pierwsze wyszukiwanie po znaczeniu po przerwie trwa chwilę dłużej.";
+
+/* Phase 17: fool-proofing, schedule, restore and delete */
+"Advanced" = "Zaawansowane";
+"When to Index" = "Kiedy indeksować";
+"Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode, pause while your Mac is hot, and index only when you are away or at night." = "Indeksowanie korzysta z GPU. Lantern może czekać na ładowarkę, szanować tryb niskiego zużycia energii, robić pauzę, gdy Mac jest gorący, i indeksować tylko pod Twoją nieobecność albo w nocy.";
+"Any time" = "O każdej porze";
+"When the Mac is idle" = "Gdy Mac jest nieużywany";
+"At night" = "W nocy";
+"From" = "Od";
+"To" = "Do";
+"Indexing starts after 5 minutes without the keyboard or mouse and stops when you are back." = "Indeksowanie rusza po 5 minutach bez klawiatury i myszy, a zatrzymuje się, gdy wracasz.";
+"The Mac has to be awake and, with the pause above, on the charger. New files wait until then." = "Mac musi być wybudzony, a przy włączonej pauzie powyżej także na ładowarce. Nowe pliki czekają do tego czasu.";
+"Search always works, also while indexing is paused or waits for its time." = "Wyszukiwanie działa zawsze, także gdy indeksowanie ma pauzę albo czeka na swoją porę.";
+"Restore Defaults…" = "Przywróć domyślne…";
+"Restore Defaults" = "Przywróć domyślne";
+"Restore the default settings?" = "Przywrócić ustawienia domyślne?";
+"Every setting goes back to what Lantern suggests for this Mac. Your folders and the parts you left out of them stay." = "Każde ustawienie wraca do tego, co Lantern proponuje dla tego Maca. Twoje foldery i pominięte w nich części zostają.";
+"Every setting goes back to what Lantern suggests for this Mac, and Lantern restarts. Your folders, the parts you left out of them and the index stay." = "Każde ustawienie wraca do tego, co Lantern proponuje dla tego Maca, a Lantern uruchomi się ponownie. Twoje foldery, pominięte w nich części i indeks zostają.";
+"Delete All Data…" = "Usuń wszystkie dane…";
+"Delete All Data" = "Usuń wszystkie dane";
+"Delete all of Lantern's data?" = "Usunąć wszystkie dane Lantern?";
+"The index of your folders, search history, settings, the Spotify sign-in and logs are deleted, and Lantern starts again as on the first day. Your files and the downloaded models are not touched. This cannot be undone." = "Indeks Twoich folderów, historia wyszukiwania, ustawienia, logowanie do Spotify i logi zostaną usunięte, a Lantern zacznie od nowa jak pierwszego dnia. Twoje pliki i pobrane modele pozostaną nietknięte. Tego nie da się cofnąć.";
+"Waiting for the night" = "Czeka na noc";
+"Waiting until the Mac is idle" = "Czeka, aż Mac będzie nieużywany";
+"Counting the files in %@…" = "Liczenie plików w %@…";
+"Choose the folders with your files" = "Wybierz foldery ze swoimi plikami";
+"Lantern does not index the whole disk: it is mostly the system and apps. Choose the folders you want to search, such as Documents, Desktop or a project." = "Lantern nie indeksuje całego dysku: to głównie system i aplikacje. Wybierz foldery, które chcesz przeszukiwać, na przykład Dokumenty, Biurko albo projekt.";
+"This is Lantern's own data folder" = "To folder z danymi samego Lantern";
+"It holds the index itself, so Lantern does not index it." = "Jest w nim sam indeks, więc Lantern go nie indeksuje.";
+"This is a system folder" = "To folder systemowy";
+"System folders and the Library folder hold apps' data, not your files, so Lantern does not index them. iCloud Drive and folders of cloud apps such as Dropbox can be added." = "Foldery systemowe i folder Biblioteki zawierają dane aplikacji, a nie Twoje pliki, więc Lantern ich nie indeksuje. iCloud Drive i foldery aplikacji chmurowych, takich jak Dropbox, można dodać.";
+"%@ is a large folder" = "%@ to duży folder";
+"Add Anyway" = "Dodaj mimo to";
+"At least %@ files (%@); counting stopped early." = "Plików: co najmniej %@ (%@); liczenie przerwano wcześniej.";
+"About %@ files (%@)." = "Plików: około %@ (%@).";
+"%lld h" = "%lld h";
+"%lld min" = "%lld min";
+"The first indexing takes roughly %@, plus the recordings." = "Pierwsze indeksowanie potrwa mniej więcej %@, plus nagrania.";
+"The first indexing takes roughly %@." = "Pierwsze indeksowanie potrwa mniej więcej %@.";
+"It is on another disk: while it is disconnected, its files stay in the index and indexing waits." = "Jest na innym dysku: gdy będzie odłączony, jego pliki zostaną w indeksie, a indeksowanie poczeka.";
+"A smaller folder (a project, Documents) is usually enough. You can leave parts out later in Settings → Folders." = "Zwykle wystarczy mniejszy folder (projekt, Dokumenty). Części możesz później pominąć w Ustawieniach → Foldery.";
+"A value in config.toml was not valid and was corrected: %@" = "Wartość w config.toml była nieprawidłowa i została poprawiona: %@";

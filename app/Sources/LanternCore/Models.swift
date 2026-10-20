@@ -418,6 +418,31 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
     public var mode: String?  // "ready" | "on_demand" (nil: before phase 17)
     public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
+    public var schedule: String?  // "anytime" | "idle" | "night" (nil: before phase 17)
+    public var nightFrom: Int?
+    public var nightTo: Int?
+}
+
+/// What adding a folder would mean (`api_estimate`), asked before a folder chosen in Settings is added.
+public struct FolderEstimate: Decodable, Equatable, Sendable {
+    public var path: String
+    public var indexed: Bool
+    public var files: Int?
+    public var bytes: Int64?
+    public var complete: Bool?
+    public var minutes: Int?
+    public var recordings: Int?
+    public var external: Bool?
+    public var large: Bool?
+    public var refused: String?  // "disk" | "system" | "lantern"
+
+    public init(path: String, indexed: Bool = false, files: Int? = nil, bytes: Int64? = nil, complete: Bool? = true,
+                minutes: Int? = nil, recordings: Int? = nil, external: Bool? = nil, large: Bool? = nil,
+                refused: String? = nil) {
+        self.path = path; self.indexed = indexed; self.files = files; self.bytes = bytes; self.complete = complete
+        self.minutes = minutes; self.recordings = recordings; self.external = external; self.large = large
+        self.refused = refused
+    }
 }
 
 /// A daemon warning with a code and arguments (`Daemon._warn`), so the app can say it in its own language.

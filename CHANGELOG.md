@@ -18,8 +18,11 @@ What changed for people using Lantern, newest first.
   corrected instead of stopping Lantern.
 - **Indexing schedule:** any time, only when the Mac is idle, or at night (`lantern config schedule night`); search
   works at any hour.
-- **Restore defaults and delete all data** (`lantern restore-defaults`, `lantern delete-all-data`): folders stay on a
-  restore; deleting removes the index, history, settings and logs, never your files or the models.
+- **Restore defaults and delete all data** (Settings → General and Privacy; `lantern restore-defaults`,
+  `lantern delete-all-data`): folders stay on a restore; deleting removes the index, history, settings, the Spotify
+  sign-in and logs, never your files or the models.
+- **Settings → When to Index** (was Battery and Heat) with the schedule; rarely needed settings (preferred languages,
+  ignored extensions) are folded under *Advanced*.
 - **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y works as in
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
   whole file, so you can go back to the start); ⌘Y closes the preview. The frame and transcript are on ⇧⌘Y.

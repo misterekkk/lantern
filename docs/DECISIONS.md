@@ -1259,6 +1259,33 @@ M4A, MP3, MOV and Ogg Opus.
 - **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
   are now removed to the end of the line.
 
+## Phase 17, second stage built (2026-10-20)
+
+- **Folders that cannot be indexed** (`scanner/guard.py`): `/`, `/Users`, `/Volumes`, `/private`, `/var` and the
+  system data volume themselves (their subfolders are fine), the system trees (`/System`, `/Library`, `/usr`,
+  `/Applications`, …), `~/Library` except iCloud Drive and `~/Library/CloudStorage` (Dropbox, Google Drive and
+  OneDrive keep user files there), and Lantern's data folder. Only new folders are checked: an existing root keeps
+  working, and Rebuild keeps the user's folders as they were.
+- **Estimate before a large folder:** the scanner's own walk (same rules) with a 4 s budget; large = 20 000 files,
+  50 GB, a walk that ran out of time, or 5 000 files on another disk. Rough time from measured speeds (text and code
+  ~0.4 s per file, a photo pair ~0.3 s); recordings are counted but not timed (their length is unknown to a walk).
+  The app asks with the numbers (Cancel is the default); the CLI prints them and needs `--yes`, as other heavy commands.
+- **config.toml by hand:** an unreadable file means the defaults; a wrong type or an unknown choice falls back to the
+  default for that key, numbers are clamped (`debounce_s` 0.1–60, night hours 0–23), unknown keys are ignored. The
+  daemon reports each correction (`settings_fixed`) and the next save writes the corrected file. Before, one wrong
+  value raised in `load()` and the daemon did not start.
+- **Schedule:** `anytime` | `idle` | `night` (22–7 by default), a pause reason like battery (search unaffected).
+  Idle time is `CGEventSourceSecondsSinceLastEventType` (HID state, any event) through ctypes, which matched `ioreg`'s
+  `HIDIdleTime` to a fraction of a second; idle means 5 minutes without input, checked every 30 s, so indexing stops
+  within half a minute of the user coming back (the worker finishes its file).
+- **Restore defaults** keeps the folders and the parts left out of them (restoring would let Lantern read more than
+  the user allowed); each changed key goes through `config_set`, so its side effects run (places, people,
+  transcripts). The app resets its own keys and restarts. **Delete all data** removes the index, settings and logs
+  (daemon), the app's defaults, the Spotify keys in the keychain and Lantern's own cache folders; the models stay
+  (nothing of the user's is in them) and the user's files are never touched.
+- **Advanced** rows folded at the bottom of General (preferred languages) and File Types (ignored extensions); model
+  switches stay in Performance where they were, `debounce_s` stays CLI-only.
+
 ## `in:folder` measured (2026-10-19)
 
 - 150 known-item queries on a copy of the user's index (5 900 files): 5 random words of 5+ letters from a random text,

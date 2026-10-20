@@ -116,6 +116,12 @@ final class SpotifySync: ObservableObject {
         }
     }
 
+    /// Delete All Data: the sign-in and the Client ID leave the keychain too.
+    func forgetEverything() {
+        signOut()
+        Keychain.delete(account: Keychain.clientAccount)
+    }
+
     func signOut() {
         Keychain.delete(account: Keychain.tokenAccount)
         accessToken = nil

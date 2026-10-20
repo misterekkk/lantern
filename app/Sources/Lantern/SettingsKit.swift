@@ -51,10 +51,46 @@ struct SettingsPage<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        Form { content }
-            .formStyle(.grouped)
-            .softScrollEdge()
+        ScrollViewReader { proxy in
+            Form { content }
+                .formStyle(.grouped)
+                .softScrollEdge()
+                .task {  // development: `--scroll-to <id>` shows a row further down (`extensions`, `restore`, `data`)
+                    let args = CommandLine.arguments
+                    guard let i = args.firstIndex(of: "--scroll-to"), args.indices.contains(i + 1) else { return }
+                    try? await Task.sleep(nanoseconds: 800_000_000)  // the daemon's settings arrive first
+                    proxy.scrollTo(args[i + 1], anchor: .bottom)
+                }
+        }
     }
+}
+
+/// "Advanced" at the bottom of a pane: the settings few people need stay folded away (phase 17), and the pane's
+/// own sections appear below it, unchanged, when it is opened. Folded each time the pane opens.
+struct AdvancedRow: View {
+    @Binding var shown: Bool
+
+    var body: some View {
+        Section {
+            Button {
+                withAnimation(.snappy(duration: 0.25)) { shown.toggle() }
+            } label: {
+                HStack {
+                    Text("Advanced")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(shown ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Open from the start for development screenshots of a folded section (`--scroll-to extensions`).
+    static var openAtLaunch: Bool { CommandLine.arguments.contains("--scroll-to") }
 }
 
 extension View {

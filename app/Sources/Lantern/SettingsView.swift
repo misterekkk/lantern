@@ -50,7 +50,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .general: "General"
         case .fileTypes: "File Types"
         case .folders: "Folders"
-        case .power: "Battery and Heat"
+        case .power: "When to Index"
         case .performance: "Performance"
         case .privacy: "Privacy"
         case .about: "About"
@@ -62,7 +62,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .general: String(localized: "General")
         case .fileTypes: String(localized: "File Types")
         case .folders: String(localized: "Folders")
-        case .power: String(localized: "Battery and Heat")
+        case .power: String(localized: "When to Index")
         case .performance: String(localized: "Performance")
         case .privacy: String(localized: "Privacy")
         case .about: String(localized: "About")
@@ -72,13 +72,16 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
     /// Words the sidebar search matches (English and Polish), besides the title.
     var keywords: [String] {
         switch self {
-        case .general: ["general", "ogólne", "login", "logowanie", "language", "język", "shortcut", "skrót", "ask", "pytaj"]
+        case .general: ["general", "ogólne", "login", "logowanie", "language", "język", "shortcut", "skrót", "ask", "pytaj",
+                        "defaults", "domyślne", "reset"]
         case .fileTypes: ["file types", "rodzaje", "photos", "zdjęcia", "audio", "video", "filmy", "transcription",
                           "transkrypcja", "frames", "klatki", "extensions", "rozszerzenia", "csv"]
         case .folders: ["folders", "foldery", "tree", "drzewko", "exclude", "wyklucz", "patterns", "wzorce"]
-        case .power: ["battery", "bateria", "heat", "temperatura", "pause", "pauza", "power", "zasilanie"]
+        case .power: ["battery", "bateria", "heat", "temperatura", "pause", "pauza", "power", "zasilanie", "schedule",
+                      "harmonogram", "night", "noc", "idle", "bezczynny"]
         case .performance: ["performance", "wydajność", "memory", "pamięć", "ram", "models", "modele", "chart", "wykres"]
-        case .privacy: ["privacy", "prywatność", "history", "historia", "compact", "zagęść", "permissions", "uprawnienia"]
+        case .privacy: ["privacy", "prywatność", "history", "historia", "compact", "zagęść", "permissions", "uprawnienia",
+                        "delete", "usuń", "data", "dane"]
         case .about: ["about", "informacje", "version", "wersja"]
         }
     }
@@ -250,6 +253,9 @@ private struct StatusRow: View {
         if s.worker.running, let done = s.worker.done, let total = s.worker.total {
             return String(localized: "Indexing \(done) of \(total)")
         }
+        if s.paused == "schedule" {
+            return state.settings?.schedule == "night" ? String(localized: "Waiting for the night") : String(localized: "Waiting until the Mac is idle")
+        }
         if s.paused != nil { return String(localized: "Paused") }
         return String(localized: "\(Format.count(s.indexedFiles)) files in the index")
     }
@@ -298,6 +304,8 @@ private struct GeneralPane: View {
     @State private var spotlightOn = SpotlightShortcut.isOn
     @State private var addingLanguage = false
     @AppStorage(WebSearch.key) private var webSearch = WebSearch.google.rawValue
+    @State private var advanced = AdvancedRow.openAtLaunch
+    @State private var confirmRestore = false
 
     var body: some View {
         SettingsPage {
@@ -373,32 +381,6 @@ private struct GeneralPane: View {
                 Text("Lantern follows the macOS language unless you choose one here (also in System Settings → General → Language & Region → Applications).")
                     .font(.caption)
             }
-            Section {
-                ForEach(state.languages?.effective ?? [], id: \.self) { code in
-                    HStack {
-                        Text(LanguageName.of(code))
-                        Spacer()
-                        if state.languages?.extra.contains(code) == true {
-                            Button { state.changeLanguage("remove", code) } label: {
-                                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Remove")
-                        } else if state.languages?.system.contains(code) == true {
-                            Text(verbatim: "macOS").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                HStack {
-                    Spacer()
-                    Button("Add Language…") { addingLanguage = true }
-                }
-            } header: {
-                Text("Preferred Languages")
-            } footer: {
-                Text("Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included.")
-                    .font(.caption)
-            }
             if let s = state.settings {
                 Section {
                     Picker(selection: Binding(get: { s.indexMode }, set: { state.setConfig("index_mode", $0) })) {
@@ -413,6 +395,50 @@ private struct GeneralPane: View {
             } else {
                 Section { Text(state.connectionError ?? String(localized: "Connecting to the daemon…")).foregroundStyle(.secondary) }
             }
+            AdvancedRow(shown: $advanced)
+            if advanced {
+                Section {
+                    ForEach(state.languages?.effective ?? [], id: \.self) { code in
+                        HStack {
+                            Text(LanguageName.of(code))
+                            Spacer()
+                            if state.languages?.extra.contains(code) == true {
+                                Button { state.changeLanguage("remove", code) } label: {
+                                    Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Remove")
+                            } else if state.languages?.system.contains(code) == true {
+                                Text(verbatim: "macOS").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Add Language…") { addingLanguage = true }
+                    }
+                } header: {
+                    Text("Preferred Languages")
+                } footer: {
+                    Text("Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included.")
+                        .font(.caption)
+                }
+            }
+            Section {
+                HStack {
+                    Spacer()
+                    Button("Restore Defaults…") { confirmRestore = true }
+                }
+            } footer: {
+                Text("Every setting goes back to what Lantern suggests for this Mac. Your folders and the parts you left out of them stay.")
+                    .font(.caption)
+            }
+            .id("restore")
+        }
+        .confirmationDialog("Restore the default settings?", isPresented: $confirmRestore) {
+            Button("Restore Defaults") { state.restoreDefaults() }
+        } message: {
+            Text("Every setting goes back to what Lantern suggests for this Mac, and Lantern restarts. Your folders, the parts you left out of them and the index stay.")
         }
         .task {
             await state.loadLanguages()
@@ -440,6 +466,7 @@ private struct GeneralPane: View {
 
 private struct FileTypesPane: View {
     @EnvironmentObject var state: AppState
+    @State private var advanced = AdvancedRow.openAtLaunch
 
     var body: some View {
         SettingsPage {
@@ -480,14 +507,17 @@ private struct FileTypesPane: View {
                 } footer: {
                     Text("Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable. Places come from the location saved in photos and videos, matched to a city with a table built into Lantern: nothing is sent anywhere. Switching places off deletes the saved locations. People in photos: macOS counts them and the photo model guesses woman or man from appearance, on this Mac, so you can search “zdjęcia kobiet z 2024” or “bez ludzi”; switching it off deletes the counts.").font(.caption)
                 }
-                Section {
-                    ExtensionField()
-                        .id("extensions")  // `--scroll-to extensions`: development screenshots
-                } header: {
-                    Text("Ignored extensions")
-                } footer: {
-                    Text("Type an extension and a comma, or use +. Files with these extensions are never indexed.")
-                        .font(.caption)
+                AdvancedRow(shown: $advanced)
+                if advanced {
+                    Section {
+                        ExtensionField()
+                            .id("extensions")  // `--scroll-to extensions`: development screenshots
+                    } header: {
+                        Text("Ignored extensions")
+                    } footer: {
+                        Text("Type an extension and a comma, or use +. Files with these extensions are never indexed.")
+                            .font(.caption)
+                    }
                 }
             }
         }
@@ -626,8 +656,8 @@ private struct PowerPane: View {
 
     var body: some View {
         SettingsPage {
-            PaneHeader(symbol: "bolt.fill", color: .green, title: "Battery and Heat",
-                       text: "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode and pause while your Mac is hot.")
+            PaneHeader(symbol: "bolt.fill", color: .green, title: "When to Index",
+                       text: "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode, pause while your Mac is hot, and index only when you are away or at night.")
             if let s = state.settings {
                 Section {
                     Toggle(isOn: Binding(get: { s.pauseOnBattery }, set: { state.setConfig("pause_on_battery", $0 ? "true" : "false") })) {
@@ -639,10 +669,41 @@ private struct PowerPane: View {
                     Toggle(isOn: Binding(get: { s.pauseOnThermal }, set: { state.setConfig("pause_on_thermal", $0 ? "true" : "false") })) {
                         Text("Pause when the Mac is hot")
                     }
-                } footer: {
-                    Text("Search always works, also while indexing is paused.").font(.caption)
+                }
+                if let schedule = s.schedule {
+                    Section {
+                        Picker(selection: Binding(get: { schedule }, set: { state.setConfig("schedule", $0) })) {
+                            Text("Any time").tag("anytime")
+                            Text("When the Mac is idle").tag("idle")
+                            Text("At night").tag("night")
+                        } label: {
+                            Text("Index")
+                        }
+                        if schedule == "night" {
+                            hourPicker("From", key: "night_from", value: s.nightFrom ?? 22)
+                            hourPicker("To", key: "night_to", value: s.nightTo ?? 7)
+                        }
+                    } footer: {
+                        Text(schedule == "idle"
+                             ? "Indexing starts after 5 minutes without the keyboard or mouse and stops when you are back."
+                             : schedule == "night"
+                             ? "The Mac has to be awake and, with the pause above, on the charger. New files wait until then."
+                             : "Search always works, also while indexing is paused or waits for its time.")
+                            .font(.caption)
+                    }
                 }
             }
+        }
+    }
+
+    private func hourPicker(_ title: LocalizedStringKey, key: String, value: Int) -> some View {
+        Picker(selection: Binding(get: { value }, set: { state.setConfig(key, String($0)) })) {
+            ForEach(0..<24, id: \.self) { hour in
+                Text(Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: .now)!
+                    .formatted(date: .omitted, time: .shortened)).tag(hour)
+            }
+        } label: {
+            Text(title)
         }
     }
 }
@@ -651,6 +712,7 @@ private struct PrivacyPane: View {
     @EnvironmentObject var state: AppState
     @State private var confirmClear = false
     @State private var confirmCompact = false
+    @State private var confirmDelete = false
     @State private var compacting = false
     @State private var compactResult: String?
     @AppStorage(ClipboardHistory.key) private var clipboardHistory = "off"
@@ -720,6 +782,11 @@ private struct PrivacyPane: View {
                     Text("Show Data Folder in Finder")
                 }
                 .buttonStyle(.plain)
+                Button { confirmDelete = true } label: {
+                    Text("Delete All Data…").foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .id("data")
             } header: {
                 Text("Data")
             } footer: {
@@ -870,6 +937,11 @@ private struct PrivacyPane: View {
             }
         } message: {
             Text("Data of removed files and cleared history is physically erased from the index file, and the space is freed. It takes a few seconds; search keeps working. Lantern also does this by itself after large deletions.")
+        }
+        .confirmationDialog("Delete all of Lantern's data?", isPresented: $confirmDelete) {
+            Button("Delete All Data", role: .destructive) { state.deleteAllData() }
+        } message: {
+            Text("The index of your folders, search history, settings, the Spotify sign-in and logs are deleted, and Lantern starts again as on the first day. Your files and the downloaded models are not touched. This cannot be undone.")
         }
         .confirmationDialog("Delete the search history?", isPresented: $confirmClear) {
             Button("Delete History", role: .destructive) { state.clearHistory() }

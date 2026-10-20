@@ -22,7 +22,7 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   scroll edge; `scrollEdgeEffectStyle` on macOS 26, gradient mask before). Dependent rows are dimmed, never indented.
   Panes: General (login, language via `AppLanguage` + relaunch, shortcut, index mode), File Types (switches,
   `ExtensionField` pills — parsing in LanternCore `ExtensionInput`), Folders (roots; subpages `TreePage` with
-  `FolderTree` and toolbar search, `PatternsPage`), Battery and Heat, Performance (`PerformanceView`, Swift Charts,
+  `FolderTree` and toolbar search, `PatternsPage`), When to Index (`PowerPane`: pauses and the schedule), Performance (`PerformanceView`, Swift Charts,
   polls `perf` every second while visible), Privacy, About. The window needs `sceneBridgingOptions = [.title, .toolbars]`. In grouped forms use `TextField("", text:, prompt:)` + `.labelsHidden()`, and never put `**` in a
   string-literal `Text` (Markdown).
 - Panel extras: scope icons beside the field (default; `ScopeIcon` / `ScopeChip`, Liquid Glass, `scopeStyle` = icons |
@@ -51,7 +51,8 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   floating window, for Raycast's ⌘Y (Quick Look cannot seek); only indexed files (`file` API), ⌘Y / Esc close it.
   `--open-url <url>` calls the same handler (the installed app shares the bundle id, so `open lantern://…` would go
   to it, not to the dev build).
-- Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,
+- Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to <row id>` (`extensions`,
+  `restore`, `data`; also opens the folded Advanced rows), `--add-folder <path>` (the estimate and alerts), `--preview`,
   `--hover-scope <kind>`, `--unfold-scopes` (unfolds the folded scope icons 1.5 s after they fold). Clicks posted
   with `CGEvent.postToPid` do not reach SwiftUI buttons in the panel; use a dev flag instead.
 - Scope icons fold into `FoldedScopes` when the query text reaches them (field width measured with a

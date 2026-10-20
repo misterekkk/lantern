@@ -389,3 +389,35 @@ import Testing
         #expect(strong.map(\.kind) == [.files, .web])
     }
 }
+
+@Suite struct FolderEstimateTests {
+    @Test func decodesAndWordsALargeFolder() throws {
+        let json = """
+        {"path": "/Volumes/Archive", "files": 48210, "bytes": 96000000000, "by_kind": {"image": 40000}, "complete": true,
+         "minutes": 240, "recordings": 12, "external": true, "large": true, "refused": null, "indexed": false}
+        """
+        let e = try DaemonClient.decoder.decode(FolderEstimate.self, from: Data(json.utf8))
+        #expect(e.large == true && e.refused == nil && !e.indexed)
+        let text = Format.estimate(e)
+        #expect(text.contains("48"))
+        #expect(text.contains("4 h"))
+        #expect(text.contains("plus the recordings"))
+        #expect(text.contains("another disk"))
+    }
+
+    @Test func aCutCountSaysAtLeast() {
+        let text = Format.estimate(FolderEstimate(path: "/x", files: 70000, bytes: 1, complete: false, minutes: 20))
+        #expect(text.hasPrefix("At least"))
+        #expect(text.contains("20 min"))
+    }
+
+    @Test func settingsFromBeforeTheScheduleStillDecode() throws {
+        let s = try DaemonClient.decoder.decode(DaemonSettings.self, from: Data("""
+        {"index_mode": "ask", "pause_on_battery": true, "pause_on_low_power": true, "pause_on_thermal": true,
+         "transcribe": true, "index_photos": true, "index_video_frames": true, "notify": true, "debounce_s": 3.0,
+         "exclude": [], "exclude_extensions": [], "index_audio_video": true, "index_image_text": true,
+         "schedule": "night", "night_from": 23, "night_to": 6}
+        """.utf8))
+        #expect(s.schedule == "night" && s.nightFrom == 23 && s.nightTo == 6)
+    }
+}

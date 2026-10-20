@@ -63,6 +63,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 PreviewWindowController.shared.open(url)
             }
         }
+        if let path = value(after: "--add-folder") {  // development: Settings' Add Folder… after the panel (alerts)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                await AppState.shared.addCheckedFolder(path)
+            }
+        }
         if let name = value(after: "--preview-state") {
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 2_500_000_000)

@@ -108,6 +108,7 @@ struct MenuView: View {
             case "thermal": "Paused: heat"
             case "low_disk": "Paused: disk almost full"
             case "memory": "Paused: the Mac is short of memory"
+            case "schedule": state.settings?.schedule == "night" ? "Waiting for the night" : "Waiting until the Mac is idle"
             default: "Paused"
             }
         case .problem: "The index needs attention"
