@@ -11,6 +11,8 @@ What changed for people using Lantern, newest first.
 - **"When needed" mode** releases the search model after 10 idle minutes (`lantern config mode on_demand`).
 - **An index from a newer Lantern or a damaged one** is explained with Update / Rebuild instead of Lantern stopping.
 - **Copy Diagnostics** (Settings → About, `lantern diagnostics`): a report for bug reports without file names.
+- **CLI = app:** `lantern models` (list, download), `lantern rebuild`, `lantern languages`, and `--json` for
+  `search`, `status`, `pending`, `config`, `models` and `languages`.
 - **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y works as in
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
   whole file, so you can go back to the start); ⌘Y closes the preview. The frame and transcript are on ⇧⌘Y.

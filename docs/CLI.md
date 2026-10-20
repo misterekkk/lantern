@@ -24,8 +24,23 @@ Most commands work in two ways:
 
 | Command | Without the daemon | Notes |
 |---|---|---|
-| `index`, `search`, `remove`, `compact`, `clear-history`, `exclude`, `ignore`, `config`, `open`, `status` | works | `status` shows a shorter, local report |
+| `index`, `search`, `remove`, `compact`, `clear-history`, `exclude`, `ignore`, `config`, `open`, `status`, `models`, `rebuild`, `languages`, `diagnostics` | works | `status` shows a shorter, local report |
 | `pending`, `approve`, `decline`, `pause`, `resume` | error, exit 1 | they control the daemon |
+
+**The CLI and the app have the same settings and actions**: folders (`index`, `remove`, `exclude`, `ignore`), every
+setting (`config`: index mode, search model mode, file types, places, people, pauses), models (`models`), languages
+(`languages`), rebuilding the index (`rebuild`) and diagnostics. Only what belongs to the menu bar app itself has no
+command: the search panel and its shortcut, Raycast / Alfred as the place to search, the clipboard history, menu
+items and windows, and Apple Music (read by the app through iTunesLibrary).
+
+**JSON for scripts:** `search`, `status`, `pending`, `config`, `models` and `languages` take `--json` and print the
+same data as JSON (UTF-8, indented). `search --json` is the daemon's whole reply: every section in display order
+(`order`), with paths, scores and ranks, lines, pages, moments, dates and places:
+
+```bash
+lantern search "zdjęcia z Krakowa" --json | jq -r '.photos[].path'
+lantern status --json | jq '.files.indexed'
+```
 
 Never run a second indexing process next to a daemon that indexes: let the daemon do it (`lantern index` sends the
 request to it automatically).
@@ -69,7 +84,7 @@ after.
 
 ## Searching
 
-### `lantern search "<query>" [-n N] [--only KIND] [--no-log]`
+### `lantern search "<query>" [-n N] [--only KIND] [--no-log] [--json]`
 
 One ranking from meaning (EmbeddingGemma 2) and exact words (FTS5/BM25), fused with Reciprocal Rank Fusion; code
 definitions and photos come in their own sections, in the order the daemon decides.
@@ -79,6 +94,7 @@ definitions and photos come in their own sections, in the order the daemon decid
 | `-n`, `--limit N` | number of results in the files section (default 10) |
 | `--only KIND` | `apps`, `settings` (System Settings), `shortcuts`, `code`, `docs`, `pdf`, `photos`, `media` (recordings and videos) or `music` (Apple Music songs and playlists, sent by the app): the panel's filter pills |
 | `--no-log` | do not record this search in the local history |
+| `--json` | print the whole reply as JSON (see *JSON for scripts* above) |
 
 `in:<folder>` anywhere in the query keeps results to files under folders whose name starts with that word
 (`lantern search "in:down umowa"`), `in:"two words"` for a name with spaces, or `in:~/path` / `in:/path` for
@@ -143,7 +159,7 @@ Deletes the local search history (`search_events`) and compacts the database.
 The menu bar app starts its own daemon as a child process, so the LaunchAgent is optional. If one is already running,
 the app uses it.
 
-### `lantern status`
+### `lantern status [--json]`
 
 With the daemon: process, memory, mode, pause reason, power (source, Low Power Mode, thermal state), current work,
 queue, files per state, roots and warnings. Without it: the index file, its free space, roots, files, jobs, the model
@@ -157,6 +173,25 @@ pressure, settings, index counts, models, the daemon's state, recent warnings). 
 names, contents or queries: paths in warnings become `<path>`, excluded folders are only counted. Lantern sends it
 nowhere; the same report is behind Settings → About → Copy Diagnostics.
 
+### `lantern models [list | download [name ...]] [--yes] [--json]`
+
+The models as in Settings → Performance: each one's size (MB as Finder counts them), whether it is downloaded, and
+whether this Mac's memory recommends it (8 GB: the search model only). `download` fetches the recommended ones, or
+the named keys (`embeddinggemma`, `whisper`, `siglip_image`, `siglip_text`) or groups (`required`, `whisper`,
+`photos`), once from Hugging Face; with the daemon it downloads there and the command shows the progress. A model this
+Mac's memory does not recommend needs `--yes` (Lantern still starts it only when there is room).
+
+### `lantern rebuild [--yes]`
+
+Deletes the index and indexes every folder again, keeping the list of folders (read from the old file when it can
+still be read); your files are never touched. It is what the menu offers for an index from a newer Lantern or a
+damaged one. Without `--yes` it only explains what it would do.
+
+### `lantern languages [list | add | remove <code>] [--json]`
+
+Languages for app names and text in images (OCR): the macOS ones plus the ones added here, as in Settings → General.
+Codes like `de`, `fr` or `zh-Hans`.
+
 ### `lantern pending | approve | decline | pause | resume`
 
 In "ask" mode (the default) the daemon finds new and changed files but indexes nothing until you approve.
@@ -165,7 +200,7 @@ and restart background indexing (search keeps working).
 
 ## Settings
 
-### `lantern config [key [value]]`
+### `lantern config [key [value]] [--json]`
 
 Without arguments, lists every setting. Stored in `~/Library/Application Support/Lantern/config.toml`; a running
 daemon applies changes at once.

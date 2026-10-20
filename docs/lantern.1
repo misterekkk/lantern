@@ -71,7 +71,7 @@ file.
 Physically erase deleted data from the index file (VACUUM, FTS optimize, WAL checkpoint).
 .SS Searching
 .TP
-.BI "search " query " \fR[\fB\-n\fR \fIN\fR] [\fB\-\-only\fR \fIkind\fR] [\fB\-\-no\-log\fR]"
+.BI "search " query " \fR[\fB\-n\fR \fIN\fR] [\fB\-\-only\fR \fIkind\fR] [\fB\-\-no\-log\fR] [\fB\-\-json\fR]"
 Search by meaning and keywords in one ranking.
 Results come in sections (Definitions, Photos, Files) with their location:
 .IR path : start \- end
@@ -95,6 +95,9 @@ as a whole.
 .TP
 .BR \-n ", " \-\-limit " \fIN\fR"
 number of results in the files section (default 10).
+.TP
+.B \-\-json
+the whole reply as JSON: every section with scores, ranks, pages, moments, dates and places, and their order.
 .TP
 .BI \-\-only " kind"
 only one kind of result:
@@ -148,15 +151,17 @@ removes it;
 asks a running daemon to stop after the current file.
 The menu bar app starts its own daemon, so the LaunchAgent is optional.
 .TP
-.B status
+.BR status " [\fB\-\-json\fR]"
 Daemon, power (battery, Low Power Mode, thermal state), queue, files and folders; without a daemon a shorter report
 of the index itself.
+.B \-\-json
+prints it as JSON.
 .TP
 .B diagnostics
 A Markdown report for a bug report or an AI chat: versions, the Mac's memory, settings, index counts, models and the
 daemon's state, never file or folder names, contents or queries. Lantern sends it nowhere.
 .TP
-.B pending
+.BR pending " [\fB\-\-json\fR]"
 Files the daemon found that wait for approval (in
 .B ask
 mode).
@@ -174,8 +179,10 @@ Pause background indexing (search keeps working).
 Resume background indexing.
 .SS Settings
 .TP
-.BR config " [\fIkey\fR [\fIvalue\fR]]"
-List the settings, or change one (booleans accept true/false, 1/0, yes/no).
+.BR config " [\fIkey\fR [\fIvalue\fR]] [\fB\-\-json\fR]"
+List the settings (as JSON with
+.BR \-\-json ),
+or change one (booleans accept true/false, 1/0, yes/no).
 Keys:
 .BR index_mode " (" ask | auto ),
 .BR mode " (" ready | on_demand ),
@@ -203,6 +210,29 @@ File extensions never indexed (default .ipynb .csv .tsv);
 and
 .B *.csv
 mean the same.
+.TP
+.BR models " [" list | download " [\fIname\fR ...]] [\fB\-\-yes\fR] [\fB\-\-json\fR]"
+The models, as in the app's Settings \(-> Performance: size, downloaded or not, and whether this Mac's memory
+recommends them.
+.B download
+fetches the recommended ones, or the named keys or groups
+.RB ( required ,
+.BR whisper ,
+.BR photos ),
+once from Hugging Face; a model this Mac's memory does not recommend needs
+.BR \-\-yes .
+.TP
+.BR rebuild " [\fB\-\-yes\fR]"
+Delete the index and index every folder again (the folders are kept; files are never touched), as the app does for
+an index from a newer Lantern or a damaged one. Without
+.B \-\-yes
+it only explains.
+.TP
+.BR languages " [" list | add | remove " \fIcode\fR] [\fB\-\-json\fR]"
+Languages for app names and text in images: the macOS ones plus the ones added here
+.RB ( de ,
+.BR zh\-Hans ,
+\&...), as in Settings \(-> General.
 .SH OPTIONS
 .TP
 .BR \-h ", " \-\-help

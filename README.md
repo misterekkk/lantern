@@ -336,7 +336,16 @@ uv run lantern status
 uv run lantern remove ~/Projects           # remove a folder and all its data from the index
 uv run lantern compact                     # physically erase deleted data from the index file
 uv run lantern clear-history               # delete the local search history
+uv run lantern search "zdjęcia z Krakowa" --json   # the whole reply as JSON (also status, pending, config, models)
+uv run lantern models                      # models: size, downloaded, recommended for this Mac; `models download`
+uv run lantern languages add de            # extra languages for app names and text in images
+uv run lantern rebuild --yes               # start the index again, keeping the folders
+uv run lantern diagnostics                 # a report for a bug report, without file names
 ```
+
+- The CLI has the same settings and actions as the app (folders, every setting through `lantern config`, models,
+  languages, rebuilding the index); only the menu bar app's own features (the search panel, Raycast / Alfred, the
+  clipboard, menu items and windows, Apple Music) have no command.
 
 - `index` compares the folder with the index: new and changed files are indexed, moved files are recognised by
   content (no recomputation), deleted files are removed together with their text and vectors.

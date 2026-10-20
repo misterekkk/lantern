@@ -6,6 +6,7 @@ daemon so that only one process indexes). Without the daemon, commands work dire
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -217,10 +218,17 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0 if stats.failed == 0 else 3
 
 
+def _print_json(data) -> int:
+    print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+    return 0
+
+
 def cmd_search(args: argparse.Namespace) -> int:
     if _daemon():
         resp = protocol.call("search", {"query": args.query, "limit": args.limit, "log": not args.no_log,
                                         "category": args.only})  # fmt: skip
+        if args.json:  # the daemon's reply as it is: sections, scores, dates and places (docs/CLI.md)
+            return _print_json(resp)
         named = ("definitions", "photos", "apps", "settings", "shortcuts", "music")
         sections = {name: [SimpleNamespace(**r) for r in resp.get(name, [])] for name in named}
         sections["files"] = [SimpleNamespace(**r) for r in resp["results"]]
@@ -248,6 +256,12 @@ def cmd_search(args: argparse.Namespace) -> int:
             embedder.load()  # keep model loading out of the query timing
         r = search(_connect(), embedder, args.query, args.limit, log=not args.no_log, lang=system_language(),
                    query_embedder=make_query_embedder(), category=args.only)  # fmt: skip
+        if args.json:
+            from dataclasses import asdict
+
+            reply = asdict(r)
+            reply["order"] = [name for name, _ in r.sections()]
+            return _print_json(reply)
         ordered, logged = r.sections(), r.event_id
         took = r.vector_ms + r.keyword_ms + r.image_ms + r.symbol_ms
     print(f"{sum(len(items) for _, items in ordered)} results ({took:.0f} ms)")
@@ -411,12 +425,39 @@ def cmd_diagnostics(args: argparse.Namespace) -> int:
     return 0
 
 
+def _local_status() -> dict:
+    """What `status` says without a daemon, as data (`--json`)."""
+    from lantern.queue import jobs
+    from lantern.store import db
+
+    conn = _connect()
+    ratio, _ = db.free_ratio(conn)
+    out = {
+        "daemon": None,
+        "index": {"path": str(config.db_path()), "size_mb": round(config.db_path().stat().st_size / 2**20, 1),
+                  "free_pages": round(ratio, 3)},  # fmt: skip
+        "roots": [{"path": r["path"], "last_scan": r["last_scan"]}
+                  for r in conn.execute("SELECT path, last_scan FROM roots ORDER BY path")],  # fmt: skip
+        "files": {r[0]: r[1] for r in conn.execute("SELECT status, COUNT(*) FROM files GROUP BY status")},
+        "chunks": conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
+        "jobs": jobs.counts(conn),
+        "dates_pending": filemeta.pending(conn),
+        "people_pending": _people_pending(conn),
+    }
+    conn.close()
+    return out
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     if not _daemon():
+        if args.json:
+            return _print_json(_local_status())
         print("daemon: not running")
         _print_local_status()
         return 0
     s = protocol.call("status")
+    if args.json:
+        return _print_json(s)
     paused = f", paused ({s['paused']})" if s["paused"] else ""
     print(f"daemon: running (pid {s['pid']}, {s['memory_mb']} MB), mode {s['mode']}{paused}")
     if power := s.get("power"):
@@ -486,6 +527,8 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 def cmd_pending(args: argparse.Namespace) -> int:
     _need_daemon()
     p = protocol.call("pending")
+    if args.json:
+        return _print_json(p)
     queued = sum(p["queued"].values())
     if not queued:
         print("nothing waiting")
@@ -512,6 +555,8 @@ def cmd_config(args: argparse.Namespace) -> int:
 
     if args.key is None:
         current = protocol.call("config_get") if _daemon() else settings_mod.asdict(settings_mod.load())
+        if args.json:
+            return _print_json(current)
         for k, v in current.items():
             print(f"{k} = {json.dumps(v)}")
         return 0
@@ -535,6 +580,124 @@ def cmd_config(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"{args.key} = {args.value}")
+    return 0
+
+
+def cmd_models(args: argparse.Namespace) -> int:
+    """The models, as in Settings → Performance and the welcome window: sizes, downloaded or not, what this Mac's
+    memory recommends; `download` fetches them (once, from Hugging Face; everything else stays offline)."""
+    from lantern import models as models_mod
+    from lantern.service import machine
+
+    mem = machine.read()
+    prof = machine.profile(mem.total)
+    rows = [
+        {"key": m.key, "group": m.group, "label": m.label, "size_mb": m.approx_mb,
+         "downloaded": models_mod.is_downloaded(m.repo, m.revision),
+         "recommended": m.group == "required" or prof == "full",
+         "needs_memory_gb": round(machine.NEEDS[m.key] / machine.GB, 1) if m.key in machine.NEEDS else None}
+        for m in models_mod.catalogue()
+    ]  # fmt: skip
+    if args.action == "list":
+        if args.json:
+            return _print_json({"ram_gb": round(mem.total / machine.GB), "profile": prof, "models": rows})
+        print(f"this Mac: {mem.total / machine.GB:.0f} GB of memory, profile {prof}")
+        for r in rows:
+            state = "downloaded" if r["downloaded"] else "not downloaded"
+            hint = "" if r["recommended"] else "  (not recommended for this Mac's memory)"
+            print(f"  {r['key']:15} {r['size_mb']:>5} MB  {state:15} {r['label']}{hint}")
+        return 0
+    wanted = args.names or [r["group"] for r in rows if r["recommended"] and not r["downloaded"]]
+    heavy = [r for r in rows if (r["key"] in wanted or r["group"] in wanted) and not r["recommended"]]
+    if heavy and not args.yes:
+        names = ", ".join(r["key"] for r in heavy)
+        gb = f"{mem.total / machine.GB:.0f}"
+        print(f"{names}: needs more memory while it works than this Mac ({gb} GB) can usually spare; Lantern starts "
+              "it only when there is room. Add --yes to download it anyway.", file=sys.stderr)  # fmt: skip
+        return 1
+    if not wanted:
+        print("the recommended models are downloaded")
+        return 0
+    if _daemon():
+        protocol.call("download_models", {"models": wanted})
+        while True:  # the daemon downloads in its own process; follow its progress
+            dl = protocol.call("status").get("model_download") or {}
+            if not dl.get("running"):
+                print("\r" + " " * 60 + "\r", end="")
+                if dl.get("error"):
+                    print(f"error: {dl['error']}", file=sys.stderr)
+                    return 1
+                print("downloaded")
+                return 0
+            total = dl.get("size_mb") or dl.get("approx_mb") or 0
+            print(f"\r  {dl.get('key', '')} {dl.get('step', 1)}/{dl.get('total', 1)}: {dl.get('downloaded_mb', 0)} / "
+                  f"{total} MB", end="", flush=True)  # fmt: skip
+            time.sleep(1)
+    env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")}
+    return subprocess.run([sys.executable, "-m", "lantern.models", *wanted], env=env).returncode
+
+
+def cmd_rebuild(args: argparse.Namespace) -> int:
+    """Start again with an empty index (as the menu's Rebuild): the folders stay, everything is indexed again."""
+    if not args.yes:
+        print("This deletes the index and indexes every folder again (your files are not touched). "
+              "Run `lantern rebuild --yes` to do it.", file=sys.stderr)  # fmt: skip
+        return 1
+    if _daemon():
+        out = protocol.call("rebuild_index", timeout=600)
+        print(f"rebuilt: {len(out['roots'])} folders are being indexed again")
+        return 0
+    import sqlite3
+
+    roots: list[str] = []
+    if config.db_path().exists():
+        try:
+            old = sqlite3.connect(f"file:{config.db_path()}?mode=ro", uri=True)
+            roots = [r[0] for r in old.execute("SELECT path FROM roots")]
+            old.close()
+        except sqlite3.DatabaseError:
+            roots = []
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(config.db_path()) + suffix).unlink(missing_ok=True)
+    code = 0
+    for root in roots:
+        code |= cmd_index(argparse.Namespace(path=root, force=False, no_transcribe=False, dry_run=False))
+    print(f"rebuilt: {len(roots)} folders indexed again" if roots else "rebuilt an empty index (no folders were known)")
+    return code
+
+
+def cmd_languages(args: argparse.Namespace) -> int:
+    """Languages for app names and text in images: the macOS ones plus the ones added here (Settings → General)."""
+    from lantern.service import settings as settings_mod
+    from lantern.syslang import normalize_language, preferred_languages, system_languages
+
+    if args.action in ("add", "remove") and not args.code:
+        print("error: missing language code (e.g. de, zh-Hans)", file=sys.stderr)
+        return 1
+    if _daemon():
+        params = {"action": args.action, "language": args.code} if args.action != "list" else {}
+        try:
+            out = protocol.call("languages", params)
+        except protocol.DaemonError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    else:
+        s = settings_mod.load()
+        if args.action != "list":
+            code = normalize_language(args.code)
+            if code is None:
+                print(f"error: {args.code!r} is not a language code", file=sys.stderr)
+                return 1
+            extra = [c for c in s.extra_languages if c != code]
+            s.extra_languages = [*extra, code] if args.action == "add" else extra
+            settings_mod.save(s)
+        out = {"system": list(system_languages()), "extra": list(s.extra_languages),
+               "effective": preferred_languages(s.extra_languages)}  # fmt: skip
+    if args.json:
+        return _print_json(out)
+    print("macOS: " + (", ".join(out["system"]) or "-"))
+    print("added: " + (", ".join(out["extra"]) or "-"))
+    print("used:  " + ", ".join(out["effective"]))
     return 0
 
 
@@ -612,6 +775,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_search)
 
+    p.add_argument("--json", action="store_true", help="print the whole reply as JSON (sections, scores, dates)")
+
     p = sub.add_parser("open", help="open result N of the last search (and record the choice)")
     p.add_argument("number", type=int)
     p.add_argument("--reveal", action="store_true", help="show in Finder instead of opening")
@@ -619,6 +784,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_open)
 
     p = sub.add_parser("status", help="show daemon, index and queue status")
+    p.add_argument("--json", action="store_true", help="print the status as JSON")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("diagnostics", help="print a report for a bug report (no file names or contents)")
@@ -640,6 +806,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_daemon)
 
     p = sub.add_parser("pending", help="files found by the daemon that wait for approval")
+    p.add_argument("--json", action="store_true", help="print as JSON")
     p.set_defaults(func=cmd_pending)
     for name, method, message, help_text in [
         ("approve", "approve", "approved: indexing starts in the background", "index the waiting files"),
@@ -663,7 +830,25 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("config", help="show or change settings (index_mode ask|auto, pause_on_battery, ...)")
     p.add_argument("key", nargs="?")
     p.add_argument("value", nargs="?")
+    p.add_argument("--json", action="store_true", help="print all settings as JSON")
     p.set_defaults(func=cmd_config)
+
+    p = sub.add_parser("models", help="list the models or download them (as Settings → Performance)")
+    p.add_argument("action", nargs="?", choices=["list", "download"], default="list")
+    p.add_argument("names", nargs="*", help="download: model keys or groups (required, whisper, photos)")
+    p.add_argument("--yes", action="store_true", help="download a model this Mac's memory does not recommend")
+    p.add_argument("--json", action="store_true", help="list as JSON")
+    p.set_defaults(func=cmd_models)
+
+    p = sub.add_parser("rebuild", help="delete the index and index every folder again (files are not touched)")
+    p.add_argument("--yes", action="store_true", help="do it (without it, only explains)")
+    p.set_defaults(func=cmd_rebuild)
+
+    p = sub.add_parser("languages", help="languages for app names and text in images (macOS + added)")
+    p.add_argument("action", nargs="?", choices=["list", "add", "remove"], default="list")
+    p.add_argument("code", nargs="?", help="a language code such as de or zh-Hans")
+    p.add_argument("--json", action="store_true", help="print as JSON")
+    p.set_defaults(func=cmd_languages)
     return parser
 
 
