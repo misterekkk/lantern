@@ -38,6 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    /// `lantern://preview?…` from Raycast: the panel's player from a moment (PreviewWindow.swift).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            for url in urls where url.scheme == "lantern" { PreviewWindowController.shared.open(url) }
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { AppState.shared.supervisor.stop() }
     }
@@ -49,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         func value(after flag: String) -> String? {
             guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
             return args[i + 1]
+        }
+        if let raw = value(after: "--open-url"), let url = URL(string: raw) {  // development: a lantern:// URL as macOS sends it
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                PreviewWindowController.shared.open(url)
+            }
         }
         if let name = value(after: "--preview-state") {
             Task { @MainActor in

@@ -3,6 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key><string>com.lantern.app</string>
+    <!-- lantern://preview?path=…&ms=…: the panel's player from a moment, for Raycast (indexed files only) -->
+    <key>CFBundleURLTypes</key>
+    <array><dict>
+        <key>CFBundleURLName</key><string>com.lantern.app.preview</string>
+        <key>CFBundleURLSchemes</key><array><string>lantern</string></array>
+    </dict></array>
     <key>CFBundleName</key><string>Lantern</string>
     <key>CFBundleDisplayName</key><string>Lantern</string>
     <key>CFBundleExecutable</key><string>Lantern</string>

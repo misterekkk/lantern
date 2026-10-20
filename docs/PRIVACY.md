@@ -77,7 +77,9 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     (macOS permissions belong to Lantern), so for photo and video results the daemon writes a small JPEG thumbnail
     (a video's frame at the result's moment) to `~/Library/Caches/Lantern/thumbnails` (mode `0700`, files `0600`),
     only when Raycast asks and only for indexed files; each is deleted after 10 minutes, and all of them when the
-    daemon starts. This is the one place Lantern writes a picture of your files to disk.
+    daemon starts. This is the one place Lantern writes a picture of your files to disk. For ⌘Y on a recording the
+    extension opens the Lantern app's own player through the local URL `lantern://preview`; the app opens it only for
+    files that are in the index (any web page can ask for such a URL, so nothing else is shown).
 
 19. **Time and place** (phase 16): Lantern reads the date and the GPS location saved in photos and videos (EXIF,
     QuickTime) and dates in file names. The location becomes a city through a table of GeoNames cities (CC-BY 4.0)

@@ -1011,6 +1011,16 @@ class Daemon:
         out = thumbnails.make(path, row["kind"], start_ms, size)
         return {"path": str(out) if out else None}
 
+    def api_file(self, path: str) -> dict:
+        """Whether a path is in the index and its kind: the app opens `lantern://preview` only for indexed files (any
+        web page could ask for that URL)."""
+        conn = self._conn()
+        try:
+            row = conn.execute("SELECT kind FROM files WHERE path = ? AND status = 'indexed'", (path,)).fetchone()
+        finally:
+            conn.close()
+        return {"indexed": row is not None, "kind": row["kind"] if row else None}
+
     def api_preview(self, path: str, start_line: int, end_line: int | None = None, context: int = 12) -> dict:
         """Lines of an indexed text/code file around a result, for the panel's quick look (Space). Only files in
         the index can be read this way."""

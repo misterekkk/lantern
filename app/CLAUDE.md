@@ -47,6 +47,10 @@ A **thin client of the daemon API** (Unix socket, JSON lines): no indexing, embe
   of only Lantern's window with `screencapture -l <window id>`; never the whole screen). Run with
   `-AppleLanguages "(pl)"` / `"(en)"`. Text that may be longer in Polish needs `.fixedSize(horizontal: false,
   vertical: true)`: offline renders wrap it, the real menu truncated it.
+- `lantern://preview?path=&ms=&text=` (`PreviewWindow.swift`): the panel's `PreviewView` for a recording in a small
+  floating window, for Raycast's ⌘Y (Quick Look cannot seek); only indexed files (`file` API), ⌘Y / Esc close it.
+  `--open-url <url>` calls the same handler (the installed app shares the bundle id, so `open lantern://…` would go
+  to it, not to the dev build).
 - Dev flags: `--settings-tab <pane>`, `--expand-tree`, `--tree-query <q>`, `--scroll-to extensions`, `--preview`,
   `--hover-scope <kind>`, `--unfold-scopes` (unfolds the folded scope icons 1.5 s after they fold). Clicks posted
   with `CGEvent.postToPid` do not reach SwiftUI buttons in the panel; use a dev flag instead.

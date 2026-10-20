@@ -237,6 +237,8 @@ printf '{"id": 1, "method": "search", "params": {"query": "invoice october", "li
 ```
 
 Methods include `ping`, `status`, `search` (`query`, `limit`, `log`, `category`), `index` (`path`, `force`),
+`setup` (this Mac's memory, profile and models), `diagnostics`, `rebuild_index`, `file` (`path`: indexed or not, and
+its kind), `thumbnail`,
 `remove` (`path`), `pending`, `approve`, `decline`, `pause`, `resume`, `config_get`, `config_set` (`key`, `value`),
 `exclude` (`action`, `pattern`), `extensions` (`action`, `extension`), `compact`, `clear_history`, `preview`, `perf`,
 `download_models` (`models`) and `shutdown`. They are the `api_<method>` functions in

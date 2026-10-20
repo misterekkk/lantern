@@ -568,3 +568,17 @@ def test_photos_indexed_before_get_their_people_counted_without_indexing_files_w
     d._manage_worker()
     assert started == []
     conn.close()
+
+
+def test_file_api_says_whether_a_path_is_indexed(lantern_home, project):
+    from lantern.indexer import run_queue
+    from lantern.scanner.diff import scan_root
+
+    conn = db.connect(db.Path(os.environ["LANTERN_HOME"]) / "index.db")
+    scan_root(conn, project)
+    run_queue(conn, FakeEmbedder())
+    path = conn.execute("SELECT path FROM files WHERE status = 'indexed' LIMIT 1").fetchone()[0]
+    conn.close()
+    d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False))
+    assert d.api_file(path)["indexed"] is True and d.api_file(path)["kind"]
+    assert d.api_file("/etc/passwd") == {"indexed": False, "kind": None}
