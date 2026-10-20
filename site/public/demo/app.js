@@ -70,6 +70,8 @@ const ART = {
   screenshot: `<svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice"><rect width="320" height="200" fill="#1d4ed8"/><rect x="34" y="26" width="252" height="148" rx="10" fill="#f8fafc"/><rect x="34" y="26" width="252" height="24" rx="10" fill="#e2e8f0"/><rect x="34" y="40" width="252" height="10" fill="#e2e8f0"/><g fill="#94a3b8"><circle cx="48" cy="38" r="4"/><circle cx="61" cy="38" r="4"/><circle cx="74" cy="38" r="4"/></g><circle cx="66" cy="86" r="14" fill="#ef4444"/><path d="M60 80l12 12M72 80 60 92" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><g font-family="-apple-system,Helvetica,Arial" fill="#0f172a"><text x="92" y="82" font-size="14" font-weight="700">Windows Update</text><text x="92" y="102" font-size="12">Error code: 0x80070002</text><text x="50" y="128" font-size="11" fill="#475569">The system cannot find the file specified.</text></g><rect x="206" y="146" width="66" height="18" rx="5" fill="#2563eb"/><text x="239" y="159" font-family="-apple-system,Helvetica,Arial" font-size="10" fill="#fff" text-anchor="middle">Try again</text></svg>`,
   cover: `<svg viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="cv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#be185d"/></linearGradient></defs><rect width="160" height="160" fill="url(#cv)"/><circle cx="110" cy="50" r="18" fill="#fde68a" opacity=".85"/><path d="M0 120q40-30 80-10t80-20v70H0z" fill="#0f172a" opacity=".7"/><g fill="#fff" opacity=".8"><circle cx="30" cy="30" r="1.2"/><circle cx="60" cy="20" r="1"/><circle cx="140" cy="100" r="1"/><circle cx="20" cy="80" r="1"/></g></svg>`,
 };
+// the photos and the video frame come from the showcase drawings (art.js, scripts/showcase/demo_art.py)
+Object.assign(ART, window.SHOWCASE_ART || {});
 
 /* ---------- scenarios ---------- */
 
@@ -341,6 +343,7 @@ function fitStage() {
   // the trademark note sits under the desktop, never over it: the desktop fits the space above the note
   const stage = $(".stage");
   stage.style.bottom = `${$(".legal").offsetHeight}px`;
+  stage.style.top = `${$(".topbar").offsetHeight}px`;  // the way back to the website stays visible above the desktop
   const s = Math.min((innerWidth * 0.96) / 1440, (stage.clientHeight * 0.96) / 900, 1.25);
   desktop.style.transform = `translate(-50%, -50%) scale(${s})`;
   const small = innerWidth < 760 && !document.body.dataset.anyway;

@@ -8,8 +8,8 @@
   --text-3: rgba(20, 24, 31, 0.4);
   --accent: #3b82f6;
   --accent-soft: rgba(59, 130, 246, 0.16);
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass: rgba(255, 255, 255, 0.8);
+  --glass-strong: rgba(250, 251, 253, 0.9);
   --stroke: rgba(255, 255, 255, 0.75);
   --highlight: rgba(255, 255, 255, 0.9);
   --on-dark-2: rgba(232, 236, 240, 0.72);  /* secondary text on graphite (the guide, code previews) */
@@ -20,10 +20,15 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }  /* author display rules must not show hidden elements */
 
+/* The page around the desktop takes the website's colours (light or dark, as the system), so the tour sits on the
+   site instead of a grey box. */
+:root { --page: #eef2f6; --page-ink: #1c1f24; --page-muted: #5b6470; --amber: #f2b84b; }
+@media (prefers-color-scheme: dark) { :root { --page: #111418; --page-ink: #eceff2; --page-muted: #9aa3ae; } }
+
 html, body {
   margin: 0;
   height: 100%;
-  background: #c9d3de;
+  background: var(--page);
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
@@ -61,11 +66,16 @@ kbd {
   user-select: none;
 }
 
-/* Own wallpaper, "Mist": a pale sky (the lantern's), so the eye goes to the panel (no Apple artwork). */
+/* Own wallpaper, "Dusk" (the showcase's): violet, amber and sea-green glows on graphite, so the light panel stands out
+   (no Apple artwork). */
 .wallpaper {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 85% at 50% 0%, #f3f6fa 0%, #dfe6ee 62%, #d3dce6 100%);
+  background:
+    radial-gradient(70% 70% at 18% 20%, #3b2a6b 0%, rgba(59, 42, 107, 0) 100%),
+    radial-gradient(70% 70% at 85% 85%, #0f5c6e 0%, rgba(15, 92, 110, 0) 100%),
+    radial-gradient(50% 50% at 70% 10%, rgba(184, 105, 42, 0.55) 0%, rgba(184, 105, 42, 0) 100%),
+    #0d1220;
 }
 .wallpaper::after {  /* fine grain, so large gradients do not band */
   content: "";
@@ -99,8 +109,8 @@ kbd {
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
-  color: rgba(20, 24, 31, 0.9);
-  background: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(14, 16, 24, 0.32);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
   z-index: 30;
@@ -118,24 +128,22 @@ kbd {
 }
 .menubar-item svg { width: 17px; height: 17px; }
 .lantern-item { cursor: pointer; position: relative; }
-.lantern-item:hover, .lantern-item[aria-expanded="true"] { background: rgba(22, 30, 42, 0.12); }
+.lantern-item:hover, .lantern-item[aria-expanded="true"] { background: rgba(255, 255, 255, 0.18); }
 .menubar-clock { font-variant-numeric: tabular-nums; }
 
-/* pulsing ring around what the hint points at */
+/* what the hint points at: a calm amber outline (the icon's spark) that breathes a little, never grows */
 .attention::after {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: -4px;
   border-radius: 10px;
-  border: 2px solid rgba(59, 130, 246, 0.9);
-  animation: ring 1.6s var(--ease) infinite;
+  border: 1.5px solid rgba(242, 184, 75, 0.95);
+  box-shadow: 0 0 0 4px rgba(242, 184, 75, 0.16), 0 0 18px rgba(242, 184, 75, 0.35);
+  animation: breathe 2.4s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes ring {
-  0% { opacity: 0.9; transform: scale(0.9); }
-  70% { opacity: 0; transform: scale(1.25); }
-  100% { opacity: 0; }
-}
+@keyframes breathe { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .attention::after { animation: none; } }
 
 /* ---------- desktop files and dock ---------- */
 
@@ -144,7 +152,7 @@ kbd {
   top: 42px; right: 6px;  /* new files line up at the right edge, under the menu bar, like in Finder */
   display: grid; gap: 14px; justify-items: center;
 }
-.desktop-file { display: grid; justify-items: center; gap: 4px; width: 112px; font-size: 12px; text-shadow: 0 1px 2px rgba(255,255,255,.7); }
+.desktop-file { display: grid; justify-items: center; gap: 4px; width: 112px; font-size: 12px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
 .desktop-file span { text-align: center; overflow-wrap: anywhere; line-height: 1.25; }
 .desktop-file i { width: 56px; height: 64px; display: block; }
 .desktop-file i svg { width: 100%; height: 100%; }
@@ -513,9 +521,27 @@ kbd {
   font-size: 11px;
   line-height: 1.35;
   text-align: center;
-  color: rgba(31, 35, 40, 0.55);
+  color: var(--page-muted);
+  opacity: 0.8;
   pointer-events: none;
 }
+
+/* Always there, from the first second: back to the website without finishing the tour. */
+.topbar {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 44px;
+  padding: 0 max(20px, env(safe-area-inset-left, 0px));
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 14px;
+  color: var(--page-muted);
+  z-index: 50;
+}
+.topbar a { color: var(--page-ink); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.topbar a:hover { color: var(--amber); }
+.topbar img { width: 22px; height: 22px; border-radius: 6px; }
+.topbar .right { display: flex; gap: 18px; align-items: center; }
+.topbar .right a { font-weight: 500; }
 
 /* the tour waits for this element */
 .nudge { animation: nudge 0.45s var(--ease); }

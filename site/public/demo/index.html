@@ -7,7 +7,7 @@
   <meta name="description" content="Lantern is a local, offline Mac app that finds files, code, photos and moments in recordings by meaning. Try it in your browser.">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="assets/lantern.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <!--
@@ -15,6 +15,11 @@
     An interactive walkthrough of Lantern that looks like a Mac desktop. Everything is drawn here (own wallpaper and
     SVG icons, the visitor's system font): no Apple assets, no analytics, no third-party requests.
   -->
+  <nav class="topbar" aria-label="Website">
+    <a href="../"><span aria-hidden="true">←</span><img src="assets/lantern.svg" alt="">Lantern</a>
+    <div class="right"><span>Interactive tour</span><a href="../docs/install/">Install</a></div>
+  </nav>
+
   <main class="stage" id="stage">
     <div class="desktop" id="desktop" aria-label="A simulated Mac desktop">
       <div class="wallpaper" aria-hidden="true"></div>
@@ -96,6 +101,7 @@
     <a href="https://github.com/misterekkk/lantern">View on GitHub</a>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="art.js?v=8"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
