@@ -24,7 +24,8 @@ What changed for people using Lantern, newest first.
 - **Restore defaults and delete all data** (Settings → General and Privacy; `lantern restore-defaults`,
   `lantern delete-all-data`): folders stay on a restore; deleting removes the index, history, settings, the Spotify
   sign-in and logs, never your files or the models.
-- **Settings → Indexing** (was Battery and Heat) with the schedule.
+- **Settings → Indexing** (was Battery and Heat) with the schedule; Restore Defaults and Quit Lantern are plain buttons
+  under the groups, as in System Settings.
 - **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y works as in
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
   whole file, so you can go back to the start), in a window the size of Raycast's with more of the transcript; ⌘Y

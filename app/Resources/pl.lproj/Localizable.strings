@@ -363,7 +363,6 @@
 "%@ files · %@ chunks · %lld MB" = "Pliki: %1$@ · Fragmenty: %2$@ · %3$lld MB";
 "Search Index" = "Indeks";
 "Quit Lantern…" = "Zakończ Lantern…";
-"Search and indexing run in the background" = "Wyszukiwanie i indeksowanie działają w tle";
 "Quit Lantern?" = "Zakończyć Lantern?";
 "Quit" = "Zakończ";
 "Search and indexing stop until you open Lantern again." = "Wyszukiwanie i indeksowanie zatrzymają się, dopóki ponownie nie otworzysz Lanterna.";

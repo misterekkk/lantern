@@ -978,15 +978,17 @@ private struct AboutPane: View {
                     LabeledContent("Search Index") { Text("\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) fragments").foregroundStyle(.secondary) }
                     LabeledContent("Daemon") { Text("PID \(s.pid) · \(s.memoryMb) MB").foregroundStyle(.secondary) }
                 }
-                // Lantern has no Dock icon, so quitting lives here, as an action row like "Sign Out…" in System
-                // Settings (⌘Q works too while a Lantern window is in front). It asks first, as Terminal and Safari do
-                // when quitting stops something; a plain button: macOS keeps red for actions that destroy data.
-                LabeledContent {
+            }
+            // Lantern has no Dock icon, so quitting lives here: a plain button under the groups, right-aligned, as
+            // System Settings places its own (⌘Q works too while a Lantern window is in front). It asks first, as
+            // Terminal and Safari do when quitting stops something; not red: macOS keeps red for destroying data.
+            Section {} footer: {
+                HStack {
+                    Spacer()
                     Button("Quit Lantern…") { confirmQuit = true }
                         .keyboardShortcut("q", modifiers: .command)
-                } label: {
-                    Text("Search and indexing run in the background")
                 }
+                .padding(.top, 8)
             }
         }
         .confirmationDialog("Quit Lantern?", isPresented: $confirmQuit) {
