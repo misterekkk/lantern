@@ -24,12 +24,13 @@ Most commands work in two ways:
 
 | Command | Without the daemon | Notes |
 |---|---|---|
-| `index`, `search`, `remove`, `compact`, `clear-history`, `exclude`, `ignore`, `config`, `open`, `status`, `models`, `rebuild`, `languages`, `diagnostics` | works | `status` shows a shorter, local report |
+| `index`, `search`, `remove`, `compact`, `clear-history`, `exclude`, `ignore`, `config`, `open`, `status`, `models`, `rebuild`, `restore-defaults`, `delete-all-data`, `languages`, `diagnostics` | works | `status` shows a shorter, local report |
 | `pending`, `approve`, `decline`, `pause`, `resume` | error, exit 1 | they control the daemon |
 
 **The CLI and the app have the same settings and actions**: folders (`index`, `remove`, `exclude`, `ignore`), every
-setting (`config`: index mode, search model mode, file types, places, people, pauses), models (`models`), languages
-(`languages`), rebuilding the index (`rebuild`) and diagnostics. Only what belongs to the menu bar app itself has no
+setting (`config`: index mode, search model mode, file types, places, people, pauses, the indexing schedule), models
+(`models`), languages (`languages`), rebuilding the index (`rebuild`), restoring the defaults (`restore-defaults`),
+deleting all data (`delete-all-data`) and diagnostics. Only what belongs to the menu bar app itself has no
 command: the search panel and its shortcut, Raycast / Alfred as the place to search, the clipboard history, menu
 items and windows, and Apple Music (read by the app through iTunesLibrary).
 
@@ -47,7 +48,7 @@ request to it automatically).
 
 ## Indexing
 
-### `lantern index <path> [--force] [--no-transcribe] [--dry-run]`
+### `lantern index <path> [--force] [--no-transcribe] [--dry-run] [--yes]`
 
 Adds a folder to the index or brings it up to date. Lantern only reads files; it never writes, moves or deletes them.
 
@@ -59,6 +60,10 @@ Adds a folder to the index or brings it up to date. Lantern only reads files; it
   purpose do not count.
 - `--dry-run` reads only file names and sizes: per-kind counts, sizes, folders without access and a rough estimate
   of the first indexing time. Nothing is read or written.
+- The whole disk (`/`, `/Users`, `/Volumes`), system folders (`/System`, `/Library`, `~/Library` apart from iCloud
+  Drive and `~/Library/CloudStorage`, `/Applications`) and Lantern's own data folder are refused (exit 1).
+- A new folder with 20 000 files or more, 50 GB or more, or a large folder on another disk prints its estimate
+  (files, size, rough time) and stops (exit 1); `--yes` adds it anyway. The app asks the same question.
 - `--no-transcribe` (only without the daemon) indexes audio and video by sound, without Whisper transcripts.
 
 Output without the daemon:
@@ -187,6 +192,18 @@ Deletes the index and indexes every folder again, keeping the list of folders (r
 still be read); your files are never touched. It is what the menu offers for an index from a newer Lantern or a
 damaged one. Without `--yes` it only explains what it would do.
 
+### `lantern restore-defaults [--yes]`
+
+Every setting back to its default for this Mac (8 GB Macs get the light defaults), as Settings → General → Restore
+Defaults. The folders and the parts of them you left out stay. Without `--yes` it only explains.
+
+### `lantern delete-all-data [--yes]`
+
+Deletes everything Lantern stored: the index of your folders (text, vectors, dates, places, people, music, search
+history), the settings and the logs, as Settings → Privacy → Delete All Data. Your files and the downloaded models
+(in `~/.cache/huggingface/hub/`) are not touched. Lantern then starts as on the first day. Without `--yes` it only
+explains.
+
 ### `lantern languages [list | add | remove <code>] [--json]`
 
 Languages for app names and text in images (OCR): the macOS ones plus the ones added here, as in Settings → General.
@@ -220,9 +237,13 @@ daemon applies changes at once.
 | `transcribe` | `true` | Whisper transcripts of recordings (off: see *Transcription on and off* in README) |
 | `index_video_frames` | `true` | index frames of videos as photos |
 | `notify` | `true` | macOS notifications (new files found, indexing done) |
-| `debounce_s` | `3.0` | seconds of quiet after file changes before a rescan |
+| `schedule` | `anytime` | when indexing runs: `anytime`, `idle` (after 5 minutes without keyboard or mouse) or `night` |
+| `night_from`, `night_to` | `22`, `7` | the night window for `schedule = night` (hours, local time) |
+| `debounce_s` | `3.0` | seconds of quiet after file changes before a rescan (0.1–60) |
 
-Booleans accept `true/false`, `1/0`, `yes/no`. The two lists have their own commands:
+Booleans accept `true/false`, `1/0`, `yes/no`. Search works at any hour; the schedule only holds indexing back
+(`lantern status` says why it waits). A hand-edited `config.toml` never stops Lantern: a value out of range is
+clamped, a wrong one replaced by its default, and the daemon lists each correction in its warnings. The two lists have their own commands:
 
 ### `lantern exclude add|remove|list [pattern]`
 
@@ -272,7 +293,8 @@ printf '{"id": 1, "method": "search", "params": {"query": "invoice october", "li
 ```
 
 Methods include `ping`, `status`, `search` (`query`, `limit`, `log`, `category`), `index` (`path`, `force`),
-`setup` (this Mac's memory, profile and models), `diagnostics`, `rebuild_index`, `file` (`path`: indexed or not, and
+`setup` (this Mac's memory, profile and models), `diagnostics`, `rebuild_index`, `estimate` (`path`: files, size,
+rough time, refused or large), `restore_defaults`, `delete_all_data`, `file` (`path`: indexed or not, and
 its kind), `thumbnail`,
 `remove` (`path`), `pending`, `approve`, `decline`, `pause`, `resume`, `config_get`, `config_set` (`key`, `value`),
 `exclude` (`action`, `pattern`), `extensions` (`action`, `extension`), `compact`, `clear_history`, `preview`, `perf`,

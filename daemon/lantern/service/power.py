@@ -24,6 +24,7 @@ class PowerState:
     low_power: bool = False
     thermal_pressure: bool = False
     thermal: str = "nominal"
+    idle_s: float = 0.0  # seconds since the last key press, click or mouse move (the indexing schedule)
 
 
 def parse_batt(output: str) -> bool:
@@ -106,6 +107,24 @@ def _frameworks() -> _Frameworks | None:
         return None
 
 
+@cache
+def _idle_function():
+    try:
+        cg = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+    except OSError:
+        return None
+    f = cg.CGEventSourceSecondsSinceLastEventType
+    f.restype, f.argtypes = ctypes.c_double, [ctypes.c_int32, ctypes.c_uint32]
+    return f
+
+
+def idle_seconds() -> float:
+    """Seconds without input (CGEventSourceSecondsSinceLastEventType, HID system state, any event; it matches
+    `ioreg`'s HIDIdleTime). 0 when it cannot be read: the Mac counts as in use."""
+    f = _idle_function()
+    return max(f(1, 0xFFFFFFFF), 0.0) if f else 0.0
+
+
 def read() -> PowerState:
     fw = _frameworks()
     try:
@@ -116,4 +135,4 @@ def read() -> PowerState:
     low_power = (fw.low_power() if fw else False) or parse_low_power(_pmset())
     pressure = thermal >= THERMAL_PAUSE_FROM or parse_therm(_pmset("therm"))
     return PowerState(on_battery=on_battery, low_power=low_power, thermal_pressure=pressure,
-                      thermal=THERMAL_STATES[thermal])  # fmt: skip
+                      thermal=THERMAL_STATES[thermal], idle_s=idle_seconds())  # fmt: skip

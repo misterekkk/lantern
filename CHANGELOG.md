@@ -13,6 +13,13 @@ What changed for people using Lantern, newest first.
 - **Copy Diagnostics** (Settings → About, `lantern diagnostics`): a report for bug reports without file names.
 - **CLI = app:** `lantern models` (list, download), `lantern rebuild`, `lantern languages`, and `--json` for
   `search`, `status`, `pending`, `config`, `models` and `languages`.
+- **Hard to break:** the whole disk, system folders and `~/Library` are refused as folders; a very large new folder
+  shows its estimate first (`lantern index --yes` adds it); a hand-edited `config.toml` with wrong values is
+  corrected instead of stopping Lantern.
+- **Indexing schedule:** any time, only when the Mac is idle, or at night (`lantern config schedule night`); search
+  works at any hour.
+- **Restore defaults and delete all data** (`lantern restore-defaults`, `lantern delete-all-data`): folders stay on a
+  restore; deleting removes the index, history, settings and logs, never your files or the models.
 - **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y works as in
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
   whole file, so you can go back to the start); ⌘Y closes the preview. The frame and transcript are on ⇧⌘Y.

@@ -118,8 +118,12 @@ def cmd_index_dry_run(root: Path) -> int:
     from collections import Counter
 
     from lantern.config import MAX_TEXT_FILE_BYTES
+    from lantern.scanner import guard
     from lantern.scanner.walk import WalkReport, iter_files
 
+    if reason := guard.refusal(root):
+        print(f"error: {guard.REFUSAL_MESSAGES[reason]}", file=sys.stderr)
+        return 1
     report = WalkReport()
     counts, sizes = Counter(), Counter()
     t0 = time.perf_counter()
@@ -147,9 +151,53 @@ def cmd_index_dry_run(root: Path) -> int:
     return 0
 
 
+def _new_root_allowed(root: Path, yes: bool) -> bool:
+    """A folder not indexed yet: refused ones never, large ones only with --yes (the app asks the same question)."""
+    from lantern.scanner import guard
+
+    if not root.is_dir():
+        return True  # the index call reports it
+    if _daemon():
+        try:
+            est = protocol.call("estimate", {"path": str(root)}, timeout=30)
+        except protocol.DaemonError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return False
+        if est["indexed"]:
+            return True
+    else:
+        conn = _connect()
+        known = conn.execute("SELECT 1 FROM roots WHERE path = ?", (str(root),)).fetchone()
+        conn.close()
+        if known:
+            return True
+        est = guard.estimate(root, _walk_options()).to_dict()
+    if est["refused"]:
+        print(f"error: {guard.REFUSAL_MESSAGES[est['refused']]}", file=sys.stderr)
+        return False
+    if est["large"] and not yes:
+        print(_estimate_line(est), file=sys.stderr)
+        print("this is a large folder; check that you mean it (a smaller folder is usually enough), then add --yes",
+              file=sys.stderr)  # fmt: skip
+        return False
+    return True
+
+
+def _estimate_line(est: dict) -> str:
+    more = "" if est["complete"] else " (counting stopped early: at least)"
+    parts = [f"{est['files']} files, {est['bytes'] / 2**30:.1f} GB{more}"]
+    if est["minutes"]:
+        parts.append(f"roughly {est['minutes']} min to index" + (" plus recordings" if est["recordings"] else ""))
+    if est["external"]:
+        parts.append("on another disk")
+    return f"{est['path']}: " + ", ".join(parts)
+
+
 def cmd_index(args: argparse.Namespace) -> int:
     if args.dry_run:
         return cmd_index_dry_run(Path(args.path).expanduser().resolve())
+    if not getattr(args, "rebuild", False) and not _new_root_allowed(Path(args.path).expanduser().resolve(), args.yes):
+        return 1
     if _daemon():
         try:
             summary = protocol.call("index", {"path": args.path, "force": args.force}, timeout=600)
@@ -661,9 +709,48 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
         Path(str(config.db_path()) + suffix).unlink(missing_ok=True)
     code = 0
     for root in roots:
-        code |= cmd_index(argparse.Namespace(path=root, force=False, no_transcribe=False, dry_run=False))
+        code |= cmd_index(argparse.Namespace(path=root, force=False, no_transcribe=False, dry_run=False, yes=True,
+                                                 rebuild=True))  # the user's folders, as they were
     print(f"rebuilt: {len(roots)} folders indexed again" if roots else "rebuilt an empty index (no folders were known)")
     return code
+
+
+def cmd_restore_defaults(args: argparse.Namespace) -> int:
+    """Settings back to this Mac's first-launch defaults (Settings → General → Restore Defaults). Folders and the parts
+    of them left out stay."""
+    from lantern.service import settings as settings_mod
+
+    if not args.yes:
+        print("This sets every setting back to its default for this Mac; your folders and what you left out of them "
+              "stay. Run `lantern restore-defaults --yes` to do it.", file=sys.stderr)  # fmt: skip
+        return 1
+    if _daemon():
+        changed = protocol.call("restore_defaults", timeout=60)["changed"]
+    else:
+        current = settings_mod.load()
+        fresh = settings_mod.restored(current)
+        changed = [k for k, v in settings_mod.asdict(fresh).items() if settings_mod.asdict(current)[k] != v]
+        settings_mod.save(fresh)
+    print(f"restored: {', '.join(changed)}" if changed else "every setting already had its default")
+    return 0
+
+
+def cmd_delete_all_data(args: argparse.Namespace) -> int:
+    """The index, the settings and the logs (Settings → Privacy → Delete All Data). Models and your files stay."""
+    if not args.yes:
+        print("This deletes everything Lantern stored: the index of your folders, search history, settings and logs. "
+              "Your files and the downloaded models are not touched. Run `lantern delete-all-data --yes` to do it.",
+              file=sys.stderr)  # fmt: skip
+        return 1
+    if _daemon():
+        out = protocol.call("delete_all_data", timeout=120)
+        print(f"deleted: the index of {out['roots']} folders, settings and logs")
+        return 0
+    from lantern.service.core import delete_data
+
+    delete_data()
+    print("deleted: the index, settings and logs")
+    return 0
 
 
 def cmd_languages(args: argparse.Namespace) -> int:
@@ -762,6 +849,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="allow removing more than half of a folder's entries")
     p.add_argument("--no-transcribe", action="store_true", help="index audio/video without Whisper (no daemon)")
     p.add_argument("--dry-run", action="store_true", help="only count what would be indexed and estimate the time")
+    p.add_argument("--yes", action="store_true", help="add a large new folder (without it, only shows the estimate)")
     p.set_defaults(func=cmd_index)
 
     p = sub.add_parser("search", help="search by meaning and keywords (one fused ranking)")
@@ -843,6 +931,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("rebuild", help="delete the index and index every folder again (files are not touched)")
     p.add_argument("--yes", action="store_true", help="do it (without it, only explains)")
     p.set_defaults(func=cmd_rebuild)
+
+    p = sub.add_parser("restore-defaults", help="set every setting back to its default (folders stay)")
+    p.add_argument("--yes", action="store_true", help="do it (without it, only explains)")
+    p.set_defaults(func=cmd_restore_defaults)
+
+    p = sub.add_parser("delete-all-data", help="delete the index, history, settings and logs (files and models stay)")
+    p.add_argument("--yes", action="store_true", help="do it (without it, only explains)")
+    p.set_defaults(func=cmd_delete_all_data)
 
     p = sub.add_parser("languages", help="languages for app names and text in images (macOS + added)")
     p.add_argument("action", nargs="?", choices=["list", "add", "remove"], default="list")

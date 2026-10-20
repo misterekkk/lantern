@@ -20,11 +20,12 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from pathlib import Path
 
 from lantern import config, filemeta
 from lantern.api import protocol
+from lantern.scanner import guard
 from lantern.scanner.diff import MassDeletionRefused, RootUnavailable, root_available, scan_root
 from lantern.search.hybrid import clear_history, learned_choice, mark_opened, search
 from lantern.service import machine, qos
@@ -72,10 +73,21 @@ def logs_dir() -> Path:
     return config.lantern_home() / "logs"
 
 
+def delete_data() -> None:
+    """The index, the settings and the logs (`delete_all_data`; the CLI without a daemon)."""
+    for suffix in ("", "-wal", "-shm"):
+        with suppress(FileNotFoundError):
+            Path(str(config.db_path()) + suffix).unlink()
+    with suppress(FileNotFoundError):
+        settings_mod.path().unlink()
+    shutil.rmtree(logs_dir(), ignore_errors=True)
+
+
 class Daemon:
     def __init__(self, embedder=None, watch: bool = True, power_reader=power_mod.read, worker_env: dict | None = None,
                  memory_reader=None):  # fmt: skip
         self.settings = settings_mod.load()
+        settings_problems = list(settings_mod.problems)
         self.memory_reader = memory_reader or (lambda: machine.read())  # looked up at call time (tests patch it)
         self.memory_pause: str | None = None  # "memory" while macOS is short of memory (phase 17)
         self._memory_calm_since: float | None = None
@@ -126,6 +138,8 @@ class Daemon:
         self.last_run: dict = {}
         self.warnings: list[str] = []
         self.warning_events: list[dict] = []  # the same warnings with a code, for the app to word (_warn)
+        for problem in settings_problems:  # a hand-edited config.toml: what was corrected (the file is fixed on save)
+            self._warn(f"settings: {problem}", "settings_fixed", detail=problem)
         self.stopping = threading.Event()
         self.watcher = None
         self.server: socketserver.ThreadingUnixStreamServer | None = None
@@ -476,6 +490,8 @@ class Daemon:
             reason = "thermal"
         elif _free_bytes(config.lantern_home()) < MIN_FREE_BYTES:
             reason = "low_disk"  # an index (and the WAL, VACUUM's copy) needs room; a full disk breaks the Mac too
+        elif not settings_mod.in_schedule(self.settings, time.localtime().tm_hour, state.idle_s):
+            reason = "schedule"  # indexing waits for the night or for the Mac to be idle; search works as always
         with self.lock:
             newly_low = reason == "low_disk" and self.auto_pause != "low_disk"
             self.auto_pause = reason
@@ -680,9 +696,14 @@ class Daemon:
         return {"ok": True}
 
     def api_index(self, path: str, force: bool = False) -> dict:
+        return self._index(path, force)
+
+    def _index(self, path: str, force: bool = False, check: bool = True) -> dict:
         root = str(Path(path).expanduser().resolve())
         if not root_available(Path(root)):
             raise FileNotFoundError(f"folder not available: {root}")
+        if check and not self._is_root(root):  # folders already indexed keep working; only new ones are checked
+            guard.check(Path(root))
         summary = self.scan(root, force=force)
         with self.lock:
             if self._settings_open():  # added in Settings: starts when they close (the tree may still exclude parts)
@@ -692,6 +713,22 @@ class Daemon:
         if self.watcher:
             self.watcher.watch(root)
         return summary
+
+    def _is_root(self, root: str) -> bool:
+        conn = self._conn()
+        try:
+            return conn.execute("SELECT 1 FROM roots WHERE path = ?", (root,)).fetchone() is not None
+        finally:
+            conn.close()
+
+    def api_estimate(self, path: str) -> dict:
+        """What adding this folder would mean (files, size, rough time, refused or large), before it is added."""
+        root = Path(path).expanduser().resolve()
+        if not root_available(root):
+            raise FileNotFoundError(f"folder not available: {root}")
+        if self._is_root(str(root)):
+            return {"path": str(root), "indexed": True}
+        return guard.estimate(root, settings_mod.walk_options(self.settings)).to_dict() | {"indexed": False}
 
     def api_remove(self, path: str) -> dict:
         root = str(Path(path).expanduser().resolve())
@@ -746,7 +783,8 @@ class Daemon:
         with self.lock:
             settings_mod.update(self.settings, key, str(value))
             settings_mod.save(self.settings)
-            if key in ("pause_on_battery", "pause_on_low_power", "pause_on_thermal"):
+            if key in ("pause_on_battery", "pause_on_low_power", "pause_on_thermal", "schedule", "night_from",
+                       "night_to"):
                 self._last_power_check = 0.0
         if key in ("index_photos", "index_audio_video"):  # files join or leave the index at the next scan: now
             self._scan_all_soon()
@@ -1156,6 +1194,49 @@ class Daemon:
             conn.close()
         return {"deleted": n}
 
+    def api_restore_defaults(self) -> dict:
+        """Settings back to this Mac's first-launch defaults. Kept: the folders and the parts of them left out (those
+        are the user's choices of what Lantern may read, and restoring would let it read more)."""
+        fresh = settings_mod.restored(self.settings)
+        changed = []
+        for f in fields(settings_mod.Settings):
+            new, old = getattr(fresh, f.name), getattr(self.settings, f.name)
+            if new == old or isinstance(new, list):
+                continue
+            self.api_config_set(f.name, str(new).lower() if isinstance(new, bool) else str(new))  # its side effects
+            changed.append(f.name)
+        with self.lock:
+            lists = [k for k in ("exclude_extensions", "extra_languages")
+                     if getattr(fresh, k) != getattr(self.settings, k)]  # fmt: skip
+            for key in lists:
+                setattr(self.settings, key, list(getattr(fresh, key)))
+            settings_mod.save(self.settings)
+        if "exclude_extensions" in lists:
+            self._scan_all_soon()
+        if "extra_languages" in lists:
+            self._languages_changed()
+        return {"changed": changed + lists, "settings": asdict(self.settings)}
+
+    def api_delete_all_data(self) -> dict:
+        """Everything Lantern stored: the index (files, text, vectors, places, people, music, search history), the
+        settings and the logs. Downloaded models stay (they hold nothing of the user's; `lantern models` lists them).
+        Lantern then starts as on the first day, with no folders."""
+        self._stop_worker(wait=True)
+        with self.scan_lock:
+            conn = self._conn()
+            roots = [r[0] for r in conn.execute("SELECT path FROM roots")]
+            conn.close()
+            if self.watcher:
+                for root in roots:
+                    self.watcher.unwatch(root)
+            delete_data()
+            db.connect(config.db_path()).close()  # an empty index, so the daemon keeps answering
+        with self.lock:
+            self.settings = settings_mod.load()  # no file: this Mac's first-launch defaults
+            self.warnings, self.warning_events, self.last_run = [], [], {}
+            self.approved, self.awaiting_approval, self.index_problem = False, False, None
+        return {"deleted": True, "roots": len(roots)}
+
     def api_shutdown(self) -> dict:
         self.stopping.set()
         return {"stopping": True}
@@ -1208,7 +1289,7 @@ class Daemon:
             self.index_problem = None
         for root in roots:
             with suppress(FileNotFoundError):
-                self.api_index(root)
+                self._index(root, check=False)  # the user's folders, as they were
         return {"rebuilt": True, "roots": roots}
 
     def _shutdown(self, path: Path) -> None:

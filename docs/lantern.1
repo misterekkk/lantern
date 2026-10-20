@@ -46,10 +46,14 @@ need the daemon.
 .SH COMMANDS
 .SS Indexing
 .TP
-.BI "index " path " \fR[\fB\-\-force\fR] [\fB\-\-no\-transcribe\fR] [\fB\-\-dry\-run\fR]"
+.BI "index " path " \fR[\fB\-\-force\fR] [\fB\-\-no\-transcribe\fR] [\fB\-\-dry\-run\fR] [\fB\-\-yes\fR]"
 Add a folder or bring it up to date: new and changed files are indexed, moved files keep their vectors, deleted
 files are removed with all their data.
 An unavailable folder (unplugged disk, network share) is never purged.
+The whole disk, system folders and Lantern's data folder are refused; a new folder with many files (20000 and
+more, 50 GB and more, or a large one on another disk) only shows its estimate unless
+.B \-\-yes
+is given.
 .RS
 .TP
 .B \-\-force
@@ -61,6 +65,9 @@ without a daemon: index audio and video by sound only, without Whisper transcrip
 .B \-\-dry\-run
 read only names and sizes: counts per kind, folders without access and a rough time estimate; nothing is read or
 written.
+.TP
+.B \-\-yes
+add a large new folder after its estimate.
 .RE
 .TP
 .BI "remove " path
@@ -197,7 +204,12 @@ Keys:
 .BR transcribe ,
 .BR index_video_frames ,
 .BR notify ,
-.BR debounce_s .
+.BR schedule " (" anytime | idle | night ),
+.BR night_from ,
+.BR night_to " (hours 0\(en23),"
+.BR debounce_s " (0.1\(en60)."
+Values out of range in a hand-edited config.toml are clamped and wrong ones replaced by the default; the daemon
+reports each correction in its warnings.
 .TP
 .BR exclude " " add | remove | list " [\fIpattern\fR]"
 Extra exclusions on top of the defaults (.git, node_modules, build and cache folders, secrets such as .env*,
@@ -225,6 +237,19 @@ once from Hugging Face; a model this Mac's memory does not recommend needs
 .BR rebuild " [\fB\-\-yes\fR]"
 Delete the index and index every folder again (the folders are kept; files are never touched), as the app does for
 an index from a newer Lantern or a damaged one. Without
+.B \-\-yes
+it only explains.
+.TP
+.BR restore\-defaults " [\fB\-\-yes\fR]"
+Every setting back to its default for this Mac (Settings \(-> General); the folders and the parts of them left out
+stay. Without
+.B \-\-yes
+it only explains.
+.TP
+.BR delete\-all\-data " [\fB\-\-yes\fR]"
+Delete everything Lantern stored: the index of your folders (text, vectors, places, people, music, search history),
+the settings and the logs, as Settings \(-> Privacy does. Your files and the downloaded models are not touched.
+Without
 .B \-\-yes
 it only explains.
 .TP
