@@ -1262,6 +1262,40 @@ M4A, MP3, MOV and Ogg Opus.
 - **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
   are now removed to the end of the line.
 
+## Reranker, convex combination and language-free query types measured (2026-10-20)
+
+- The three cheapest ideas of the search report, on the same 8 BEIR / BEIR-PL sets and the real index's keyword
+  queries (`spikes/phase17/collect_runs.py` saves both candidate lists once, `fusion_analyze.py` compares fusions,
+  `rerank_runs.py` reranks; test queries only, 95% paired bootstrap). nDCG@10, MRR for the real index.
+- **Convex combination** (min-max normalised scores, alpha tuned on SciFact train): for sentences slightly better
+  than RRF (SciFact EN 0.822 -> 0.840, FiQA EN 0.519 -> 0.527), for bare keywords clearly worse (real index MRR 0.485
+  -> 0.382). Used only for sentences (keywords keep RRF k=20 x2): average 0.623 -> 0.626, significantly better on
+  SciFact EN and Quora PL, worse nowhere. Same cost (~0.09 ms per query). A small gain, not shipped yet.
+- **Query type without language lists:** a word in at least 5% of the index's own passages counted as a function word.
+  It agreed with the Polish/English lists on 93-94% of the queries and matched them on every BEIR set, but on the real
+  index it fell to MRR 0.328 (from 0.485): 56% of that index are passages of one folder of generated Java API docs
+  indexed as raw HTML, so "class", "title", "summary", "interface" sit in over 5% of passages and keyword queries
+  looked like sentences. Cost was negligible (13-62 KB, 17-87 ms to build after indexing). Not shipped; worth trying
+  again once HTML is indexed as visible text.
+- **Rerankers** on the top 20 of the shipped fusion (60 test queries per set; SciFact as a 30-query trial):
+
+  | | Qwen3-Reranker-0.6B, MLX 4-bit | bge-reranker-v2-m3, PyTorch MPS fp16 |
+  |---|---|---|
+  | FiQA EN (finance questions) | 0.530 -> 0.612 (+0.082, significant) | 0.530 -> 0.629 (+0.099) |
+  | FiQA PL | 0.436 -> 0.457 (not significant) | not run |
+  | Quora EN / PL | 0.989 / 0.980 -> 0.973 / 0.962 | 0.989 -> 0.983 |
+  | real index, keywords (MRR) | 0.497 -> 0.416 (one word changed: 0.514 -> 0.377, significant) | not run |
+  | SciFact EN (trial) | 0.902 -> 0.761 | 0.902 -> 0.725 |
+  | time per query (median / p90) | 2.7 s / 4.3 s | 1.0 s / 1.8 s |
+  | peak memory (process footprint) | 1.7 GB (MLX 1.2 GB) | 4.7 GB |
+
+  A reranker helps only questions whose answer is in a document, and hurts keyword queries and claims, where
+  EmbeddingGemma 2's own ranking is already stronger than these small models. Seconds per query and gigabytes rule it
+  out for an interactive search. The first Qwen attempt took 12 GB: full logits for every position of 20 sequences;
+  only the last token's hidden state needs the output layer, and MLX needs its memory limit (as Lantern's rule says).
+- **Conclusion:** ranking is close to its ceiling with this embedding model; the gains left are in the data (raw HTML)
+  and in helping people phrase what Lantern understands, not in more ranking stages.
+
 ## Fusion and inflections measured (2026-10-20)
 
 - **Question:** does Lantern find the right document when the query changes form, and is RRF k = 60 (equal weights)
