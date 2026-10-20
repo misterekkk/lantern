@@ -95,8 +95,10 @@ struct MenuView: View {
         .animation(.smooth(duration: 0.25), value: state.phase)
     }
 
+    /// Files and chunks only: the daemon's memory is in Settings (About, Performance); in the menu it was cut off in
+    /// Polish and read as the size of the index.
     private func statsLine(_ s: DaemonStatus) -> String {
-        String(localized: "\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) chunks · Memory \(s.memoryMb) MB")
+        String(localized: "\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) chunks")
     }
 
     private var phaseLabel: LocalizedStringKey {

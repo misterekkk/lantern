@@ -360,7 +360,7 @@
 "Change…" = "Zmień…";
 "Save" = "Zapisz";
 "Lantern Settings…" = "Ustawienia Lantern…";
-"%@ files · %@ chunks · Memory %lld MB" = "Pliki: %1$@ · Fragmenty: %2$@ · Pamięć: %3$lld MB";
+"%@ files · %@ chunks" = "Pliki: %1$@ · Fragmenty: %2$@";
 "Search Index" = "Indeks";
 "Quit Lantern…" = "Zakończ Lantern…";
 "Quit Lantern?" = "Zakończyć Lantern?";
