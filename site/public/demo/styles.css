@@ -131,19 +131,15 @@ kbd {
 .lantern-item:hover, .lantern-item[aria-expanded="true"] { background: rgba(255, 255, 255, 0.18); }
 .menubar-clock { font-variant-numeric: tabular-nums; }
 
-/* what the hint points at: a calm amber outline (the icon's spark) that breathes a little, never grows */
-.attention::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(242, 184, 75, 0.95);
-  box-shadow: 0 0 0 4px rgba(242, 184, 75, 0.16), 0 0 18px rgba(242, 184, 75, 0.35);
+/* what the hint points at: a calm amber outline (the icon's spark) that breathes a little, never grows. An outline
+   follows the element's own rounded corners, so it fits the menu bar icon, a button and the shortcut tile alike. */
+.attention {
+  outline: 2px solid rgba(242, 184, 75, 0.95);
+  outline-offset: 3px;
   animation: breathe 2.4s ease-in-out infinite;
-  pointer-events: none;
 }
-@keyframes breathe { 50% { opacity: 0.55; } }
-@media (prefers-reduced-motion: reduce) { .attention::after { animation: none; } }
+.shortcut.attention { animation: panelIn 0.3s var(--ease), breathe 2.4s ease-in-out 0.3s infinite; }
+@keyframes breathe { 50% { outline-color: rgba(242, 184, 75, 0.4); } }
 
 /* ---------- desktop files and dock ---------- */
 
@@ -490,12 +486,13 @@ kbd {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: 24px; text-align: center;
   background: radial-gradient(80% 60% at 50% 20%, #2a1250, #05060a);
+  color: #f2f4f8;  /* its background is always dark, whatever the page colours */
 }
 .small-screen h1 { margin: 6px 0 0; }
 .small-screen p { width: min(340px, 100%); margin: 4px 0; line-height: 1.45; }
-.small-screen .muted { color: var(--text-2); font-size: 14px; }
+.small-screen .muted { color: rgba(242, 244, 248, 0.7); font-size: 14px; }
 .small-screen button { margin-top: 14px; border: 0; border-radius: 10px; padding: 10px 18px; background: var(--accent); color: #fff; font-weight: 600; }
-.small-screen a { color: #1d4ed8; margin-top: 8px; }
+.small-screen a { color: var(--amber); margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
