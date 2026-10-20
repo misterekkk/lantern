@@ -80,6 +80,34 @@ public enum Format {
         return lines.joined(separator: " ")
     }
 
+    /// Events that only report something done (grey, briefly); every other code is a problem worth a look (orange).
+    public static let infoCodes: Set<String> = ["compacted", "schema_upgraded"]
+    public static let infoShownFor: TimeInterval = 5 * 60
+    public static let problemShownFor: TimeInterval = 30 * 60
+
+    /// The newest event still worth showing in the menu, worded in the app's language, and whether it is only
+    /// information. Old ones disappear by themselves: a note about compacting stayed until the daemon restarted.
+    public static func currentWarning(_ events: [WarningEvent], now: Date = Date()) -> (text: String, info: Bool)? {
+        for e in events.reversed() {
+            guard let text = warning(e) else { continue }
+            let info = infoCodes.contains(e.code)
+            if let age = age(of: e, now: now), age > (info ? infoShownFor : problemShownFor) { continue }
+            return (text, info)
+        }
+        return nil
+    }
+
+    /// Seconds since the event: from its timestamp, or from its time of day (earlier today, else yesterday).
+    static func age(of e: WarningEvent, now: Date) -> TimeInterval? {
+        if let ts = e.ts { return now.timeIntervalSince1970 - ts }
+        let parts = e.time.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        let clock = Calendar.current.dateComponents([.hour, .minute, .second], from: now)
+        let nowS = (clock.hour ?? 0) * 3600 + (clock.minute ?? 0) * 60 + (clock.second ?? 0)
+        let thenS = parts[0] * 3600 + parts[1] * 60 + parts[2]
+        return TimeInterval(nowS >= thenS ? nowS - thenS : nowS + 86_400 - thenS)
+    }
+
     /// A daemon warning in the app's language (Lantern's own, not only the system's); nil for one that is not shown.
     public static func warning(_ e: WarningEvent) -> String? {
         let a = e.args

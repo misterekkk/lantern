@@ -72,6 +72,26 @@ import Testing
         #expect(Format.warning(WarningEvent(code: "parent_exited")) == nil)
         #expect(Format.warning(WarningEvent(code: "something_new", message: "as the daemon says")) == "as the daemon says")
     }
+
+    @Test func oldWarningsDisappearAndInformationIsNotAProblem() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let compacted = WarningEvent(code: "compacted", args: ["count": "2173"], ts: now.timeIntervalSince1970 - 60)
+        #expect(Format.currentWarning([compacted], now: now)?.info == true)  // a minute ago: shown, grey
+        let stale = WarningEvent(code: "compacted", args: ["count": "2173"], ts: now.timeIntervalSince1970 - 6 * 60)
+        #expect(Format.currentWarning([stale], now: now) == nil)  // information goes after 5 minutes
+        let disk = WarningEvent(code: "low_disk", ts: now.timeIntervalSince1970 - 20 * 60)
+        #expect(Format.currentWarning([disk, stale], now: now)?.info == false)  // an older problem still counts
+        let oldDisk = WarningEvent(code: "low_disk", ts: now.timeIntervalSince1970 - 31 * 60)
+        #expect(Format.currentWarning([oldDisk], now: now) == nil)  // problems after 30 minutes
+    }
+
+    @Test func eventsFromAnOlderDaemonAgeByTheirTimeOfDay() {
+        var parts = DateComponents(); parts.year = 2026; parts.month = 10; parts.day = 20; parts.hour = 0; parts.minute = 10
+        let now = Calendar.current.date(from: parts)!
+        #expect(Format.currentWarning([WarningEvent(time: "00:08:00", code: "low_disk")], now: now) != nil)  // 2 min
+        #expect(Format.currentWarning([WarningEvent(time: "23:50:00", code: "low_disk")], now: now) != nil)  // 20 min, over midnight
+        #expect(Format.currentWarning([WarningEvent(time: "12:00:00", code: "low_disk")], now: now) == nil)  // yesterday noon
+    }
 }
 
 @Suite struct ProtocolTests {

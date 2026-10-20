@@ -38,10 +38,12 @@ struct MenuView: View {
                         .contentTransition(.numericText())
                 }
                 // worded by the app in Lantern's language; a daemon from before 0.2.1 sends only English text
-                if let warning = s.warningEvents.map({ $0.last.flatMap(Format.warning) }) ?? s.warnings.last {
-                    Label(warning, systemImage: "exclamationmark.circle")
+                if let warning = s.warningEvents.map({ Format.currentWarning($0) })
+                    ?? s.warnings.last.map({ (text: $0, info: false) }) {
+                    // information grey for 5 minutes, problems orange for 30 (Format.currentWarning)
+                    Label(warning.text, systemImage: warning.info ? "info.circle" : "exclamationmark.circle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(warning.info ? Color.secondary : Color.orange)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)  // the whole sentence, in any language
                 }
@@ -94,7 +96,7 @@ struct MenuView: View {
     }
 
     private func statsLine(_ s: DaemonStatus) -> String {
-        String(localized: "\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) chunks · \(s.memoryMb) MB")
+        String(localized: "\(Format.count(s.indexedFiles)) files · \(Format.count(s.chunks)) chunks · Memory \(s.memoryMb) MB")
     }
 
     private var phaseLabel: LocalizedStringKey {

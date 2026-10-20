@@ -451,9 +451,10 @@ public struct WarningEvent: Decodable, Equatable, Sendable {
     public var code: String
     public var args: [String: String]
     public var message: String  // English, as the CLI shows it; used for codes this app does not know
+    public var ts: Double?  // seconds since 1970 (nil: a daemon from before 0.2.2, only `time` of day)
 
-    public init(time: String = "", code: String, args: [String: String] = [:], message: String = "") {
-        self.time = time; self.code = code; self.args = args; self.message = message
+    public init(time: String = "", code: String, args: [String: String] = [:], message: String = "", ts: Double? = nil) {
+        self.time = time; self.code = code; self.args = args; self.message = message; self.ts = ts
     }
 }
 

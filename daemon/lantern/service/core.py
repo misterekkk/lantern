@@ -166,7 +166,8 @@ class Daemon:
         stamp = time.strftime("%H:%M:%S")
         with self.lock:
             self.warnings = (self.warnings + [f"{stamp} {message}"])[-20:]
-            event = {"time": stamp, "code": code, "args": {k: str(v) for k, v in args.items()}, "message": message}
+            event = {"time": stamp, "ts": time.time(), "code": code, "args": {k: str(v) for k, v in args.items()},
+                     "message": message}  # ts: the app hides old events (Format.currentWarning)
             self.warning_events = (self.warning_events + [event])[-20:]
 
     def _notify(self, message: str) -> None:
