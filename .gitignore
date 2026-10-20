@@ -21,3 +21,4 @@ graphify-out/
 CLAUDE.local.md
 .claude/settings.local.json
 TASK.md
+/build/

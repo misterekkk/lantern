@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
+from lantern.embedding.fake import FakeEmbedder
+from lantern.store import db
+
 # For the whole session, before any test: a daemon thread that outlives its test (a scan started in the background)
 # runs after monkeypatch restored the environment. Without these it fell back to the real data folder and added a
 # test folder to the user's index (2026-10-20); now it only ever finds this throwaway folder.
 _SESSION_HOME = tempfile.mkdtemp(prefix="lantern-tests-")
 os.environ["LANTERN_HOME"] = _SESSION_HOME
 os.environ["LANTERN_NOTIFY"] = "0"
-
-from lantern.embedding.fake import FakeEmbedder
-from lantern.store import db
 
 
 @pytest.fixture(autouse=True)

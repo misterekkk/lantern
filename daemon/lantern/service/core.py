@@ -456,11 +456,16 @@ class Daemon:
         self._people_check_at = time.monotonic() + PEOPLE_CHECK_S
         return n > 0
 
+    def _release_when_idle(self) -> bool:
+        """"on_demand" always; "battery" only while the Mac runs on battery (on the charger it stays ready)."""
+        mode = self.settings.mode
+        return mode == "on_demand" or (mode == "battery" and bool(getattr(self.power_state, "on_battery", False)))
+
     def _release_idle_search_model(self) -> None:
         """"On demand" mode: the search model (~0.5 GB) is released after MODEL_IDLE_S without a search; apps and
         settings still answer without it, and the next search by meaning loads it again (time in status)."""
         e = self.embedder
-        if (self.settings.mode == "on_demand" and e is not None and getattr(e, "loaded", False)
+        if (self._release_when_idle() and e is not None and getattr(e, "loaded", False)
                 and time.monotonic() - self.last_search_at > MODEL_IDLE_S):  # fmt: skip
             self.model_thread.submit(e.unload)
 

@@ -1262,6 +1262,35 @@ M4A, MP3, MOV and Ogg Opus.
 - **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
   are now removed to the end of the line.
 
+## MLX limits measured (2026-10-20)
+
+- `spikes/phase17/memory_limits.py`: one fresh process per measurement, one after another, with the user's daemon
+  paused and its model released (never two models at once). Fixed samples: 141 passages of ~1 200 characters, 21
+  camera photos, 180 s of a screen recording (7 audio windows, Whisper on the same 180 s). Peak = physical footprint
+  (Activity Monitor's "Memory"); M4, 16 GB. Clean run (nothing else heavy running):
+
+  | work | 3 GB (old fixed) | 1.5 GB | 1 GB | 768 MB | 512 MB |
+  |---|---|---|---|---|---|
+  | text (EG2) | 1519 MB, 9.2 s | 1519, 9.1 | 1232, 9.1 | 985, 9.2 | 842, 9.4 |
+  | photos (EG2 vision) | 1639, 9.2 | 1625, 9.0 | 1518, 9.0 | 1260, 9.3 | 1227, 10.6 |
+  | photos (SigLIP 2) | 2183, 3.3 | 2184, 3.1 | 2182, 3.1 | 2190, 3.1 | 2111, 3.1 |
+  | audio tower | 1949, 4.6 | 1937, 4.6 | 1478, 4.6 | 1439, 5.2 | 1439, 5.2 |
+  | Whisper | 2413, 10.6 | 1898, 12.8 | 1897, 12.9 | 1894, 13.1 | 1900, 13.3 |
+
+- The limit is a guideline (MLX 0.32 docs, confirmed): above it MLX frees its cache and waits instead of growing;
+  nothing failed even at 512 MB. Savings come with little or no slowdown, except Whisper (+21%) and the audio tower
+  (+13% at 768 MB). SigLIP's footprint does not follow the limit (its fp16 weights and the decoded photos are outside
+  MLX's pool); the first run of each group was slower only because files were not yet in the disk cache.
+- **Decision:** the limit follows the memory free now, `free - 1.5 GB`, between 512 MB and a cap by RAM: 3 GB on
+  16 GB and more (the old value, so nothing changes there), 1 GB on 8 GB Macs (saves 0.3-0.5 GB per worker at a
+  cost of up to 20% on Whisper). It is set at load and refreshed at most every 5 s while working
+  (`mlx_backend.apply_memory_limit`, also before Whisper and SigLIP). As an 8 GB Mac (`LANTERN_FAKE_RAM_GB=8`): text
+  1232 MB, audio 1496 MB, Whisper 1912 MB with the 1 GB cap.
+- **Under load the cap is what matters, not the free memory:** holding 6 GB of random (incompressible) data, macOS
+  kept its "free percentage" at 32-37% by moving other apps to swap (swap 4.6 -> 8.2 GB; zero-filled memory did
+  nothing at all, the compressor took it), so the dynamic limit stayed at the 3 GB cap on 16 GB. What protected the
+  Mac was the guard: the daemon paused indexing by itself ("memory": warn with fast-growing swap) during the test.
+
 ## Phase 17, second stage built (2026-10-20)
 
 - **Folders that cannot be indexed** (`scanner/guard.py`): `/`, `/Users`, `/Volumes`, `/private`, `/var` and the

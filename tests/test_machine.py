@@ -221,3 +221,14 @@ def test_model_sizes_are_exact_and_decimal():
             from lantern.service.perf import _snapshot_size
 
             assert _snapshot_size(m.repo, m.revision) == m.size_bytes, m.key
+
+
+def test_mlx_limit_follows_free_memory_within_floor_and_cap():
+    gb = machine.GB
+    full = lambda free: machine.Memory(total=16 * gb, pressure=1, free_percent=free, swap_used=0)  # noqa: E731
+    light = lambda free: machine.Memory(total=8 * gb, pressure=1, free_percent=free, swap_used=0)  # noqa: E731
+    assert machine.mlx_limit(full(60)) == 3 * gb  # plenty free: the cap
+    assert machine.mlx_limit(full(20)) == int(16 * gb * 20 // 100 - machine.HEADROOM)  # 3.2 GB free -> 1.7 GB
+    assert machine.mlx_limit(full(5)) == machine.MLX_FLOOR  # almost nothing free: the floor, never zero
+    assert machine.mlx_limit(light(60)) == 1 * gb  # an 8 GB Mac never above 1 GB
+    assert machine.mlx_limit(light(10)) == machine.MLX_FLOOR

@@ -59,7 +59,7 @@ public struct DaemonStatus: Decodable, Equatable, Sendable {
     public var warnings: [String]
     public var warningEvents: [WarningEvent]?  // the warnings with a code, worded by Format.warning (nil: older daemon)
     public var indexProblem: String?  // "newer" (an index from a newer Lantern) | "damaged" (phase 17)
-    public var searchMode: String?  // "ready" | "on_demand"
+    public var searchMode: String?  // "ready" | "on_demand" | "battery"
     public var modelReloadMs: Int?  // last reload of the search model in "on demand" mode
     public var datesPending: Int?  // background work after an update or new files (phase 16)
     public var peoplePending: Int?
@@ -416,7 +416,7 @@ public struct DaemonSettings: Decodable, Equatable, Sendable {
     public var indexImageText: Bool
     public var extraLanguages: [String]?
     public var places: Bool?  // GPS -> city (nil: a daemon from before phase 16)
-    public var mode: String?  // "ready" | "on_demand" (nil: before phase 17)
+    public var mode: String?  // "ready" | "on_demand" | "battery" (nil: before phase 17)
     public var people: Bool?  // people in photos: counts, women/men by appearance (nil: before phase 16)
     public var schedule: String?  // "anytime" | "idle" | "night" (nil: before phase 17)
     public var nightFrom: Int?

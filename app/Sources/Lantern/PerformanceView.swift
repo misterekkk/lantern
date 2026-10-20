@@ -88,11 +88,12 @@ struct PerformanceTab: View {
                     Picker(selection: Binding(get: { mode }, set: { state.setConfig("mode", $0) })) {
                         Text("Always ready").tag("ready")
                         Text("When needed").tag("on_demand")
+                        Text("When needed on battery").tag("battery")
                     } label: {
                         Text("Search model")
                     }
                 } footer: {
-                    Text("Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer.")
+                    Text("Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes about half a second longer. On battery: always ready on the charger, released when idle on battery.")
                         .font(.caption)
                 }
             }

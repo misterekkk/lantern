@@ -60,8 +60,10 @@ class SiglipImageEmbedder:
         import mlx.core as mx
 
         from lantern.embedding import siglip_vision
+        from lantern.embedding.mlx_backend import apply_memory_limit
 
         self._load()
+        apply_memory_limit()
         out = []
         for i in range(0, len(images), 16):
             pixels = mx.array(siglip_vision.preprocess(images[i : i + 16])).astype(mx.float16)

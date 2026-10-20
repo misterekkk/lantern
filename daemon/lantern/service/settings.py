@@ -7,7 +7,9 @@ from pathlib import Path
 from lantern.config import lantern_home
 
 INDEX_MODES = ("ask", "auto")
-MODES = ("ready", "on_demand")  # the search model stays in memory, or is released after a few idle minutes
+# the search model stays in memory, is released after a few idle minutes, or stays on the charger and is released
+# when idle on battery
+MODES = ("ready", "on_demand", "battery")
 SCHEDULES = ("anytime", "idle", "night")  # when indexing runs; search always works
 
 

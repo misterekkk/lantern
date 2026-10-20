@@ -164,3 +164,19 @@ def test_delete_all_data_leaves_nothing_behind(tmp_path, lantern_home):
     assert conn.execute("SELECT count(*) FROM roots").fetchone()[0] == 0
     conn.close()
     assert (tmp_path / "notes" / "a.md").read_text() == "the secret plan"  # the user's files are never touched
+
+
+def test_battery_mode_releases_the_model_only_on_battery(lantern_home):
+    from lantern.embedding.fake import FakeEmbedder
+    from lantern.service.core import Daemon
+    from lantern.service.power import PowerState
+
+    settings.save(settings.Settings(mode="battery", notify=False))
+    state = PowerState(on_battery=False)
+    d = Daemon(embedder=FakeEmbedder(), watch=False, power_reader=lambda: state)
+    d._check_power()
+    assert not d._release_when_idle()
+    state = PowerState(on_battery=True)
+    d._last_power_check = 0.0
+    d._check_power()
+    assert d._release_when_idle()

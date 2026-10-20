@@ -8,7 +8,10 @@ What changed for people using Lantern, newest first.
   this Mac's memory), which folders, and Lantern's panel, Raycast or Alfred.
 - **Careful with memory:** an 8 GB Mac starts light (search model only, Whisper and video frames off, the model
   released when idle); heavy work starts only when the Mac has room for it; indexing waits under memory pressure.
-- **"When needed" mode** releases the search model after 10 idle minutes (`lantern config mode on_demand`).
+- **"When needed" mode** releases the search model after 10 idle minutes (`lantern config mode on_demand`), or only on
+  battery (`battery`: always ready on the charger); the next search loads it in about half a second.
+- **Lighter indexing on 8 GB Macs:** the models' memory limit follows the free memory and stays at 1 GB on 8 GB
+  Macs (measured: 0.3-0.5 GB less per indexing process).
 - **An index from a newer Lantern or a damaged one** is explained with Update / Rebuild instead of Lantern stopping.
 - **Copy Diagnostics** (Settings → About, `lantern diagnostics`): a report for bug reports without file names.
 - **CLI = app:** `lantern models` (list, download), `lantern rebuild`, `lantern languages`, and `--json` for

@@ -224,7 +224,7 @@ daemon applies changes at once.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `mode` | `ready` (8 GB Macs: `on_demand`) | `ready` keeps the search model in memory; `on_demand` releases it after 10 idle minutes |
+| `mode` | `ready` (8 GB Macs: `on_demand`) | `ready` keeps the search model in memory; `on_demand` releases it after 10 idle minutes; `battery` keeps it on the charger and releases it when idle on battery |
 | `index_mode` | `ask` | `ask`: new files wait for approval; `auto`: index right away |
 | `pause_on_battery` | `true` | pause indexing on battery power |
 | `pause_on_low_power` | `true` | pause indexing in Low Power Mode |

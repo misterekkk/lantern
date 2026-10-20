@@ -92,6 +92,9 @@ class WhisperTranscriber:
         invented words; file names often have nothing to do with the recording anyway (docs/DECISIONS.md)."""
         import mlx_whisper
 
+        from lantern.embedding.mlx_backend import apply_memory_limit
+
+        apply_memory_limit(force=True)  # Whisper may run before the text model in a worker: limits first
         result = mlx_whisper.transcribe(
             samples,
             path_or_hf_repo=self._model_path(),

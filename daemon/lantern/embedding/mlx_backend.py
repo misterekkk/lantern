@@ -21,9 +21,32 @@ DIM = 768
 MAX_TOKENS = 1024  # chunks are ~400 tokens (<= 1600 chars); hard cap protects memory
 BATCH = 8  # ~1.1 GB MLX peak on M4 for ~500-token chunks
 IMAGE_TOKENS = 140  # image token budget: 2.2x faster than the default 280 for a small quality loss (DECISIONS.md)
-# MLX allocator limits (16 GB machine shared with the user's apps).
-MEMORY_LIMIT = 3 * 1024**3
+# MLX allocator limits: the memory limit follows the free memory (machine.mlx_limit, refreshed while working); the
+# cache limit is fixed. MEMORY_LIMIT set to a number pins it (spikes/phase17/memory_limits.py).
+MEMORY_LIMIT: int | None = None
 CACHE_LIMIT = 256 * 1024**2
+LIMIT_REFRESH_S = 5.0
+_limit_set_at = -1e9
+_limit = 0
+
+
+def apply_memory_limit(force: bool = False) -> int:
+    """Set MLX's memory limit from the memory free now (at most every LIMIT_REFRESH_S); returns it in bytes."""
+    global _limit_set_at, _limit
+    import time
+
+    import mlx.core as mx
+
+    from lantern.service import machine
+
+    now = time.monotonic()
+    if not force and now - _limit_set_at < LIMIT_REFRESH_S:
+        return _limit
+    _limit_set_at = now
+    _limit = MEMORY_LIMIT if MEMORY_LIMIT is not None else machine.mlx_limit()
+    mx.set_memory_limit(_limit)
+    mx.set_cache_limit(min(CACHE_LIMIT, _limit))
+    return _limit
 
 
 class ModelNotDownloaded(RuntimeError):
@@ -62,8 +85,7 @@ class MLXEmbedder:
 
         from lantern.embedding.mlx_loader import load_embedding_gemma2
 
-        mx.set_memory_limit(MEMORY_LIMIT)
-        mx.set_cache_limit(CACHE_LIMIT)
+        apply_memory_limit(force=True)
         self._model = None
         gc.collect()
         model = load_embedding_gemma2(self._snapshot(), lazy=True)
@@ -89,6 +111,7 @@ class MLXEmbedder:
         import mlx.core as mx
 
         self.load()
+        apply_memory_limit()
         out = np.zeros((len(texts), DIM), dtype=np.float32)
         order = sorted(range(len(texts)), key=lambda i: len(texts[i]))  # less padding per batch
         for start in range(0, len(order), self.batch_size):
@@ -124,6 +147,7 @@ class MLXEmbedder:
         import mlx.core as mx
 
         self._ensure_audio()
+        apply_memory_limit()
         out = np.zeros((len(windows), DIM), dtype=np.float32)
         cap = AUDIO_WINDOW_S * AUDIO_SAMPLE_RATE
         for i, wave in enumerate(windows):
@@ -145,6 +169,7 @@ class MLXEmbedder:
         import mlx.core as mx
 
         self._ensure_vision()
+        apply_memory_limit()
         out = np.zeros((len(images), DIM), dtype=np.float32)
         for i, image in enumerate(images):
             inputs = self._processor(

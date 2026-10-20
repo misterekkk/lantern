@@ -24,6 +24,15 @@ Spotify library sync is the only exception).
 - *"def add_two(x, y):"* jumps to `script.py`, line 200, in your code editor.
 - *"dog on the beach"* finds the photo; *"the cow on the farm"* finds the moment in a recording where it is said.
 
+## See it in action
+
+<p align="center">
+  <img src="site/public/showcase.svg" width="100%" alt="Lantern's panel finds the moment in a video where a phrase is said and previews it from there; Raycast finds a photo of a dog on the beach; the lantern command finds a function definition and, asked in English, a Polish invoice">
+</p>
+
+<sub>Drawn, not recorded: the files, paths and texts are invented. `python3 scripts/showcase/build.py` makes it,
+`scripts/showcase/video.sh` turns it into a 1080p video.</sub>
+
 > **Status:** all planned phases are done (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)). Lantern is a working
 > prototype tested on one Mac (M4, 16 GB). This README describes only what exists today.
 
@@ -530,11 +539,12 @@ uv run lantern daemon stop | uninstall
   heavy work waits (Whisper, video frames) and ordinary indexing goes on. When the Mac really runs short (critical
   pressure, or warn with swap growing fast) the worker finishes its file and indexing waits until the Mac has been calm
   for 3 minutes; at critical pressure it stops at once and the photo query model is released. Whisper (~1.8 GB) starts only while the Mac has room for it at that moment, whatever its total memory, so
-  a Mac busy with something heavy (training a model, a game) is left alone. The menu says why indexing waits.
-- **Always ready or when needed** (Settings → Performance → Search model, `lantern config mode ready|on_demand`; the
-  welcome window asks): when needed, the
-  search model (~0.5 GB) is released after 10 minutes without a search and loaded again by the next one (apps and
-  settings answer without it). An 8 GB Mac starts in this mode, with Whisper and video frames off.
+  a Mac busy with something heavy (training a model, a game) is left alone. The menu says why indexing waits. The
+  models' memory limit follows the free memory, at most 1 GB on an 8 GB Mac (measurements in docs/DECISIONS.md).
+- **Always ready or when needed** (Settings → Performance → Search model, `lantern config mode ready|on_demand|battery`;
+  the welcome window asks): when needed, the search model (~0.5 GB) is released after 10 minutes without a search and
+  loaded again by the next one in about half a second (apps and settings answer without it); "when needed on battery"
+  keeps it ready on the charger and releases it only on battery. An 8 GB Mac starts in this mode, with Whisper and video frames off.
 - **An index Lantern cannot use** (from a newer Lantern after going back to an older one, or a damaged file) is
   explained in the menu with what to do: get the latest version, or rebuild the index (your folders stay, everything
   is indexed again; your files are never touched). The daemon checks the index in the background after starting.

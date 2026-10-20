@@ -77,6 +77,20 @@ def fits(work: str, memory: Memory | None = None) -> bool:
     return m.pressure == PRESSURE_NORMAL and m.available >= NEEDS[work] + HEADROOM
 
 
+# MLX allocator limit (DECISIONS.md, "MLX limits measured"): a guideline, not a wall. Under it MLX frees its cache and
+# waits for queued work instead of growing; nothing failed even at 512 MB, it only got slower (Whisper +21%, audio
+# +13%). So it follows the memory free right now, within a floor and a cap that depends on the Mac's RAM.
+MLX_FLOOR = 512 * 1024**2
+MLX_CAP = {"full": 3 * GB, "light": 1 * GB}
+
+
+def mlx_limit(memory: Memory | None = None) -> int:
+    """Bytes MLX may use now: what is free minus HEADROOM, between MLX_FLOOR and the cap for this Mac."""
+    m = memory or read()
+    cap = MLX_CAP[profile(m.total)]
+    return int(min(cap, max(MLX_FLOOR, m.available - HEADROOM)))
+
+
 class SwapWatch:
     """Swap growing fast (not its size: a Mac can carry gigabytes of old swap for days)."""
 
