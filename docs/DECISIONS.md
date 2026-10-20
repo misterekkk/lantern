@@ -1239,7 +1239,10 @@ M4A, MP3, MOV and Ogg Opus.
   model recommended); 16 GB and more everything (the user's decision). Saved settings always win.
 - **On demand:** `mode = on_demand` releases the search model after 10 idle minutes; the next full search loads it on
   the model thread and status reports the time (`model_reload_ms`), so the cold start is measured on the real daemon,
-  not in a second model process. To be measured once the user's daemon runs this code.
+  not in a second model process. Measured on the user's daemon (16 GB M4, 2026-10-20): released after 10 idle
+  minutes the daemon holds 153 MB (429 MB with the model); the next search reloads it in **483 ms**
+  (`model_reload_ms`), the whole CLI search took 1.39 s cold against 0.37 s warm. Right after it the daemon showed
+  944 MB: that search also loaded the photo query model (SigLIP text side), released on its own idle timer.
 - **Index health:** a newer schema (one PRAGMA) or a file SQLite cannot open serves only the API with `index_problem`;
   `quick_check` (0.5–1.7 s on the user's 511 MB index) runs in the background after the start. Rebuild keeps the folders
   (read from the old file when possible). A backup before schema migrations was not added: every migration runs in
