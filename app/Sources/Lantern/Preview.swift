@@ -79,14 +79,26 @@ private struct TextPreviewView: View {
     }
 }
 
+/// The preview in its own window (`lantern://preview`, Raycast's ⌘Y): the player fills the window and more of the
+/// transcript fits under it than in the panel.
+struct LargeMediaPreviewKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var largeMediaPreview: Bool {
+        get { self[LargeMediaPreviewKey.self] }
+        set { self[LargeMediaPreviewKey.self] = newValue }
+    }
+}
+
 private struct MediaPreviewView: View {
     let result: SearchResult
+    @Environment(\.largeMediaPreview) private var large
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: large ? 10 : 8) {
             if MediaOpen.quickTimePlays(result.path) {
                 PlayerView(url: URL(fileURLWithPath: result.path), start: MediaOpen.startSeconds(result.startMs))
-                    .frame(height: result.kind == "audio" ? 70 : 300)
+                    .frame(height: result.kind == "audio" ? 70 : large ? nil : 300)
+                    .frame(maxHeight: large && result.kind != "audio" ? .infinity : nil)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             } else {
                 Label("macOS cannot play this format. ⌥↩ opens it in its default app.", systemImage: "film")
@@ -95,16 +107,21 @@ private struct MediaPreviewView: View {
             }
             if !result.preview.isEmpty {
                 Text(result.preview)
-                    .font(.system(size: 12))
+                    .font(.system(size: large ? 13 : 12))
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(large ? 4 : 3)
+                    .lineSpacing(large ? 2 : 0)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 Spacer()
                 Button("Open in QuickTime Player") {
                     MediaOpener.openInQuickTime(result) { ok in
-                        if ok { SearchPanelController.shared.hide() }
+                        if ok {
+                            SearchPanelController.shared.hide()
+                            PreviewWindowController.shared.close()  // QuickTime plays it now: one player at a time
+                        }
                     }
                 }
                 .disabled(!MediaOpen.quickTimePlays(result.path))

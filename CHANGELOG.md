@@ -24,7 +24,8 @@ What changed for people using Lantern, newest first.
 - **Settings → Indexing** (was Battery and Heat) with the schedule.
 - **Raycast** explains a missing app, an unfinished setup, a model download and a first indexing. ⌘Y works as in
   the panel: a photo in Quick Look, a video or recording in Lantern's own player from the moment of the match (the
-  whole file, so you can go back to the start); ⌘Y closes the preview. The frame and transcript are on ⇧⌘Y.
+  whole file, so you can go back to the start), in a window the size of Raycast's with more of the transcript; ⌘Y
+  closes the preview and stops the sound. The frame and transcript are on ⇧⌘Y.
 - **Settings → Performance:** a taller memory chart, "Search model" (always ready / when needed) under the models, model
   sizes in Finder's units.
 - **Icon:** Apple's continuous corners and shadow, no light rim; the status dot uses macOS's own amber.
