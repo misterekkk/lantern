@@ -96,6 +96,13 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
     the largest face), never face images, face prints or who anyone is. Switching `people` off (Settings → File
     Types) deletes every count.
 
+21. **Delete all data** (Settings → Privacy, `lantern delete-all-data --yes`): removes the index (text, vectors, dates,
+    places, people counts, music lists, search history), `config.toml`, the logs, the app's own settings, the Spotify
+    Client ID and sign-in from the keychain and Lantern's own cache folders; Lantern then starts as on the first day.
+    Your files are never touched, and the downloaded models stay (they hold nothing of yours; to remove them, delete
+    Lantern's model folders in `~/.cache/huggingface/hub/`, the repositories `lantern models` lists, not the whole
+    cache, which other apps may share).
+
 ## Where the data is
 
 | Data | Location | Notes |

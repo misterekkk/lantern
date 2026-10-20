@@ -73,8 +73,9 @@ Spotify library sync is the only exception).
 - **Photos and video frames:** two models (EmbeddingGemma 2 vision tower and SigLIP 2) vote on what is in a picture,
   and macOS's own text recognition (Vision, on device) reads text in screenshots, scans and photos of documents.
 - **Recordings and videos:** audio embeddings plus Whisper transcripts, with the moment each phrase is spoken.
-- **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery, in Low Power Mode and on heat, and a
-  settings window laid out like System Settings.
+- **Menu bar app** with a background daemon, an "ask before indexing" mode, pause on battery, in Low Power Mode, on heat
+  and when memory runs short, an indexing schedule (any time, when idle, at night), a welcome window, and a settings
+  window laid out like System Settings.
 - **Private by design:** offline after a one-time model download (the opt-in Spotify sync is the only exception), read-only
   access to your files, no telemetry.
 
@@ -355,15 +356,20 @@ uv run lantern search "zdjęcia z Krakowa" --json   # the whole reply as JSON (a
 uv run lantern models                      # models: size, downloaded, recommended for this Mac; `models download`
 uv run lantern languages add de            # extra languages for app names and text in images
 uv run lantern rebuild --yes               # start the index again, keeping the folders
+uv run lantern config schedule night       # index only at night (or idle / anytime); search works at any hour
+uv run lantern restore-defaults --yes      # every setting back to its default; folders stay
+uv run lantern delete-all-data --yes       # the index, history, settings and logs; never your files or models
 uv run lantern diagnostics                 # a report for a bug report, without file names
 ```
 
 - The CLI has the same settings and actions as the app (folders, every setting through `lantern config`, models,
-  languages, rebuilding the index); only the menu bar app's own features (the search panel, Raycast / Alfred, the
+  languages, rebuilding the index, restoring the defaults, deleting all data); only the menu bar app's own features (the search panel, Raycast / Alfred, the
   clipboard, menu items and windows, Apple Music) have no command.
 
 - `index` compares the folder with the index: new and changed files are indexed, moved files are recognised by
   content (no recomputation), deleted files are removed together with their text and vectors.
+- The whole disk, system folders and `~/Library` (apart from iCloud Drive and cloud folders) are refused; a new folder
+  with 20 000 files or 50 GB and more prints its estimate and needs `--yes`, as the app asks before adding it.
 - If a folder is unavailable (unplugged disk, network share), nothing is removed. If more than half of a folder's
   files vanished, `index` refuses without `--force`. Files you excluded on purpose (still on the disk) are removed
   without it.
