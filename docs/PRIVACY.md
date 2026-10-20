@@ -5,8 +5,9 @@ Lantern is meant to work on company code too, so privacy is the overriding requi
 ## Rules
 
 1. **Local and offline.** The only network traffic is the one-time installation and model download:
-   - the prebuilt app (`Lantern.dmg`): the models are downloaded from Hugging Face (huggingface.co) only when you click
-     **Download** in the menu bar or in Settings → Performance. The daemon then runs `python -m lantern.models` as a
+   - the prebuilt app (`Lantern.dmg`): the models are downloaded from Hugging Face (huggingface.co) only when you choose
+     them in the welcome window or click **Download** in the menu bar, in Settings → Performance or run `lantern models
+     download`. The daemon then runs `python -m lantern.models` as a
      separate process without the offline switches (`HF_HUB_DISABLE_TELEMETRY=1` and `DO_NOT_TRACK=1` stay set),
      fetches the pinned revisions into `~/.cache/huggingface/hub/` and loads them offline;
    - building from source: Homebrew packages, Python packages (`uv sync`) and the model download (`hf download`), run by

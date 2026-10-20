@@ -59,7 +59,8 @@ const intro = readme.split("\n## ")[0].split("\n").filter((l) => !l.startsWith("
   .replace(/^# .*\n/m, "").trim();
 const summary =
   "> Lantern is a local, offline semantic search app for macOS 26.2 (Tahoe) or newer on Apple Silicon. It finds files, " +
-  "code definitions, PDFs, photos and the moments in recordings and videos by meaning and by exact words, next to apps, " +
+  "code definitions, PDFs, photos and the moments in recordings and videos by meaning and by exact words (also by date, " +
+  "place and the number of people in a photo), next to apps, " +
   "System Settings, Shortcuts and music, in a Spotlight-like panel, in Raycast or Alfred, or from the `lantern` command " +
   "line. A Swift menu bar app and a Python daemon run the models (EmbeddingGemma 2, Whisper large-v3-turbo, SigLIP 2) " +
   "with Apple MLX on the Mac; after the one-time model download nothing leaves the Mac, except an opt-in Spotify " +

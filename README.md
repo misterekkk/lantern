@@ -165,7 +165,7 @@ uv sync
 uv run hf download mlx-community/embeddinggemma-2-8bit --revision 7505ef2f8ddef45efef6d060865f27989b3c9cec
 #    b) Whisper for transcripts (~1.6 GB) — skip if you do not index recordings or use --no-transcribe
 uv run hf download mlx-community/whisper-large-v3-turbo --revision a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb
-#    c) SigLIP 2 for photo search (~0.8 GB + ~0.2 GB) — optional; without it EmbeddingGemma 2 ranks photos alone
+#    c) SigLIP 2 for photo search (~1.5 GB + ~0.4 GB) — optional; without it EmbeddingGemma 2 ranks photos alone
 uv run hf download google/siglip2-base-patch16-224 --revision 75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2
 uv run hf download mlx-community/siglip2-base-patch16-224-8bit --revision 5249fc157310584fe99dae6964707278eb6df50f
 

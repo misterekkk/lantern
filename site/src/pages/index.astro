@@ -12,6 +12,7 @@ const examples = [
   { query: "dog on the beach", kind: "Photo", what: "A photo, found by what is in it. No tags, no file name needed." },
   { query: "error 0x80070002", kind: "Screenshot", what: "The screenshot that shows this error, read with the Mac's own text recognition." },
   { query: "when we talked about the match", kind: "Recording · 1:48", what: "The moment in a video where it is said. ↩ plays it from there." },
+  { query: "two people at the beach in portugal last summer", kind: "Photo", what: "Photos by when and where they were taken and how many people are in them, read from the files themselves." },
   { query: "def add_two", kind: "Code · line 200", what: "The definition itself, opened at its line in your editor." },
   { query: "electricity invoice october", kind: "PDF · page 10", what: "The page of the PDF, scanned pages included." },
   { query: "24 hour", kind: "System Settings", what: "Use a 24-hour clock in the menu bar: the single setting, not just its pane." },
@@ -22,7 +23,7 @@ const faq = [
   { q: "Does anything leave my Mac?", a: "No. The models run on your Mac after a one-time download, Lantern sends no telemetry and only reads your files. The single exception is the Spotify library sync, which is off unless you switch it on with your own key." },
   { q: "Can it replace Spotlight?", a: "Yes. It opens on ⌥Space or on ⌘Space instead of Spotlight, and finds apps, System Settings, quick answers, dictionary entries, shortcuts and your music next to your files." },
   { q: "Which languages does it understand?", a: "Search is tested in English and Polish: a question in one finds documents in the other. The search model is multilingual, but other languages have not been tested yet. The app itself is in English and Polish and follows the language of macOS; on a Mac in another language it is in English." },
-  { q: "What Mac do I need?", a: "A Mac with Apple Silicon (M1 or newer) and macOS 26.2 Tahoe or newer: the app is made for Liquid Glass, and the MLX libraries that run the models need 26.2. It is developed on an M4 with 16 GB of memory; the search model needs about half a gigabyte while it runs, and indexing pauses on battery and when the Mac is hot." },
+  { q: "What Mac do I need?", a: "A Mac with Apple Silicon (M1 or newer) and macOS 26.2 Tahoe or newer: the app is made for Liquid Glass, and the MLX libraries that run the models need 26.2. It is developed on an M4 with 16 GB of memory. On an 8 GB Mac Lantern starts with only the search model (about half a gigabyte while it runs) and suggests leaving recordings and photo search off; indexing pauses when memory runs short, on battery and when the Mac is hot." },
   { q: "Can I use it on company code?", a: "Yes, that is what it was built for: everything stays in one local file in Application Support, secrets such as .env and keys are skipped, and deleting a folder from the index really erases it." },
   { q: "Can I keep using Raycast or Alfred?", a: "Yes. Raycast gets a “Search Lantern” command with Lantern's results, previews, thumbnails and filters, and Alfred a workflow. Lantern then runs in the background and hands its shortcut to the launcher. Settings → General → Search from." },
   { q: "Coming from Spotlight or Alfred?", a: "Your habits come with you. From the first day Lantern ranks apps by how often and how recently you opened them, read from the usage macOS already records on your Mac, the same data Spotlight ranks by. If you used Alfred, Settings → Privacy imports the choices it learned, so a letter and ↩ open the same app as before. Both are read on your Mac and stay there." },
@@ -56,7 +57,7 @@ const jsonLd = {
         "100% on-device local search with zero telemetry",
         "Semantic search across files, code, PDFs, photos, and recordings",
         "Runs on the Apple Silicon GPU with Apple MLX",
-        "Official Raycast extension and Alfred workflow",
+        "Raycast extension and Alfred workflow",
         "Fast global shortcut and instant previews"
       ]
     },
@@ -274,7 +275,7 @@ const jsonLd = {
     <section class="band" id="start">
       <div class="wrap">
         <h2>Get started</h2>
-        <p class="intro">Needs a Mac with Apple Silicon and macOS 26.2 (Tahoe) or newer and 1.2 GB for the search model (about 3.8 GB with transcripts and photo search).</p>
+        <p class="intro">Needs a Mac with Apple Silicon and macOS 26.2 (Tahoe) or newer and 1.3 GB for the search model (about 4.9 GB with transcripts and photo search).</p>
         <div class="start">
           <div>
             <h3>Install the app</h3>
@@ -291,7 +292,7 @@ const jsonLd = {
             <ol>
               <li>Install via Homebrew above, or drag <strong>Lantern</strong> from the DMG to <strong>Applications</strong>.</li>
               <li>Allow the ad-hoc signed app once in <strong>System Settings → Privacy &amp; Security → Open Anyway</strong> (or run <code>xattr -cr /Applications/Lantern.app</code>; this also works after the Homebrew install).</li>
-              <li>Click <strong>Download</strong> in the menu bar to fetch the search model.</li>
+              <li>Open Lantern: a welcome window downloads the models suggested for your Mac, asks which folders to search and which shortcut or launcher to use. Everything it asks can be changed later in Settings.</li>
             </ol>
           </div>
           <div>
