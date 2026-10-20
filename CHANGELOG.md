@@ -2,13 +2,12 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.2.2 — 2026-10-20
 
 - **Menu notices fade:** a note that something was done (the index compacted) is grey and goes after 5 minutes; a
   problem (low disk, no access, memory) is orange and goes after 30. Before, the last one stayed until Lantern
   restarted. The menu shows files and chunks only (the daemon's memory, read as the index size and cut off in Polish,
   is in Settings → About and Performance).
-
 - **People in photos, any form:** "portugal two men" and "portugal two man" (and Polish cases) now give the same
   photos in the same place: photos of the people asked for come first when the rest of the query is only a place or a
   time, and a single matching photo is no longer dropped.
