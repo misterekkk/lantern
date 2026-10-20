@@ -39,7 +39,7 @@ same data as JSON (UTF-8, indented). `search --json` is the daemon's whole reply
 (`order`), with paths, scores and ranks, lines, pages, moments, dates and places:
 
 ```bash
-lantern search "zdjęcia z Krakowa" --json | jq -r '.photos[].path'
+lantern search "photos from Krakow" --json | jq -r '.photos[].path'
 lantern status --json | jq '.files.indexed'
 ```
 
@@ -102,12 +102,12 @@ definitions and photos come in their own sections, in the order the daemon decid
 | `--json` | print the whole reply as JSON (see *JSON for scripts* above) |
 
 `in:<folder>` anywhere in the query keeps results to files under folders whose name starts with that word
-(`lantern search "in:down umowa"`), `in:"two words"` for a name with spaces, or `in:~/path` / `in:/path` for
+(`lantern search "in:down contract"`), `in:"two words"` for a name with spaces, or `in:~/path` / `in:/path` for
 everything under a path. Apps, System Settings, Shortcuts, music and answers are left out of a scoped search.
 
 A time, a place and people words work the same way in the CLI as in the panel (README, *When and where* and *People in
-photos*): `lantern search "zdjęcia z maja 2023"`, `lantern search "umowa z 2024"`, `lantern search "zdjęcie kobiety z
-Krakowa"`, `lantern search "bez ludzi"`. A time or place with nothing else lists what was made then or there, newest
+photos*): `lantern search "photos from May 2023"`, `lantern search "contract from 2024"`, `lantern search "photo of a
+woman from Krakow"`, `lantern search "without people"` (Polish works the same: `"zdjęcia z maja 2023"`). A time or place with nothing else lists what was made then or there, newest
 first.
 
 Output:

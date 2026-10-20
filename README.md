@@ -45,18 +45,20 @@ Spotify library sync is the only exception).
 - **Works with Raycast and Alfred:** keep your launcher and search with Lantern inside it ("Search Lantern" in
   Raycast with previews, thumbnails and filters; a workflow for Alfred). See [Use with Raycast or Alfred](#use-with-raycast-or-alfred).
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
-  `kalkul`, `dicsord`, `vsc`) or their App Store category (`muzyka` / `music` finds Spotify beside Music), panes and the ~560 single settings of macOS by their words (`24 godz`, `night shift`),
-  and both by what they do as a fallback (`procent baterii`, `web browser`).
+  `calcul`, `dicsord`, `vsc`) or their App Store category (`music` finds Spotify beside Music), panes and the ~560
+  single settings of macOS by their words (`24 hour`, `night shift`), and both by what they do as a fallback
+  (`battery percentage`, `web browser`). The same works in Polish (`kalkul`, `muzyka`, `24 godz`).
 - **Apple Music** (off by default; Settings → Privacy): your library's songs and playlists by title, artist or album
-  (`skeletons`, `travisa scotta`, `playlista`); ↩ plays a song or a playlist, ⌘↩ shows it in Music. Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
+  (`skeletons`, `travis scott`, `playlist`); ↩ plays a song or a playlist, ⌘↩ shows it in Music. Read through Apple's iTunesLibrary framework: names only, no audio, no lyrics
   (Apple keeps those on its servers).
 - **Spotify** (off by default; Settings → Privacy): your playlists and liked songs, searched offline like Apple Music;
   ↩ plays in the Spotify app. Spotify keeps no readable list on the Mac, so this needs your own free key (an app at
   developer.spotify.com with the redirect URI `http://127.0.0.1:8000/callback`; Spotify requires Premium for it since
   2026) and a sign-in; Lantern then fetches only names, once a day and on "Sync Now". Songs of playlists made by
   others are not available from Spotify's API.
-- **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2,5 km na mile`, `10 kg w funtach`,
-  `100 f to c`) and the time in other cities (`godzina w nowym jorku`, `time in tokyo`); definitions from the
+- **Instant answers on the Mac:** arithmetic (`2+2*20`, `15% * 200`), units (`2.5 km to miles`, `10 kg in pounds`,
+  `100 f to c`; in Polish `2,5 km na mile`) and the time in other cities (`time in new york`, `time in tokyo`; in
+  Polish `godzina w tokio`); definitions from the
   dictionaries of macOS for a single word; your shortcuts (Shortcuts app); and a last row that opens the web search
   in your default browser (Google, DuckDuckGo, Bing or Ecosia, or off); it moves to the top when nothing on the Mac
   contains the query's words. That row only opens your browser; Lantern itself sends nothing.
@@ -221,7 +223,7 @@ Certificates); otherwise it signs ad hoc and macOS may ask for folder permission
   the filter first, then closes the panel; the panel opens empty.
 - **Spelling:** after a short pause in typing, words that none of your languages knows get the spelling guesses of
   macOS (on the Mac), and Lantern searches again with the first guess its index knows (a word in your files, an app
-  or a setting): "faktrua za prad" shows "Showing results for faktura za prad · Search for “faktrua za prad”
+  or a setting): "invoce october" shows "Showing results for invoice october · Search for “invoce october”
   instead". With no known guess the query stays as typed.
 - **↩ on an answer** copies it; on a word definition it opens Dictionary; on a shortcut it runs it.
 - **Learned choices:** a query you keep answering with the same result ("sl" → Slack) puts that result first from
@@ -352,7 +354,7 @@ uv run lantern status
 uv run lantern remove ~/Projects           # remove a folder and all its data from the index
 uv run lantern compact                     # physically erase deleted data from the index file
 uv run lantern clear-history               # delete the local search history
-uv run lantern search "zdjęcia z Krakowa" --json   # the whole reply as JSON (also status, pending, config, models)
+uv run lantern search "photos from Krakow" --json  # the whole reply as JSON (also status, pending, config, models)
 uv run lantern models                      # models: size, downloaded, recommended for this Mac; `models download`
 uv run lantern languages add de            # extra languages for app names and text in images
 uv run lantern rebuild --yes               # start the index again, keeping the folders
@@ -385,30 +387,31 @@ uv run lantern diagnostics                 # a report for a bug report, without 
   Letters match without their accents and strokes in any language: `lodz` finds `Łódź`, `soren` finds `Søren`,
   `strasse` finds `Straße`.
 - **One folder only:** `in:` and a folder name keeps results to files under folders whose name starts with it, in the
-  panel, Raycast, Alfred and the CLI: `in:down umowa najmu`, `in:Studia`, `in:"Moje dokumenty" faktura`, or a path,
+  panel, Raycast, Alfred and the CLI: `in:down lease agreement`, `in:Projects`, `in:"My documents" invoice`, or a path,
   `in:~/Projects/lantern readme`. The folder word is never spell-checked or sent to the model; apps, settings and
   answers are left out, since they are not in a folder.
 - **When and where** (Polish and English): a time in the query keeps results to files made then.
-  - Examples: `zdjęcia z maja 2023`, `umowa z 2024`, `faktura wczoraj`, `photos from last summer`,
-    `dokumenty w zeszłym tygodniu`, `14.05.2023`.
-  - A bare year or month (`wakacje 2023`, `sierpień`) only moves files made then higher; nothing is hidden, since the
+  - Examples: `photos from May 2023`, `contract from 2024`, `invoice yesterday`, `photos from last summer`,
+    `documents last week`, `14.05.2023`; in Polish `zdjęcia z maja 2023`, `faktura wczoraj`.
+  - A bare year or month (`holiday 2023`, `august`) only moves files made then higher; nothing is hidden, since the
     word may as well be in a document's text.
-  - A time or a place alone, or with `zdjęcia`, `filmy`, `dokumenty`, lists what was made then or there, newest first.
+  - A time or a place alone, or with `photos`, `videos`, `documents`, lists what was made then or there, newest first.
   - Where a date comes from: a photo's EXIF data, a video's or recording's own creation date, a date in the file or
-    folder name (`IMG_20230514_…`, `2023-05-14 Wakacje/`), and otherwise the file's dates on the disk. So for most
+    folder name (`IMG_20230514_…`, `2023-05-14 Holiday/`), and otherwise the file's dates on the disk. So for most
     documents "from 2024" means *created or last changed in 2024*, not *mentions 2024*. Impossible dates (before 1990,
     in the future, a camera's reset clock such as 2000-01-01 00:00) and numbers that only look like years are ignored.
-- **Places** (any language): `zdjęcia z Krakowa`, `photos in Kraków`, `Bilder aus Krakau`, `zdjęcia z Portugalii`.
+- **Places** (any language): `photos in Kraków`, `photos from Portugal`, `Bilder aus Krakau`, `zdjęcia z Krakowa`.
   - The city comes from the location saved in photos and videos, matched to the nearest city of 15,000+ people in a
     table built into Lantern (GeoNames). Nothing is looked up online.
-  - A camera without GPS: a photo in a folder named after a country (`Portugalia/`, `Wakacje w Portugalii 2026/`) gets
+  - A camera without GPS: a photo in a folder named after a country, in any language (`Portugal/`,
+    `Holiday in Portugal 2026/`, `Portugalia/`) gets
     that country. Screenshots and graphics never do.
   - Photos and recordings show the date and the city in their row.
   - Switch: Settings → File Types → Places in photos and videos, or `lantern config places false`; switching it off
     deletes the saved locations from the index.
-- **People in photos** (Polish and English): `zdjęcia kobiet`, `mężczyzna w Krakowie`,
-  `zdjęcie kobiety z 2024 w Portugalii`, `z ludźmi`, `bez ludzi`, `grupa` (three or more people), `selfie` / `portret`,
-  `dwie osoby`, `kobieta i mężczyzna`.
+- **People in photos** (English and Polish): `photos of women`, `man in Krakow`,
+  `photo of a woman from 2024 in Portugal`, `with people`, `without people`, `group` (three or more people),
+  `selfie` / `portrait`, `two people`, `a woman and a man`; in Polish `zdjęcia kobiet`, `bez ludzi`, `dwie osoby`.
   - These words narrow the photos section only; documents containing them are found as before.
   - macOS (Vision, on this Mac) counts the people; the photo model guesses woman or man from appearance on a crop
     around each of the four largest. Only the numbers are stored.
@@ -435,8 +438,8 @@ uv run lantern diagnostics                 # a report for a bug report, without 
 - The text becomes searchable by exact words (`0x80070002`, a VIN, an invoice number, `245,30 zł`) and by meaning;
   the photo appears in the Photos section with the matching text under it ("text in image"). Numbers and codes with
   separators (`187,15`, `FV/2025/09/0932`) must match as a whole, not as loose parts.
-- The photo models alone already find images with text by meaning ("faktura za prąd", "błąd aktualizacji
-  windows"); OCR adds exact strings and small print. Measured: DECISIONS.md, "OCR research" and Phase 11.
+- The photo models alone already find images with text by meaning ("electricity invoice", "windows update error",
+  in Polish as well: "faktura za prąd"); OCR adds exact strings and small print. Measured: DECISIONS.md, "OCR research" and Phase 11.
 - Off switch: Settings → File Types → Text in photos and screenshots, or `lantern config index_image_text false`.
 
 ### Code definitions
