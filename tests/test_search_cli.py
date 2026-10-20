@@ -113,3 +113,13 @@ def test_an_audio_window_close_to_everything_does_not_count():
     usual = float(np.sort(refs @ hub)[-HUB_K:].mean())
     assert audio_margin(usual + 0.003, hub, refs) < AUDIO_MIN_MARGIN  # "sea" on the music clip: not shown
     assert audio_margin(usual + 0.02, hub, refs) >= AUDIO_MIN_MARGIN  # clearly above its usual level: shown
+
+
+def test_fusion_follows_the_form_of_the_query():
+    """A sentence leans on meaning, bare keywords on words (DECISIONS.md, "Fusion and inflections measured")."""
+    from lantern.search import hybrid
+
+    assert hybrid.fusion_for("when we talked about the match") == hybrid.SENTENCE_FUSION
+    assert hybrid.fusion_for("zdjęcia z wakacji w Portugalii") == hybrid.SENTENCE_FUSION
+    assert hybrid.fusion_for("faktura prąd październik") == hybrid.KEYWORD_FUSION
+    assert hybrid.fusion_for("def add_two") == hybrid.KEYWORD_FUSION

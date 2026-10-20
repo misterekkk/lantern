@@ -382,7 +382,9 @@ uv run lantern diagnostics                 # a report for a bug report, without 
 ## How search works
 
 - **Two lists, one ranking:** meaning (EmbeddingGemma 2: paraphrases, other languages) and exact words (FTS5/BM25:
-  function names, error messages), fused with Reciprocal Rank Fusion. Each result shows where it came from, e.g.
+  function names, error messages), fused with Reciprocal Rank Fusion: a query written as a sentence leans on meaning,
+  a query of bare keywords on the words (measured on public benchmarks and a real index: docs/DECISIONS.md, "Fusion
+  and inflections measured"). Each result shows where it came from, e.g.
   `(meaning #1 · keywords #3)`. Keyword search skips stop words and matches Polish inflections by stem.
   Letters match without their accents and strokes in any language: `lodz` finds `Łódź`, `soren` finds `Søren`,
   `strasse` finds `Straße`.

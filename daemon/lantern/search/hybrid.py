@@ -6,6 +6,7 @@ per-list ranks and scores (training data for a future reranker).
 """
 
 import json
+import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, field, replace
@@ -30,7 +31,19 @@ from lantern.search.symbols import Definition, looks_like_code, symbol_search
 from lantern.store import db
 from lantern.textnorm import STOPWORDS, query_terms, term_coverage
 
-RRF_K = 60
+RRF_K = 60  # photo lists (photo_results)
+# Files: a query written as a sentence (it has function words: "the", "of", "w", "z") leans on meaning, a small k and
+# words at half weight; a query of bare keywords keeps the even fusion. Measured (DECISIONS.md, "Fusion and
+# inflections measured"): sentences, SciFact EN/PL nDCG@10 0.770 -> 0.825 / 0.673 -> 0.698; bare keywords from a
+# real index lost a third of their MRR with the sentence fusion, so they keep k=60 and full weight.
+SENTENCE_FUSION = (10, 0.5)
+KEYWORD_FUSION = (20, 2.0)
+
+
+def fusion_for(query: str) -> tuple[int, float]:
+    """(RRF k, keyword weight) for this query: SENTENCE_FUSION with a function word, else KEYWORD_FUSION."""
+    words = re.findall(r"[^\W\d_]+", query.lower())
+    return SENTENCE_FUSION if any(w in STOPWORDS for w in words) else KEYWORD_FUSION
 CANDIDATES = 50  # files per list before fusion
 # A keyword hit counts in the fusion in proportion to the share of query terms it matches, and not at all below
 # this share: one incidental shared word (often across languages) must not outrank the top vector match.
@@ -167,13 +180,16 @@ class SearchResponse:
         return [(name, items) for name, items in order if items]
 
 
-def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int = RRF_K) -> list[Result]:
+def fuse(vector: list[Hit], keyword: list[Hit], limit: int, k: int | None = None,
+         keyword_weight: float | None = None, query: str = "") -> list[Result]:  # fmt: skip
+    if k is None or keyword_weight is None:
+        k, keyword_weight = fusion_for(query)
     vrank = {h.path: (i + 1, h) for i, h in enumerate(vector)}
     krank = {h.path: (i + 1, h) for i, h in enumerate(keyword)}
     fused = []
     for path in vrank.keys() | krank.keys():
         v, kw = vrank.get(path), krank.get(path)
-        kw_weight = kw[1].coverage if kw and kw[1].coverage >= MIN_KEYWORD_COVERAGE else 0.0
+        kw_weight = keyword_weight * kw[1].coverage if kw and kw[1].coverage >= MIN_KEYWORD_COVERAGE else 0.0
         score = (1 / (k + v[0]) if v else 0.0) + (kw_weight / (k + kw[0]) if kw else 0.0)
         if score == 0.0:
             continue
@@ -275,6 +291,9 @@ class Filters:
     kind: str | None = None  # "zdjęcia z maja": the photos category
     people: Scope | None = None  # "kobieta", "bez ludzi", "grupa": a condition on the photos section only
     people_order: str = ""  # browsing with people words: "f.people ASC" (a person) or "f.people DESC" (a group)
+    # people words with only a place, a time or kind words ("portugal two men"): the photos are the answer, whatever
+    # documents happen to contain the same words (CHANGELOG.md mentions "men" and "Portugal" too)
+    photo_intent: bool = False
 
 
 def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
@@ -302,8 +321,14 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
     found = people_query.parse(query) if query.strip() and _people_counted(conn) else None
     people_scope = Scope(found.sql, found.params) if found else None
     photo_words = {k for k, v in KIND_WORDS.items() if v == "photos"}
+    photo_intent = False
     if found and people_query.only_people_words(query, found, also=photo_words):  # "zdjęcia kobiet", "selfie"
         kind, query = "photos", ""
+    elif found:
+        soft = set(range(place.start, place.end)) if place and not place.hard else set()
+        soft |= places_mod.place_words(query)  # a city with no photo from it is still a place ("women in Lisbon")
+        soft |= {i for i, w in enumerate(query.split()) if when.parse(w)[1]}  # "2024", "august"
+        photo_intent = people_query.only_people_words(query, found, also=set(KIND_WORDS), skip=soft)
     return query, Filters(
         people=people_scope,
         people_order=("f.people DESC" if found.crowd else "f.people ASC") if found else "",
@@ -313,6 +338,7 @@ def parse_filters(conn: sqlite3.Connection, query: str) -> tuple[str, Filters]:
         soft_places=place.place_ids if place and not place.hard else (),
         soft_countries=place.countries if place and not place.hard else (),
         narrowed=bool(time_scope or place_scope or people_scope),
+        photo_intent=photo_intent,
     )
 
 
@@ -594,8 +620,7 @@ def search(
     t1 = time.perf_counter()
     keyword = keyword_search(conn, query, CANDIDATES, scope=scope)
     t2 = time.perf_counter()
-    photo_scope = Scope.all(scope, filters.people)
-    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=photo_scope)
+    image = image_search(conn, embedder, query, CANDIDATES, lang, query_embedder, scope=scope, only=filters.people)
     t3 = time.perf_counter()
     definitions = symbol_search(conn, query, scope=scope)
     t4 = time.perf_counter()
@@ -628,7 +653,7 @@ def search(
     # Photos (and the text read from them) only appear in the photos section, video frames too (with their moment).
     is_photo = ("image", "ocr")
     file_vector = [h for h in vector if h.kind not in is_photo]
-    results = fuse(file_vector, [h for h in keyword if h.kind not in is_photo], limit)
+    results = fuse(file_vector, [h for h in keyword if h.kind not in is_photo], limit, query=query)
     photos = photo_results(image, keyword, vector, query=query, limit=limit if category else PHOTO_SECTION_SIZE)
     models = 2 if query_embedder is not None else 1
     # Every word of the query found in the text of an image near the top of the word list: an exact answer.
@@ -648,7 +673,7 @@ def search(
     if filters.people is not None:
         photos = _keep(conn, photos, filters.people)  # also the photos found by their text or name
         if photos:  # the people asked for were counted, not guessed from the look of the photo: shown
-            scores["photos"] = max(scores.get("photos", 0.0), 0.62)
+            scores["photos"] = max(scores.get("photos", 0.0), 0.75 if filters.photo_intent else 0.62)
     if "photos" not in scores:
         photos = []  # photos that only look a bit like the query: noise, not shown
     results, photos = annotate(conn, results, lang, filters), annotate(conn, photos, lang, filters)

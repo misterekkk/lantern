@@ -301,10 +301,15 @@ def image_search(
     lang: str = "en",
     query_embedder=None,
     scope: "str | scope_mod.Scope | None" = None,
+    only: "scope_mod.Scope | None" = None,
 ) -> list[Hit]:
     """Photos and video frames, ranked by both photo models. Candidates from each model's KNN are pooled; for every
     candidate both similarities are computed exactly, z-normalised per model over the pool and summed (raw
-    similarities of two models are not comparable). Without the second model, EmbeddingGemma alone."""
+    similarities of two models are not comparable). Without the second model, EmbeddingGemma alone.
+
+    `only` (people words) keeps the photos that satisfy it, but the z-scores are measured against the photos within
+    `scope` alone: a pool of just the one or two matching photos made their z-score meaningless (a single photo is
+    always 0), so "women in Lisbon" lost the photo "woman in Lisbon" found."""
     from lantern.embedding.base import format_image_query
 
     lists: list[tuple[str, np.ndarray]] = []
@@ -319,8 +324,13 @@ def image_search(
         return []
 
     pool: set[int] = set()
+    allowed: set[int] | None = None
     for table, qv in lists:
         pool.update(c for c, _ in _knn(conn, table, qv.astype(np.float32), limit * 5, scope))
+        if only is not None:  # the nearest photos that satisfy it are always scored (their z against the full pool)
+            near = {c for c, _ in _knn(conn, table, qv.astype(np.float32), limit * 5, scope_mod.Scope.all(scope, only))}
+            allowed = near if allowed is None else allowed | near
+            pool |= near
     ids = sorted(pool)
     if not ids:
         return []
@@ -337,5 +347,6 @@ def image_search(
     # Only candidates clearly above the pool average count as photo matches; the rest of the pool is just "nearest of
     # the remaining photos" and would add a photo-list vote to every query (e.g. any video's generic frames).
     min_z = PHOTO_MATCH_Z * len(lists)  # the fused score is a sum of per-model z-scores
-    ranked = sorted(((c, z) for c, z in zip(ids, total.tolist(), strict=True) if z >= min_z), key=lambda kv: -kv[1])
+    ranked = sorted(((c, z) for c, z in zip(ids, total.tolist(), strict=True)
+                     if z >= min_z and (allowed is None or c in allowed)), key=lambda kv: -kv[1])  # fmt: skip
     return _best_per_file(_hits(conn, ranked, query), limit)

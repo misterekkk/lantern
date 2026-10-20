@@ -2,6 +2,15 @@
 
 What changed for people using Lantern, newest first.
 
+## Unreleased
+
+- **People in photos, any form:** "portugal two men" and "portugal two man" (and Polish cases) now give the same
+  photos in the same place: photos of the people asked for come first when the rest of the query is only a place or a
+  time, and a single matching photo is no longer dropped.
+- **Better ranking of files:** a query written as a sentence leans on meaning, bare keywords on the words. Measured
+  on public benchmarks in English and Polish (scientific claims, health and finance questions, Quora questions):
+  better or equal on every set, up to +5 points nDCG@10, and steadier when a word's form changes.
+
 ## 0.2.1 — 2026-10-20
 
 - **Welcome window** on first launch, in the system's language: how often you search, which models (recommended for

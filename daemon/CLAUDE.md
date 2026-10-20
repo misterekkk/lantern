@@ -77,7 +77,7 @@ its chunking rules or prompt formats change**: files store `pipeline_version` an
 `basic.py` builds file-level candidate lists: vector KNN, FTS5 BM25 with column weights, and photos
 (`image_search`: KNN pool from both photo models, exact similarities, per-model z-scores summed, only z ≥ 1 per model).
 `spelling.py` applies the app's spell-checker guesses only when the index knows the guess and not the typed word.
-`hybrid.py` puts code definitions (`search/symbols.py`) first, fuses vector + keyword with RRF (k = 60) into the files section; photos (image kind, plus photos matched by
+`hybrid.py` puts code definitions (`search/symbols.py`) first, fuses vector + keyword with RRF into the files section (`fusion_for`: a sentence k = 10 with words at half weight, bare keywords k = 20 with words doubled; measured in spikes/phase17/fusion_eval.py and known_item.py); photos (image kind, plus photos matched by
 name) form a separate section, and `photos_first` compares list confidences. Video frames stay in the files list
 with their video. Every search is logged to `search_events` (features only, never file content).
 

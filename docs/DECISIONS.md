@@ -170,7 +170,7 @@ Findings:
 | folder removal + `compact` | the removed text is absent from the raw bytes of the database file (automated test) |
 
 Decisions:
-1. **RRF at file level** (k = 60, 50 candidates from each list). A file found by both lists wins, and an exact
+1. **RRF at file level** (k = 60, 50 candidates from each list; replaced on 2026-10-20 by a fusion that follows the query, see "Fusion and inflections measured"). A file found by both lists wins, and an exact
    identifier found only by the word list still makes the results. Each result shows its source
    ("meaning #1 · keywords #3").
 2. **Polish/English stop words + stem prefix** instead of a stemmer: words of ≥ 7 letters lose the last 3 characters,
@@ -1261,6 +1261,60 @@ M4A, MP3, MOV and Ogg Opus.
   (UNUserNotificationCenter uses the bundle icon; an ad-hoc or Apple Development signature is enough).
 - **Diagnostics:** Markdown `key: value` report; a test caught paths with spaces leaking past the first word, so paths
   are now removed to the end of the line.
+
+## Fusion and inflections measured (2026-10-20)
+
+- **Question:** does Lantern find the right document when the query changes form, and is RRF k = 60 (equal weights)
+  the best fusion of meaning (dense) and words (BM25)? Public data with relevance judgements, English and Polish
+  (BEIR and BEIR-PL by CLARIN, pinned revisions), indexed by Lantern itself in an isolated home, real model.
+  Scripts: `spikes/phase17/beir_prepare.py` (samples a corpus: every judged document of the chosen queries plus random
+  others), `run_bench.sh` (index + evaluate), `fusion_eval.py` (nDCG@10, recall, paired bootstrap), `known_item.py`
+  (a real index). Every query is also asked with **one word** in another form (the longest: singular/plural, case,
+  verb ending) and with **every word** changed (rule-based, harsher than real typing, some non-words).
+- **Tuning (SciFact only):** train queries chose, test queries report. A sentence fusion (k = 10, words at half
+  weight) beat k = 60 on sentences, but lost a third of the MRR on bare-keyword queries from a real index (5 random
+  words of a passage, 150 queries). So the fusion follows the query (`hybrid.fusion_for`): with a function word of
+  `textnorm.STOPWORDS` it is a sentence (k = 10, words x0.5), otherwise keywords (k = 20, words x2; chosen on half of
+  the known-item queries, reported on the other half).
+- **Results, nDCG@10 on test queries, old RRF -> adaptive** (one word changed / every word changed in brackets):
+
+  | set (queries) | sentences | old RRF k=60 | adaptive | difference, 95% CI (paired bootstrap) |
+  |---|---|---|---|---|
+  | SciFact EN (300), tuned on its train | 93% | 0.770 (0.762 / 0.738) | 0.822 (0.817 / 0.780) | +0.052 |
+  | SciFact PL (300), tuned on its train | 89% | 0.673 (0.666 / 0.645) | 0.699 (0.692 / 0.659) | +0.026 |
+  | NFCorpus EN (323), lay health questions | 37% | 0.359 (0.339 / 0.327) | 0.359 (0.344 / 0.334) | +0.000 [-0.008, +0.009] |
+  | NFCorpus PL (323) | 36% | 0.340 (0.331 / 0.324) | 0.348 (0.342 / 0.334) | +0.007 [+0.000, +0.015] |
+  | Quora EN (500), same question in other words | 100% | 0.980 (0.979 / 0.965) | 0.986 (0.985 / 0.977) | +0.006 [+0.001, +0.011] |
+  | Quora PL (500) | 99% | 0.948 (0.948 / 0.934) | 0.969 (0.969 / 0.948) | +0.021 [+0.013, +0.030] |
+  | FiQA EN (500), finance forum questions | 96% | 0.494 (0.490 / 0.450) | 0.519 (0.518 / 0.465) | +0.025 [+0.012, +0.039] |
+  | FiQA PL (500) | 96% | 0.403 (0.400 / 0.370) | 0.420 (0.419 / 0.384) | +0.017 [+0.005, +0.029] |
+  | real index, bare keywords (150), MRR | 0% | 0.434 | 0.504 | +0.070 (half tuned on) |
+
+- NFCorpus, FiQA and Quora were measured with the parameters frozen (nothing tuned on them): the adaptive fusion is
+  better or equal everywhere, significantly so in five of six (NFCorpus EN, mostly keyword-like queries, is a tie),
+  and it loses less when the words change form. Samples: FiQA and Quora 500 test queries and 10 000 documents each,
+  NFCorpus whole. Not measured: MS MARCO (1.5 GB), other languages than English and Polish (a German query has no
+  function word on the list, so it always takes the keyword fusion).
+- **Limits:** the keyword fusion rests on 150 queries made of words copied from the document (the best case for
+  BM25); real keyword queries are shorter and vaguer. The sentence/keyword line is coarse ("faktura za prąd" is a
+  sentence because of "za").
+
+## Inflections and the photos section (2026-10-20)
+
+- Reported: "portugal two men" put the files first, "portugal two man" the photos. The people filter read both the
+  same; the files section scored 0.72 ("sure": a file containing every word and near the top by meaning) because
+  CHANGELOG.md contains "two", "men" and "Portugalii", and not "man". 21 inflection pairs on the user's index (English
+  and Polish, singular/plural, cases) showed two faults:
+  1. **Order flips** with the form of a word, whenever some document happened to contain that form.
+  2. **Photos vanished at random:** with people words, the photo candidates were the people-filtered photos only, and
+     their z-scores were taken within that pool. One matching photo always scores 0, two score +/-1: "women in
+     Lisbon" lost the photo "woman in Lisbon" found, "porto women" likewise.
+- Fixes: the filtered photos are z-scored against every photo in scope (`image_search(only=...)`: the nearest
+  matching photos join the pool so none is missed); people words with nothing but a place, a time or kind words
+  (`Filters.photo_intent`) rank the photos at 0.75, above a sure file (0.72). A place there is any city or country of
+  the bundled tables (`places.place_words`: hashed Latin-script names, +11 MB once; a full NameIndex was 88 MB), not
+  only the places of indexed photos; "selfies" and "headshots" joined the words. After: all 21 pairs give the same
+  order and the same photos; an empty "two women portugal" is true (no Portugal photo has two women).
 
 ## MLX limits measured (2026-10-20)
 

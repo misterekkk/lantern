@@ -16,7 +16,7 @@ from lantern.extractors import metadata
 from lantern.extractors.media import find_ffmpeg
 from lantern.indexer import run_queue
 from lantern.scanner.diff import scan_root
-from lantern.search import when
+from lantern.search import hybrid, when
 from lantern.search.hybrid import search
 from lantern.store import db
 
@@ -547,3 +547,38 @@ def test_switching_off_in_the_cli_without_a_daemon_deletes_the_data(lantern_home
                         "OR country IS NOT NULL OR lat IS NOT NULL").fetchone()[0] == 0  # fmt: skip
     assert conn.execute("SELECT count(*) FROM places").fetchone()[0] == 0
     conn.close()
+
+
+def test_place_words_know_every_city_not_only_the_indexed_ones():
+    assert places.place_words("women in lisbon") == {2}
+    assert places.place_words("kobieta w lizbonie") == {2}  # inflected
+    assert places.place_words("men in new york") == {2, 3}
+    assert places.place_words("portugal two men") == {0}  # a country
+    assert places.place_words("two men") == set()
+
+
+def test_people_words_with_only_a_place_put_the_photos_first(conn, embedder, tmp_path):
+    """"portugal two men": the photos are the answer even when a document has the same words (CHANGELOG.md had
+    "men" and "Portugal": its files section outranked the photos for "men" but not for "man")."""
+    _people_index(conn, tmp_path / "zdjecia")
+    for q in ("paris men", "paris man", "men in lisbon", "porto women"):
+        _, filters = hybrid.parse_filters(conn, q)
+        assert filters.photo_intent, q
+    assert not hybrid.parse_filters(conn, "women in science report")[1].photo_intent  # more than a place: as before
+    # the order itself (photos 0.75 over a sure file's 0.72) was checked on a real index: the fake embedders here give
+    # no visual match for "paris men" (DECISIONS.md, "Inflections and the photos section")
+
+
+def test_a_people_filter_keeps_photos_scored_against_all_photos(conn, embedder, tmp_path):
+    """The filtered photos are scored against every photo in scope: a pool of one or two (the people asked for)
+    made the z-score meaningless and dropped them at random."""
+    from lantern.search.basic import image_search
+    from lantern.search.scope import Scope
+
+    _people_index(conn, tmp_path / "zdjecia")
+    men = Scope("f.men >= 1")
+    every = image_search(conn, embedder, "men", 20, "pl", FakeImageEmbedder())
+    only = image_search(conn, embedder, "men", 20, "pl", FakeImageEmbedder(), only=men)
+    men_files = {"mezczyzna_krk.jpg", "grupa_paris.jpg"}
+    assert {Path(h.path).name for h in only} <= men_files
+    assert {Path(h.path).name for h in every} & men_files <= {Path(h.path).name for h in only}

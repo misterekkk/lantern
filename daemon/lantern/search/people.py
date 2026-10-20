@@ -17,7 +17,8 @@ PEOPLE = {"ludzie", "ludzi", "ludzmi", "osoba", "osoby", "osob", "osobami", "oso
           "czlowiekiem", "people", "person", "persons"}  # fmt: skip
 GROUP = {"grupa", "grupy", "grupie", "grupe", "grupowe", "grupowa", "grupowy", "grupowo", "tlum", "tlumy", "tlumu",
          "group", "groups", "crowd", "crowds"}  # fmt: skip
-PORTRAIT = {"selfie", "selfiki", "selfik", "portret", "portrety", "portretu", "portrait", "portraits", "headshot"}
+PORTRAIT = {"selfie", "selfies", "selfiki", "selfik", "portret", "portrety", "portretu", "portrait", "portraits",
+            "headshot", "headshots"}  # fmt: skip
 WITHOUT = {"bez", "without", "no"}
 NUMBERS = {"dwie": 2, "dwoch": 2, "dwa": 2, "two": 2, "2": 2, "trzy": 3, "trzech": 3, "three": 3, "3": 3,
            "cztery": 4, "czterech": 4, "four": 4, "4": 4}  # fmt: skip
@@ -78,8 +79,9 @@ def parse(query: str) -> PeopleFilter | None:
     return PeopleFilter(" AND ".join(f"({c})" for c in unique), tuple(params), frozenset(used), crowd)
 
 
-def only_people_words(query: str, people: PeopleFilter, also: set[str] = frozenset()) -> bool:
-    """Nothing but people words, words joining them and `also` (e.g. "zdjęcia"): browse the photos ("kobieta i
-    mężczyzna", "selfie", "zdjęcia kobiet")."""
+def only_people_words(query: str, people: PeopleFilter, also: set[str] = frozenset(),
+                      skip: set[int] = frozenset()) -> bool:  # fmt: skip
+    """Nothing but people words, words joining them, `also` (e.g. "zdjęcia") and the words at `skip`: browse the
+    photos ("kobieta i mężczyzna", "selfie", "zdjęcia kobiet")."""
     keys = [name_key(w) for w in query.split()]
-    return all(i in people.words or k in GLUE or k in also or not k for i, k in enumerate(keys))
+    return all(i in people.words or i in skip or k in GLUE or k in also or not k for i, k in enumerate(keys))

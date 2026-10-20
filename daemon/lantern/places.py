@@ -198,6 +198,47 @@ def _all_countries() -> NameIndex:
     return _index((k, ("country", code)) for code, keys in _country_names().items() for k in keys)
 
 
+@lru_cache(maxsize=1)
+def _city_names() -> tuple[frozenset[int], frozenset[int]]:
+    """Hashes of (every bundled city name key, the same without its last letter), from the name and its names in other
+    languages written in Latin letters (not the alternate spellings), loaded on first use. Only to tell that a word is
+    a place ("women in Lisbon" with no photo from Lisbon), never to filter, so a rare hash collision costs nothing.
+    Measured: +11 MB and 0.35 s once; a NameIndex of every city took 88 MB."""
+    names: set[str] = set()
+    with gzip.open(DATA, "rt", encoding="utf-8") as f:
+        for line in f:
+            _, _, _, _, name, shown, _ = line.rstrip("\n").split("\t")
+            for n in (name, *(p.split("=", 1)[1] for p in shown.split("|") if "=" in p)):
+                k = name_key(n)
+                if len(k) >= MIN_WORD and k.isascii():
+                    names.add(k)
+    return frozenset(map(hash, names)), frozenset(hash(k[:-1]) for k in names)
+
+
+def _is_city(span: str) -> bool:
+    """The span names a city, inflected as _close allows ("lizbonie" -> "lizbona")."""
+    full, cut = _city_names()
+    if hash(span) in full:
+        return True
+    return any(span.endswith(e) and (hash(span[: -len(e)]) in full or hash(span[: -len(e)]) in cut)
+               for e in ENDINGS if e)  # fmt: skip
+
+
+def place_words(query: str) -> set[int]:
+    """Indices of the words that name a city or a country anywhere (bundled tables), known to the index or not."""
+    keys = [name_key(w) for w in query.split()]
+    found: set[int] = set()
+    hit = _match(_all_countries(), keys)
+    if hit:
+        found |= set(range(hit[1], hit[2]))
+    for n in (3, 2, 1):  # longest city names first ("new york")
+        for i in range(len(keys) - n + 1):
+            span = keys[i : i + n]
+            if all(span) and len(span[0]) >= 3 and not found & set(range(i, i + n)) and _is_city(" ".join(span)):
+                found |= set(range(i, i + n))
+    return found
+
+
 def country_in_path(path: Path) -> str | None:
     """A country named by the file's folder or the two above ("Portugalia", "Wakacje w Portugalii 2026")."""
     for part in (path.parent.name, path.parent.parent.name, path.parent.parent.parent.name):
