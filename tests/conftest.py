@@ -14,6 +14,7 @@ def lantern_home(tmp_path, monkeypatch):
     monkeypatch.setenv("LANTERN_HOME", str(home))
     monkeypatch.setenv("LANTERN_APP_DIRS", "")  # no applications unless a test makes some (never the real ones)
     monkeypatch.setenv("LANTERN_SETTINGS_DIR", "")  # nor System Settings
+    monkeypatch.setenv("LANTERN_NOTIFY", "0")  # never a real macOS notification (a test daemon has notify on)
     return home
 
 

@@ -50,7 +50,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .general: "General"
         case .fileTypes: "File Types"
         case .folders: "Folders"
-        case .power: "When to Index"
+        case .power: "Indexing (pane)"
         case .performance: "Performance"
         case .privacy: "Privacy"
         case .about: "About"
@@ -62,7 +62,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
         case .general: String(localized: "General")
         case .fileTypes: String(localized: "File Types")
         case .folders: String(localized: "Folders")
-        case .power: String(localized: "When to Index")
+        case .power: String(localized: "Indexing (pane)")
         case .performance: String(localized: "Performance")
         case .privacy: String(localized: "Privacy")
         case .about: String(localized: "About")
@@ -78,7 +78,7 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
                           "transkrypcja", "frames", "klatki", "extensions", "rozszerzenia", "csv"]
         case .folders: ["folders", "foldery", "tree", "drzewko", "exclude", "wyklucz", "patterns", "wzorce"]
         case .power: ["battery", "bateria", "heat", "temperatura", "pause", "pauza", "power", "zasilanie", "schedule",
-                      "harmonogram", "night", "noc", "idle", "bezczynny"]
+                      "harmonogram", "night", "noc", "idle", "bezczynny", "indexing", "indeksowanie"]
         case .performance: ["performance", "wydajność", "memory", "pamięć", "ram", "models", "modele", "chart", "wykres"]
         case .privacy: ["privacy", "prywatność", "history", "historia", "compact", "zagęść", "permissions", "uprawnienia",
                         "delete", "usuń", "data", "dane"]
@@ -304,7 +304,6 @@ private struct GeneralPane: View {
     @State private var spotlightOn = SpotlightShortcut.isOn
     @State private var addingLanguage = false
     @AppStorage(WebSearch.key) private var webSearch = WebSearch.google.rawValue
-    @State private var advanced = AdvancedRow.openAtLaunch
     @State private var confirmRestore = false
 
     var body: some View {
@@ -381,6 +380,32 @@ private struct GeneralPane: View {
                 Text("Lantern follows the macOS language unless you choose one here (also in System Settings → General → Language & Region → Applications).")
                     .font(.caption)
             }
+            Section {
+                ForEach(state.languages?.effective ?? [], id: \.self) { code in
+                    HStack {
+                        Text(LanguageName.of(code))
+                        Spacer()
+                        if state.languages?.extra.contains(code) == true {
+                            Button { state.changeLanguage("remove", code) } label: {
+                                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove")
+                        } else if state.languages?.system.contains(code) == true {
+                            Text(verbatim: "macOS").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                HStack {
+                    Spacer()
+                    Button("Add Language…") { addingLanguage = true }
+                }
+            } header: {
+                Text("Preferred Languages")
+            } footer: {
+                Text("Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included.")
+                    .font(.caption)
+            }
             if let s = state.settings {
                 Section {
                     Picker(selection: Binding(get: { s.indexMode }, set: { state.setConfig("index_mode", $0) })) {
@@ -395,45 +420,15 @@ private struct GeneralPane: View {
             } else {
                 Section { Text(state.connectionError ?? String(localized: "Connecting to the daemon…")).foregroundStyle(.secondary) }
             }
-            AdvancedRow(shown: $advanced)
-            if advanced {
-                Section {
-                    ForEach(state.languages?.effective ?? [], id: \.self) { code in
-                        HStack {
-                            Text(LanguageName.of(code))
-                            Spacer()
-                            if state.languages?.extra.contains(code) == true {
-                                Button { state.changeLanguage("remove", code) } label: {
-                                    Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Remove")
-                            } else if state.languages?.system.contains(code) == true {
-                                Text(verbatim: "macOS").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    HStack {
-                        Spacer()
-                        Button("Add Language…") { addingLanguage = true }
-                    }
-                } header: {
-                    Text("Preferred Languages")
-                } footer: {
-                    Text("Names of apps and settings and the text in images are read in these languages. The macOS ones come from System Settings → General → Language & Region; English is always included.")
-                        .font(.caption)
-                }
-            }
-            Section {
+            // a button under the groups, right-aligned, as System Settings does ("Reset Control Center…")
+            Section {} footer: {
                 HStack {
                     Spacer()
                     Button("Restore Defaults…") { confirmRestore = true }
                 }
-            } footer: {
-                Text("Every setting goes back to what Lantern suggests for this Mac. Your folders and the parts you left out of them stay.")
-                    .font(.caption)
+                .padding(.top, 8)
+                .id("restore")
             }
-            .id("restore")
         }
         .confirmationDialog("Restore the default settings?", isPresented: $confirmRestore) {
             Button("Restore Defaults") { state.restoreDefaults() }
@@ -466,7 +461,6 @@ private struct GeneralPane: View {
 
 private struct FileTypesPane: View {
     @EnvironmentObject var state: AppState
-    @State private var advanced = AdvancedRow.openAtLaunch
 
     var body: some View {
         SettingsPage {
@@ -507,17 +501,14 @@ private struct FileTypesPane: View {
                 } footer: {
                     Text("Switching a type off removes its files from the index at the next scan. Text in images is read on this Mac by macOS itself (Live Text engine); screenshots can contain private text, which then becomes searchable. Places come from the location saved in photos and videos, matched to a city with a table built into Lantern: nothing is sent anywhere. Switching places off deletes the saved locations. People in photos: macOS counts them and the photo model guesses woman or man from appearance, on this Mac, so you can search “zdjęcia kobiet z 2024” or “bez ludzi”; switching it off deletes the counts.").font(.caption)
                 }
-                AdvancedRow(shown: $advanced)
-                if advanced {
-                    Section {
-                        ExtensionField()
-                            .id("extensions")  // `--scroll-to extensions`: development screenshots
-                    } header: {
-                        Text("Ignored extensions")
-                    } footer: {
-                        Text("Type an extension and a comma, or use +. Files with these extensions are never indexed.")
-                            .font(.caption)
-                    }
+                Section {
+                    ExtensionField()
+                        .id("extensions")  // `--scroll-to extensions`: development screenshots
+                } header: {
+                    Text("Ignored extensions")
+                } footer: {
+                    Text("Type an extension and a comma, or use +. Files with these extensions are never indexed.")
+                        .font(.caption)
                 }
             }
         }
@@ -656,7 +647,7 @@ private struct PowerPane: View {
 
     var body: some View {
         SettingsPage {
-            PaneHeader(symbol: "bolt.fill", color: .green, title: "When to Index",
+            PaneHeader(symbol: "bolt.fill", color: .green, title: "Indexing (pane)",
                        text: "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode, pause while your Mac is hot, and index only when you are away or at night.")
             if let s = state.settings {
                 Section {

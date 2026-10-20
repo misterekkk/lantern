@@ -485,8 +485,7 @@
 "Always ready keeps the search model in memory (about 0.5 GB), so results appear at once. When needed releases it after 10 minutes without a search: apps and settings still answer at once, and the first search by meaning after a break takes a moment longer." = "„Zawsze gotowy” trzyma model wyszukiwania w pamięci (ok. 0,5 GB), więc wyniki pojawiają się od razu. „Na żądanie” zwalnia go po 10 minutach bez wyszukiwania: aplikacje i ustawienia nadal odpowiadają od razu, a pierwsze wyszukiwanie po znaczeniu po przerwie trwa chwilę dłużej.";
 
 /* Phase 17: fool-proofing, schedule, restore and delete */
-"Advanced" = "Zaawansowane";
-"When to Index" = "Kiedy indeksować";
+"Indexing (pane)" = "Indeksowanie";
 "Indexing uses the GPU. Lantern can wait for the charger, respect Low Power Mode, pause while your Mac is hot, and index only when you are away or at night." = "Indeksowanie korzysta z GPU. Lantern może czekać na ładowarkę, szanować tryb niskiego zużycia energii, robić pauzę, gdy Mac jest gorący, i indeksować tylko pod Twoją nieobecność albo w nocy.";
 "Any time" = "O każdej porze";
 "When the Mac is idle" = "Gdy Mac jest nieużywany";
@@ -499,7 +498,6 @@
 "Restore Defaults…" = "Przywróć domyślne…";
 "Restore Defaults" = "Przywróć domyślne";
 "Restore the default settings?" = "Przywrócić ustawienia domyślne?";
-"Every setting goes back to what Lantern suggests for this Mac. Your folders and the parts you left out of them stay." = "Każde ustawienie wraca do tego, co Lantern proponuje dla tego Maca. Twoje foldery i pominięte w nich części zostają.";
 "Every setting goes back to what Lantern suggests for this Mac, and Lantern restarts. Your folders, the parts you left out of them and the index stay." = "Każde ustawienie wraca do tego, co Lantern proponuje dla tego Maca, a Lantern uruchomi się ponownie. Twoje foldery, pominięte w nich części i indeks zostają.";
 "Delete All Data…" = "Usuń wszystkie dane…";
 "Delete All Data" = "Usuń wszystkie dane";

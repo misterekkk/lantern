@@ -65,34 +65,6 @@ struct SettingsPage<Content: View>: View {
     }
 }
 
-/// "Advanced" at the bottom of a pane: the settings few people need stay folded away (phase 17), and the pane's
-/// own sections appear below it, unchanged, when it is opened. Folded each time the pane opens.
-struct AdvancedRow: View {
-    @Binding var shown: Bool
-
-    var body: some View {
-        Section {
-            Button {
-                withAnimation(.snappy(duration: 0.25)) { shown.toggle() }
-            } label: {
-                HStack {
-                    Text("Advanced")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(shown ? 90 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    /// Open from the start for development screenshots of a folded section (`--scroll-to extensions`).
-    static var openAtLaunch: Bool { CommandLine.arguments.contains("--scroll-to") }
-}
-
 extension View {
     /// macOS 26: the system's soft scroll edge (content fades under the toolbar instead of being cut off).
     /// Earlier systems: the same look with a gradient mask at the top.

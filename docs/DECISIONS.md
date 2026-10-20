@@ -1283,8 +1283,9 @@ M4A, MP3, MOV and Ogg Opus.
   transcripts). The app resets its own keys and restarts. **Delete all data** removes the index, settings and logs
   (daemon), the app's defaults, the Spotify keys in the keychain and Lantern's own cache folders; the models stay
   (nothing of the user's is in them) and the user's files are never touched.
-- **Advanced** rows folded at the bottom of General (preferred languages) and File Types (ignored extensions); model
-  switches stay in Performance where they were, `debounce_s` stays CLI-only.
+- **No "Advanced" folding:** built (preferred languages and ignored extensions folded away) and removed the same day
+  at the user's request: hiding ordinary settings did not make Lantern safer, the guards above do. Restore Defaults
+  is a button under the last group, right-aligned, as System Settings places "Reset Control Center…".
 
 ## `in:folder` measured (2026-10-19)
 
