@@ -29,17 +29,12 @@ The extension does not install Lantern. Without it, "Search Lantern" shows where
 
 ## Installation
 
-- **Raycast Store:** Install the **Lantern** extension directly from the Raycast Store.
-- **Development / Contributing:** To test or develop locally using the Raycast extensions repository:
-  ```bash
-  cd integrations/raycast        # in the raycast/extensions repository: extensions/lantern
-  npm install
-  npm run dev
-  ```
+Install **Lantern – Semantic Search** from the Raycast Store.
 
 Then in Lantern: Settings → General → Search from: **Raycast** (turns Lantern's own shortcut off), and in Raycast's
-settings (sidebar → Lantern) give "Search Lantern" a hotkey or an alias such as `l`. Raycast itself opens on ⌥Space by
-default: to give that to Lantern, move Raycast's own hotkey first (sidebar → Raycast → Raycast Hotkey).
+settings (sidebar → Lantern – Semantic Search) give "Search Lantern" a hotkey or an alias such as `l`. Raycast
+itself opens on ⌥Space by default: to give that to Lantern, move Raycast's own hotkey first (sidebar → Raycast →
+Raycast Hotkey).
 
 To have Lantern under every Raycast query instead of a separate hotkey: Raycast's settings → Fallback Commands → add
 "Search Lantern". ↩ on it opens Lantern's results for the text you typed.
@@ -47,5 +42,3 @@ To have Lantern under every Raycast query instead of a separate hotkey: Raycast'
 The extension never reads your files itself, so Raycast needs no access to your folders: text comes from Lantern, and
 photo and video thumbnails are made by Lantern into `~/Library/Caches/Lantern/thumbnails` (deleted after 10 minutes).
 Only Quick Look (⌘Y) opens the file. The dropdown beside the search field filters by kind, like the panel's filters.
-
-`npm run build` type-checks and bundles into `dist/`.

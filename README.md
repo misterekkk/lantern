@@ -303,10 +303,11 @@ hotkey for "Search Lantern" is set in Raycast; Lantern's Settings say so instead
    cd integrations/raycast
    npm ci
    npm run dev        # adds "Search Lantern" to Raycast; when it says "ready", Ctrl+C (the command stays)
+   npm run build      # optional: type-checks and bundles into dist/
    ```
 
 3. In Lantern: Settings → General → **Search from: Raycast**. Lantern's own shortcut turns off.
-4. Choose how to open it, in Raycast's settings (sidebar → **Lantern** → Search Lantern):
+4. Choose how to open it, in Raycast's settings (sidebar → **Lantern – Semantic Search** → Search Lantern):
    - **a hotkey**, e.g. ⌥Space. Raycast itself opens on ⌥Space by default: move Raycast's own hotkey first (sidebar →
      Raycast → Raycast Hotkey), for example to ⌘Space instead of Spotlight;
    - **an alias**, e.g. `l`: type `l`, a space and your query in Raycast;
