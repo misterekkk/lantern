@@ -134,8 +134,10 @@ with their video. Every search is logged to `search_events` (features only, neve
   (`tests/test_smoke.py` fails when the man page misses a command or option; lint with `mandoc -T lint`).
 - Adding an API method: `def api_<name>(self, **params) -> dict` in `Daemon` + CLI client code + a test in
   `tests/test_daemon.py` (real socket in `/tmp`; macOS limits socket paths to 104 bytes).
-- `embedding/mlx_loader.py` loads EmbeddingGemma 2 without importing torch (package stubs). If a new mlx-vlm version
-  pulls transformers again, check with `python -X importtime` / the stub list.
+- `embedding/mlx_loader.py` loads EmbeddingGemma 2 without importing torch or transformers (package stubs: `_STUBS`).
+  Upgrading mlx-vlm: vectors must stay bit-identical (or plan a reindex) and the text path must import neither
+  (`test_text_path_imports_neither_torch_nor_transformers`; find the importer with a `sys.meta_path` finder that
+  prints the stack). DECISIONS.md, "mlx-vlm 0.7.12 replaces the pinned branch".
 
 ## Adding an extractor
 

@@ -1,10 +1,11 @@
 """Load EmbeddingGemma 2 (mlx-vlm model code) without importing torch or transformers.
 
-`mlx_vlm/__init__.py`, `mlx_vlm/models/gemma4/__init__.py` and `mlx_vlm.utils` import the generation stack
-(transformers, which pulls in torch: ~330 MB of resident memory for a daemon that only embeds text). The model
-modules themselves only need MLX. We register empty package stubs pointing at the real directories, so importing
-`mlx_vlm.models.embedding_gemma2` runs the model files but skips those `__init__` files, and replicate the few
-steps of `mlx_vlm.encoder_loader.load_encoder_model` needed for this checkpoint (config, sanitize, quantize, load).
+`mlx_vlm/__init__.py`, `mlx_vlm/models/gemma4/__init__.py`, `mlx_vlm/models/embedding_gemma2/__init__.py` (its
+processor, since mlx-vlm 0.7.8) and `mlx_vlm.utils` import the generation stack (transformers, which pulls in torch:
+~330 MB of resident memory for a daemon that only embeds text). The model modules themselves only need MLX. We
+register empty package stubs pointing at the real directories, so importing the model files skips those `__init__`
+files, and replicate the few steps of `mlx_vlm.encoder_loader.load_encoder_model` needed for this checkpoint
+(config, sanitize, quantize, load).
 Equivalence with the original loader is covered by the reference-vector tests (`pytest -m model`).
 """
 
@@ -15,11 +16,19 @@ import types
 from pathlib import Path
 
 # Packages whose __init__ pulls in transformers; Gemma code only needs modules inside them.
-_STUBS = ("mlx_vlm", "mlx_vlm.models", "mlx_vlm.models.gemma4", "mlx_vlm.models.qwen3_5")
+_STUBS = (
+    "mlx_vlm",
+    "mlx_vlm.models",
+    "mlx_vlm.models.gemma4",
+    "mlx_vlm.models.qwen3_5",
+    "mlx_vlm.models.embedding_gemma2",
+    "mlx_vlm.speculative",  # gemma4/language.py imports a verifier whose package __init__ reaches mlx_vlm.utils
+)
 
 
 def _model_package():
-    if "mlx_vlm.models.embedding_gemma2" not in sys.modules and "mlx_vlm" not in sys.modules:
+    """The model's classes, as the package's `__init__` exports them, without running that `__init__`."""
+    if "mlx_vlm" not in sys.modules:
         spec = importlib.util.find_spec("mlx_vlm")  # locates the package without executing it
         if spec is None or not spec.submodule_search_locations:
             raise ImportError("mlx-vlm is not installed")
@@ -29,9 +38,15 @@ def _model_package():
             module.__path__ = [str(root.joinpath(*name.split(".")[1:]))]
             module.__package__ = name
             sys.modules[name] = module
-    import mlx_vlm.models.embedding_gemma2 as package
+    from mlx_vlm.models.embedding_gemma2 import config, embedding_gemma2
 
-    return package
+    return types.SimpleNamespace(
+        Model=embedding_gemma2.Model,
+        ModelConfig=config.ModelConfig,
+        TextConfig=config.TextConfig,
+        VisionConfig=config.VisionConfig,
+        AudioConfig=config.AudioConfig,
+    )
 
 
 def load_embedding_gemma2(model_path: Path, lazy: bool = True):

@@ -64,7 +64,7 @@ uv run lantern daemon run    # daemon in the foreground (LANTERN_HOME / LANTERN_
 ## Conventions
 
 - Python 3.12, type hints, stdlib `sqlite3` + `sqlite-vec` (no ORM), `argparse` for the CLI.
-- Embedding backend: MLX via pinned `mlx-vlm` commit + `mlx-community/embeddinggemma-2-8bit` (ADR-001). Text prompts:
+- Embedding backend: MLX via pinned `mlx-vlm` release + `mlx-community/embeddinggemma-2-8bit` (ADR-001). Text prompts:
   queries `task: search result | query: …`, documents `title: {path or none} | text: …`, code queries `task: code retrieval | query: …`.
 - MLX: always set memory/cache limits at load (unbounded, indexing hit 13 GB on 16 GB RAM). MLX GPU streams are
   per-thread: load and call a model on the same thread (the daemon uses one dedicated model thread).

@@ -172,6 +172,24 @@ def test_siglip_and_processor_on_mlx_match_torch_and_need_no_torch():
     assert float(got["image_vec"] @ ref["image_vec"]) >= 0.9998
 
 
+def test_text_path_imports_neither_torch_nor_transformers():
+    # The daemon embeds queries and text with these two; transformers (and torch behind it) would add hundreds of MB.
+    # mlx-vlm releases moved imports around (0.7.12: the model package's processor, the speculative verifier).
+    import subprocess
+    import sys
+
+    code = (
+        "import sys\n"
+        "from lantern.embedding.mlx_backend import MLXEmbedder\n"
+        "from lantern.embedding.siglip import SiglipQueryEmbedder\n"
+        "MLXEmbedder().embed_text(['task: search result | query: hello'])\n"
+        "SiglipQueryEmbedder().embed_queries(['a dog'])\n"
+        "heavy = [m for m in ('torch', 'transformers') if m in sys.modules]\n"
+        "assert not heavy, heavy\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
 def test_photo_search_ranks_the_matching_photo_first(conn, tmp_path, mlx_embedder):
     import shutil
 

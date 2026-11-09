@@ -33,7 +33,7 @@ The measurement scripts are in `spikes/phase0/`; raw data and results in `spikes
 | MLX, `…-bf16` | text + audio | yes | Metal: weights ~1.42 GB | 13.9 chunks/s | cos ≈ 1.000 |
 
 MLX runs through `mlx-vlm` from an **unreleased branch** (commit `3d87e88402f307efbf68e568971aa887ee7d9ed0`, branch
-`pc/embeddinggemma-2`), MLX 0.32.4. The `mlx-community` conversion is a community one (unofficial, not from Google),
+`pc/embeddinggemma-2`; replaced by the 0.7.12 release on 2026-11-09, same vectors), MLX 0.32.4. The `mlx-community` conversion is a community one (unofficial, not from Google),
 but the 8-bit vectors are numerically consistent with the original. Preprocessing (tokenizer, audio features) uses the
 transformers processor from the official repo, exactly as in ST. Tested in a separate venv (`spikes/phase0/.venv-mlx`).
 
@@ -1564,6 +1564,24 @@ M4A, MP3, MOV and Ogg Opus.
 - Open: dates of PDFs and Office files come from the disk, not from their own metadata (creation date in the PDF info
   dictionary); time phrases in languages other than Polish and English are not understood (places are).
 
+## mlx-vlm 0.7.12 replaces the pinned branch (2026-11-09)
+
+EmbeddingGemma 2 reached mlx-vlm releases in 0.7.8 (2026-10-13); Lantern pinned a commit of the pre-release branch.
+Checked before switching to the 0.7.12 release (2026-11-04; adopted before the usual two weeks, at the user's request):
+- **Model code:** `embedding_gemma2/config.py`, `embedding_gemma2.py` and `language.py` are byte-identical to the pin;
+  in the gemma4 files it imports, `rotate_half` moved to `rope_utils`, the MoE weight renaming was refactored
+  (EmbeddingGemma 2 has no experts), and `base.py` fixed channel order when upsampling position embeddings.
+- **Vectors: bit-identical** to the pin (`np.array_equal`) for 9 texts (queries, documents, Polish, code), 4 images
+  (vision tower, 140 tokens), 2 audio windows (5.7 s and 28.6 s) and 3 SigLIP text queries. Indexes stay valid.
+- **Imports:** the release's `embedding_gemma2/__init__.py` imports its processor (transformers), and
+  `gemma4/language.py` imports a speculative-decoding verifier whose package `__init__` reaches `mlx_vlm.utils`
+  (transformers). Both are now stubbed in `mlx_loader._STUBS`; without that the text path loaded transformers
+  (+~67 MB). With it, peak RSS for text + SigLIP text queries is the same as with the pin (1152–1194 MB, run to run).
+- **Dependencies:** 0.7.12 requires `datasets` (with pandas, pyarrow, aiohttp, …) and `cryptography`; Lantern uses
+  neither, so they join the `override-dependencies` that drop mlx-vlm's CLI/server packages.
+- Tests: 389 fast tests and ruff pass; `-m model` passes except `test_photo_search_ranks_the_matching_photo_first`,
+  which fails the same way on the pin (photos section empty for two photos): a separate, older problem.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1580,7 +1598,7 @@ with the current version.
   for audio/photo jobs and released afterwards.
 - Preprocessing without torch in both daemon and worker: tokenizer from `tokenizers`, stub packages in `mlx_loader.py`,
   and the processor built from its numpy/PIL parts in `embedding/processor.py`.
-- Fallback backend behind the same interface: `sentence-transformers` (MPS, bf16), e.g. if the mlx-vlm branch drifts.
+- Fallback backend behind the same interface: `sentence-transformers` (MPS, bf16), e.g. if mlx-vlm drifts.
 - Embedders behind an interface (`embed_text`, `embed_audio`, `embed_images`, `model_info`).
 
 **Consequences:**

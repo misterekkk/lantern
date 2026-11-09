@@ -100,7 +100,7 @@ Spotify library sync is the only exception).
 | ffmpeg (optional) | MKV and WebM recordings only; everything else is decoded by macOS itself (AVFoundation) | `brew install ffmpeg` |
 
 `uv sync` installs everything else into the project's `.venv` (nothing global, no PyTorch): MLX and a pinned `mlx-vlm`
-commit (EmbeddingGemma 2 support), `transformers`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
+release (EmbeddingGemma 2 support), `transformers`, `tokenizers`, `sqlite-vec`, `tree-sitter-language-pack`,
 `pathspec`, `charset-normalizer`, `mlx-whisper`, `pillow`, `soundfile`, `watchdog`, and `pyobjc-framework-Vision` /
 `pyobjc-framework-Quartz` (Python bindings for macOS's text recognition and PDFKit; no models to download).
 
@@ -588,8 +588,9 @@ uv run lantern daemon stop | uninstall
 
 ## Known limitations
 
-- The MLX backend uses an **unreleased `mlx-vlm` branch** (pinned commit) and community-converted `mlx-community`
-  weights. Vectors match the original model (cosine 0.9998), but this dependency needs watching.
+- The MLX backend uses `mlx-vlm` (a pinned release; Lantern loads only its model files) and community-converted
+  `mlx-community` weights. Vectors match the original model (cosine 0.9998); a new `mlx-vlm` is adopted only after
+  its vectors are checked against the current one, since a change would mean reindexing.
 - Memory (measured on M4): idle daemon ~490 MB, plus ~340 MB for the photo query model while the panel is in use
   (released after 5 minutes); the indexing process up to ~2 GB for text, ~3.3 GB for recordings and ~4 GB for photos,
   then it exits.
