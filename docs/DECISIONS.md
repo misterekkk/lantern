@@ -1652,7 +1652,8 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
    app is a client of the daemon.
 8. Polish inflection in FTS: the stem prefix (Phase 3) works in tests but gives false hits for short stems. Alternative:
    a Polish stemmer or lemmatiser (e.g. Morfologik/Stempel).
-9. Stability of the `mlx-vlm` branch with EmbeddingGemma 2: watch for it to land in a PyPI release.
+9. ~~Stability of the `mlx-vlm` branch with EmbeddingGemma 2~~ — it landed in mlx-vlm 0.7.8; Lantern uses the 0.7.12
+   release since 2026-11-09 (bit-identical vectors; "mlx-vlm 0.7.12 replaces the pinned branch").
 10. Integration with system search (⌘Space). Spotlight cannot plug in a custom semantic ranking (Core Spotlight matches
     its own keywords). **Direction chosen by the user (2026-10-15):** an own Spotlight-like panel (NSPanel + SwiftUI)
     on a global shortcut, done in Phase 6. The user can turn off the Spotlight shortcut in System Settings → Keyboard →
@@ -1709,6 +1710,13 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     both ways.
 39. ~~Import other launchers' learned choices~~ — Alfred done (see "Importing Alfred's knowledge"). Still open: the
     exact form of Alfred's `knowledge.item` for apps (path or bundle id; both handled), LaunchBar's abbreviations.
-40. Raycast extension and Alfred workflow (integrations/) in the real launchers: to test by the user; then the
-    Raycast Store submission (needs `ray lint` with the store's ESLint config and a Raycast account) and an Alfred
-    Gallery entry.
+40. Raycast extension and Alfred workflow (integrations/) in the real launchers: tested by the user. The Raycast
+    extension is in the Store since 2026-11-06 ("Lantern – Semantic Search", raycast/extensions#32486). Still open:
+    an Alfred Gallery entry.
+41. Photos found only by how they look are never shown when the searched scope holds fewer than about 8 photos: the
+    section needs a summed z of `PHOTO_SHOW_Z` = 5 over both models, and with n photos in the pool one model's z
+    cannot exceed √(n−1) (2 photos: exactly 1 each, sum 2.0). Large libraries are unaffected; it matters for `in:`
+    searches over a small folder (the Photos filter, names and text in photos still show them). A fix needs a
+    measure that works on tiny pools (raw similarity), measured on real queries first. Found 2026-11-09 through
+    `test_photo_search_ranks_the_matching_photo_first`, failing since the threshold came in (c87a951); the test
+    now uses 12 photos (summed z 6.2).

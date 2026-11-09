@@ -204,6 +204,34 @@ def test_photo_search_ranks_the_matching_photo_first(conn, tmp_path, mlx_embedde
     soup = Image.new("RGB", (640, 480), (245, 240, 230))
     ImageDraw.Draw(soup).ellipse((170, 110, 470, 410), fill=(200, 40, 30))  # a red bowl from above
     soup.save(root / "talerz.png")
+    # Ten plain pictures (flat colours, simple shapes): photos are shown only when their summed z-score reaches
+    # PHOTO_SHOW_Z, and with n photos one model's z cannot exceed sqrt(n - 1); two photos alone never could
+    # (DECISIONS.md, open question 41). With these the house scores 6.2.
+    palette = [
+        (30, 90, 200),
+        (40, 160, 70),
+        (230, 200, 40),
+        (120, 60, 160),
+        (240, 120, 30),
+        (20, 20, 20),
+        (200, 200, 210),
+        (150, 90, 50),
+        (0, 150, 150),
+        (220, 80, 140),
+        (90, 90, 90),
+        (250, 250, 240),
+    ]
+    for i in range(10):
+        plain = Image.new("RGB", (640, 480), palette[i])
+        draw, other = ImageDraw.Draw(plain), palette[(i * 5 + 3) % len(palette)]
+        shape = (100 + 10 * i, 80, 540 - 10 * i, 400)
+        if i % 3 == 0:
+            draw.rectangle(shape, fill=other)
+        elif i % 3 == 1:
+            draw.ellipse(shape, fill=other)
+        else:
+            draw.line(shape, fill=other, width=20)
+        plain.save(root / f"wzor{i:02d}.png")
     scan_root(conn, root)
     run_queue(conn, mlx_embedder, image_embedder=SiglipImageEmbedder())
     resp = search(conn, mlx_embedder, "dom z dachem", log=False, lang="pl", query_embedder=SiglipQueryEmbedder())
