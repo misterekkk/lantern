@@ -2,7 +2,7 @@
 
 What changed for people using Lantern, newest first.
 
-## Unreleased
+## 0.2.3 — 2026-11-09
 
 - **Raycast Store:** the extension is published as [Lantern – Semantic Search](https://www.raycast.com/kacper_piotrowski/lantern-semantic-search): install it from the Store,
   no Node.js or copy of this repository needed. Settings → General → Search from: Raycast links to it, and the
