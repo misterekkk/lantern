@@ -58,7 +58,8 @@ enum SearchLauncher: String, CaseIterable, Identifiable {
     /// The Alfred workflow built into the app by build.sh (integrations/alfred); opening it imports it into Alfred.
     static var alfredWorkflow: URL? { Bundle.main.url(forResource: "Lantern", withExtension: "alfredworkflow") }
 
-    static let raycastGuide = URL(string: "https://github.com/misterekkk/lantern/tree/development/integrations/raycast")!
+    /// "Lantern – Semantic Search" in the Raycast Store (raycast/extensions: extensions/lantern-semantic-search).
+    static let raycastStore = URL(string: "https://www.raycast.com/kacper_piotrowski/lantern-semantic-search")!
 }
 
 /// Spotlight's own ⌘Space (symbolic hotkey 64 in com.apple.symbolichotkeys), read only.

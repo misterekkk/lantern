@@ -267,7 +267,7 @@ struct WelcomeView: View {
                        recommended: false) { model.launcher = .alfred }
                     .disabled(!SearchLauncher.alfred.isInstalled)
                 if model.launcher == .raycast {
-                    Label("Install “Lantern” from the Raycast Store, then give “Search Lantern” a hotkey in Raycast’s settings (Extensions → Lantern). For ⌥Space, move Raycast’s own hotkey first: it uses ⌥Space by default.",
+                    Label("Install “Lantern – Semantic Search” from the Raycast Store, then give “Search Lantern” a hotkey in Raycast’s settings (Extensions → Lantern – Semantic Search). For ⌥Space, move Raycast’s own hotkey first: it uses ⌥Space by default.",
                           systemImage: "info.circle")
                         .font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -285,7 +285,7 @@ private struct LauncherRow: View {
                     Button("Install the Alfred Workflow…") { NSWorkspace.shared.open(workflow) }
                 }
                 if launcher == .raycast {
-                    Button("How to Install the Raycast Extension…") { NSWorkspace.shared.open(SearchLauncher.raycastGuide) }
+                    Button("Open in the Raycast Store…") { NSWorkspace.shared.open(SearchLauncher.raycastStore) }
                 }
             }
             .disabled(!launcher.isInstalled)

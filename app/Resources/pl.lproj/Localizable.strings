@@ -378,7 +378,7 @@
 "Lantern’s shortcut is off. In Raycast, type “Lantern” to find “Search Lantern”, or give it a hotkey or an alias in Raycast’s settings; Lantern keeps indexing and answers in the background." = "Skrót Lanterna jest wyłączony. W Raycaście wpisz „Lantern”, żeby znaleźć „Search Lantern”, albo nadaj mu skrót lub alias w ustawieniach Raycasta; Lantern dalej indeksuje i odpowiada w tle.";
 "Lantern’s shortcut is off. In Alfred, type l and your query (or give the workflow a hotkey); Lantern keeps indexing and answers in the background. Workflows need Alfred’s Powerpack." = "Skrót Lanterna jest wyłączony. W Alfredzie wpisz l i zapytanie (albo nadaj workflow skrót); Lantern dalej indeksuje i odpowiada w tle. Workflow wymagają Powerpacka Alfreda.";
 "Install the Alfred Workflow…" = "Zainstaluj workflow Alfreda…";
-"How to Install the Raycast Extension…" = "Jak zainstalować rozszerzenie Raycasta…";
+"Open in the Raycast Store…" = "Otwórz w Raycast Store…";
 "Downloading models…" = "Pobieranie modeli…";
 "Download the search model" = "Pobierz model wyszukiwania";
 "One-time download from Hugging Face (~1.3 GB); after that Lantern works completely offline." = "Jednorazowe pobranie z Hugging Face (~1,3 GB); potem Lantern działa całkowicie offline.";
@@ -454,7 +454,7 @@
 "Checking this Mac…" = "Sprawdzam tego Maca…";
 "Set in Raycast" = "Ustawiasz w Raycaście";
 "Set in Alfred" = "Ustawiasz w Alfredzie";
-"Install “Lantern” from the Raycast Store, then give “Search Lantern” a hotkey in Raycast’s settings (Extensions → Lantern). For ⌥Space, move Raycast’s own hotkey first: it uses ⌥Space by default." = "Zainstaluj „Lantern” z Raycast Store, a potem przypisz poleceniu „Search Lantern” skrót w ustawieniach Raycasta (Extensions → Lantern). Jeśli chcesz ⌥Spacja, najpierw zmień skrót samego Raycasta: domyślnie używa ⌥Spacja.";
+"Install “Lantern – Semantic Search” from the Raycast Store, then give “Search Lantern” a hotkey in Raycast’s settings (Extensions → Lantern – Semantic Search). For ⌥Space, move Raycast’s own hotkey first: it uses ⌥Space by default." = "Zainstaluj „Lantern – Semantic Search” z Raycast Store, a potem przypisz poleceniu „Search Lantern” skrót w ustawieniach Raycasta (Extensions → Lantern – Semantic Search). Jeśli chcesz ⌥Spacja, najpierw zmień skrót samego Raycasta: domyślnie używa ⌥Spacja.";
 "Lantern installs its Alfred workflow when you continue; type “l” and your query in Alfred, or give the workflow a hotkey. Workflows need Alfred’s Powerpack." = "Lantern zainstaluje swój workflow Alfreda, gdy przejdziesz dalej; w Alfredzie wpisz „l” i zapytanie albo przypisz workflowowi skrót. Workflowy wymagają Alfred Powerpack.";
 "Copy Diagnostics" = "Kopiuj diagnostykę";
 "For a bug report: versions, memory, settings and counts, without file names or contents" = "Do zgłoszenia błędu: wersje, pamięć, ustawienia i liczby, bez nazw i treści plików";

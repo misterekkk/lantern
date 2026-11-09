@@ -43,7 +43,7 @@ Spotify library sync is the only exception).
   answers at once with the apps you use most (macOS's own launch counts), and a query you keep answering with the
   same result ("d" → Discord) puts it first. Coming from Alfred? Settings → Privacy imports the choices it learned.
 - **Works with Raycast and Alfred:** keep your launcher and search with Lantern inside it ("Search Lantern" in
-  Raycast with previews, thumbnails and filters; a workflow for Alfred). See [Use with Raycast or Alfred](#use-with-raycast-or-alfred).
+  Raycast, from the Raycast Store, with previews, thumbnails and filters; a workflow for Alfred). See [Use with Raycast or Alfred](#use-with-raycast-or-alfred).
 - **Applications and System Settings**, like Spotlight: apps by any of their names (also translated and misspelt:
   `calcul`, `dicsord`, `vsc`) or their App Store category (`music` finds Spotify beside Music), panes and the ~560
   single settings of macOS by their words (`24 hour`, `night shift`), and both by what they do as a fallback
@@ -290,21 +290,14 @@ own panel.
 
 ### Raycast, step by step
 
-The extension is in review for the Raycast Store; until it is published it is added once from this repository (needs
-Node.js: `brew install node`). It does not install Lantern itself: without the app, "Search Lantern" shows the download
+The extension is in the Raycast Store as [Lantern – Semantic Search](https://www.raycast.com/kacper_piotrowski/lantern-semantic-search). It does not install Lantern itself: without the app, "Search Lantern" shows the download
 link and the Homebrew command, and while Lantern is setting up, downloading its models or indexing for the first time
 it says so instead of showing no results. Raycast keeps its hotkeys to itself (no app can read or set them), so the
 hotkey for "Search Lantern" is set in Raycast; Lantern's Settings say so instead of showing its own shortcut.
 
 1. Install and open [Raycast](https://www.raycast.com), and have the Lantern app running.
-2. Add the extension:
-
-   ```bash
-   cd integrations/raycast
-   npm ci
-   npm run dev        # adds "Search Lantern" to Raycast; when it says "ready", Ctrl+C (the command stays)
-   npm run build      # optional: type-checks and bundles into dist/
-   ```
+2. Install [Lantern – Semantic Search](https://www.raycast.com/kacper_piotrowski/lantern-semantic-search) from the Raycast Store (or in Raycast: Store, then search for
+   "Lantern").
 
 3. In Lantern: Settings → General → **Search from: Raycast**. Lantern's own shortcut turns off.
 4. Choose how to open it, in Raycast's settings (sidebar → **Lantern – Semantic Search** → Search Lantern):
@@ -329,6 +322,11 @@ The pane beside the results shows the code around a result (its lines marked ▶
 and thumbnails of photos and video frames. Raycast never reads your folders, so it asks for no access to them: the
 text comes from Lantern, and the thumbnails are made by Lantern into its cache, deleted after 10 minutes (see
 [PRIVACY.md](docs/PRIVACY.md)). Details: [integrations/raycast](integrations/raycast).
+
+To work on the extension itself (needs Node.js: `brew install node`): `cd integrations/raycast`, `npm ci`, then
+`npm run dev` adds your local copy to Raycast (when it says "ready", Ctrl+C: the command stays) and `npm run build`
+type-checks and bundles into `dist/`. Changes reach the Store through a pull request to
+[raycast/extensions](https://github.com/raycast/extensions) (`extensions/lantern-semantic-search`).
 
 ### Alfred
 
