@@ -309,7 +309,13 @@ def image_search(
 
     `only` (people words) keeps the photos that satisfy it, but the z-scores are measured against the photos within
     `scope` alone: a pool of just the one or two matching photos made their z-score meaningless (a single photo is
-    always 0), so "women in Lisbon" lost the photo "woman in Lisbon" found."""
+    always 0), so "women in Lisbon" lost the photo "woman in Lisbon" found.
+
+    A `scope` (folder, time, place) is measured both ways, and each photo keeps the higher score: against the photos in
+    the scope (the best of a folder stands out in it) and against the whole library (with n photos one model's z
+    cannot exceed sqrt(n - 1), so a folder of fewer than ~8 never showed a photo by its look). Synthetic folders:
+    small ones from ~1% to ~57% found, large ones 81% -> 94%, precision unchanged (DECISIONS.md, "Photos in a
+    small scope")."""
     from lantern.embedding.base import format_image_query
 
     lists: list[tuple[str, np.ndarray]] = []
@@ -322,7 +328,22 @@ def image_search(
             lists.append((db.vec_table(sig_id, images=True), query_embedder.embed_queries([query])[0]))
     if not lists:
         return []
+    ranked = _scored_photos(conn, lists, limit, scope, only)
+    if scope is not None:
+        wide = scope if isinstance(scope, scope_mod.Scope) else scope_mod.Scope(scope_mod.PATH_CONDITION, (scope,))
+        best = dict(ranked)
+        for c, z in _scored_photos(conn, lists, limit, None, scope_mod.Scope.all(wide, only)):
+            if z > best.get(c, float("-inf")):
+                best[c] = z
+        ranked = sorted(best.items(), key=lambda kv: -kv[1])
+    return _best_per_file(_hits(conn, ranked, query), limit)
 
+
+def _scored_photos(
+    conn: sqlite3.Connection, lists: list[tuple[str, np.ndarray]], limit: int,
+    scope: "str | scope_mod.Scope | None", only: "scope_mod.Scope | None",
+) -> list[tuple[int, float]]:  # fmt: skip
+    """(chunk id, summed z) of the photo matches: candidates from `scope`, z against that pool (see image_search)."""
     pool: set[int] = set()
     allowed: set[int] | None = None
     for table, qv in lists:
@@ -347,6 +368,5 @@ def image_search(
     # Only candidates clearly above the pool average count as photo matches; the rest of the pool is just "nearest of
     # the remaining photos" and would add a photo-list vote to every query (e.g. any video's generic frames).
     min_z = PHOTO_MATCH_Z * len(lists)  # the fused score is a sum of per-model z-scores
-    ranked = sorted(((c, z) for c, z in zip(ids, total.tolist(), strict=True)
-                     if z >= min_z and (allowed is None or c in allowed)), key=lambda kv: -kv[1])  # fmt: skip
-    return _best_per_file(_hits(conn, ranked, query), limit)
+    return sorted(((c, z) for c, z in zip(ids, total.tolist(), strict=True)
+                   if z >= min_z and (allowed is None or c in allowed)), key=lambda kv: -kv[1])  # fmt: skip

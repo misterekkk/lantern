@@ -569,6 +569,34 @@ def test_people_words_with_only_a_place_put_the_photos_first(conn, embedder, tmp
     # no visual match for "paris men" (DECISIONS.md, "Inflections and the photos section")
 
 
+def test_a_folder_scope_also_scores_its_photos_against_the_whole_library(conn, embedder, tmp_path):
+    """`in:` a folder of one photo: in a pool of one its z-score is 0, so a photo that stands out in the whole library
+    was never found from its own small folder (DECISIONS.md, "Photos in a small scope")."""
+    from lantern.search.basic import image_search
+    from lantern.search.scope import PATH_CONDITION, Scope, like_pattern
+
+    sig = FakeImageEmbedder()
+
+    def vector_index(path: Path) -> int:
+        return int(sig.embed_images([Image.open(path)])[0].argmax())
+
+    root = tmp_path / "zdjecia"
+    target = vector_index(photo(root / "maly" / "jedno.jpg", color=(10, 120, 240)))
+    for i in range(12):  # a larger folder of photos whose fake vectors differ from it
+        for shade in range(0, 250, 7):
+            if vector_index(photo(root / "duzy" / f"inne{i:02d}.jpg", color=(shade, 40 + 15 * i, 90))) != target:
+                break
+    query = next(q for n in range(1000) if sum(map(ord, q := f"zdjecie {n}")) % sig.dim == target)
+    scan_root(conn, root)
+    run_queue(conn, FakeEmbedder(), image_embedder=FakeImageEmbedder(), image_text=False)
+    every = {Path(h.path).name: h.score for h in image_search(conn, embedder, query, 20, "pl", FakeImageEmbedder())}
+    assert "jedno.jpg" in every
+    small = Scope(PATH_CONDITION, (like_pattern(str(root / "maly")),))
+    scoped = image_search(conn, embedder, query, 20, "pl", FakeImageEmbedder(), scope=small)
+    assert [Path(h.path).name for h in scoped] == ["jedno.jpg"]
+    assert scoped[0].score >= every["jedno.jpg"] - 1e-6
+
+
 def test_a_people_filter_keeps_photos_scored_against_all_photos(conn, embedder, tmp_path):
     """The filtered photos are scored against every photo in scope: a pool of one or two (the people asked for)
     made the z-score meaningless and dropped them at random."""

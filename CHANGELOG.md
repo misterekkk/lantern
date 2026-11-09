@@ -7,6 +7,9 @@ What changed for people using Lantern, newest first.
 - **Raycast Store:** the extension is published as [Lantern – Semantic Search](https://www.raycast.com/kacper_piotrowski/lantern-semantic-search): install it from the Store,
   no Node.js or copy of this repository needed. Settings → General → Search from: Raycast links to it, and the
   welcome window gives its new name.
+- **Photos in small folders:** `in:` a folder (or a time or place) with only a few photos now finds a photo by what it
+  shows; before, fewer than about 8 photos in the scope meant none could ever stand out enough to be shown. Larger
+  folders find more of their matching photos too (measured: DECISIONS.md, "Photos in a small scope").
 
 ## 0.2.2 — 2026-10-20
 

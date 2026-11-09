@@ -1582,6 +1582,41 @@ Checked before switching to the 0.7.12 release (2026-11-04; adopted before the u
 - Tests: 389 fast tests and ruff pass; `-m model` passes except `test_photo_search_ranks_the_matching_photo_first`,
   which fails the same way on the pin (photos section empty for two photos): a separate, older problem.
 
+## Photos in a small scope (2026-11-09)
+
+Photos are matched by z-scores against their candidate pool, and the section shows only when the top photo's summed z
+(both models) reaches `PHOTO_SHOW_Z` = 5. With n photos in the pool one model's z cannot exceed √(n−1), so in a scope
+(`in:` folder, time, place) of fewer than ~8 photos a photo was never shown by its look (open question 41).
+
+Variants of `image_search` for a scope, measured:
+- **current:** candidates and z within the scope;
+- **library:** z against the whole library, kept to the scope (the people filter's mechanism, `only`);
+- **either:** both, each photo keeps the higher z (shipped).
+
+**Synthetic folders** (Imagenette, 10 labelled classes, 300 photos: 20 folders of 1–7 and 6 of 36–39, three random
+layouts; 20 class queries in Polish and English + 6 control queries; scripts in `spikes/scope_photos/`, the downloaded
+data deleted). Per layout (seeds 1 / 2 / 3):
+
+| | current | library | either |
+|---|---|---|---|
+| small folders: a matching photo found | 0/134, 1/116, 1/130 | 77/134, 63/116, 76/130 | 77/134, 63/116, 76/130 |
+| small: precision of shown photos | 0/0, 1/1, 1/1 | 97%, 88%, 89% | 97%, 88%, 89% |
+| small: something shown with no match there | 0/386, 0/404, 0/390 | 1, 3, 3 | 1, 3, 3 |
+| large folders: a matching photo found | 95/118, 91/114, 96/116 | 101, 96, 103 | **112, 106, 109** |
+| large: matching photos shown | 254/436, 290/458, 302/438 | 301, 334, 335 | **320, 350, 354** |
+| large: precision | 77%, 84%, 81% | 82%, 88%, 88% | 76%, 83%, 82% |
+| large: something shown with no match there | 5/38, 7/42, 10/40 | 11, 10, 11 | 11, 11, 12 |
+
+The same direction in every layout: small folders go from almost never (the √(n−1) bound) to ~57% found at ~90%
+precision; large folders from ~81% to ~94% found with the same precision. The cost: in a large folder with nothing of
+the kind, something is shown more often (18% → 28% of such pairs).
+
+**The user's index** (404 photos, 48 folders, 32 photo + 6 control queries, read-only): of 15 photos the unscoped
+search shows on their own strength (summed z ≥ 5), `in:` their folder showed 9 (current) and 13 (either); either drops
+nothing current showed; control queries 1/288 → 2/288. Most photos the unscoped search shows from a folder ride along
+with a strong photo from elsewhere, and rightly disappear with `in:`. Cost: one more scoring pass, median 9.5 ms
+(p90 10.3) per scoped search. Test: `test_a_folder_scope_also_scores_its_photos_against_the_whole_library`.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1713,7 +1748,9 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
 40. Raycast extension and Alfred workflow (integrations/) in the real launchers: tested by the user. The Raycast
     extension is in the Store since 2026-11-06 ("Lantern – Semantic Search", raycast/extensions#32486). Still open:
     an Alfred Gallery entry.
-41. Photos found only by how they look are never shown when the searched scope holds fewer than about 8 photos: the
+41. ~~Photos found only by how they look are never shown when the searched scope holds fewer than about 8 photos~~ —
+    solved 2026-11-09: a scope also scores its photos against the whole library ("Photos in a small scope"). The
+    original note: the
     section needs a summed z of `PHOTO_SHOW_Z` = 5 over both models, and with n photos in the pool one model's z
     cannot exceed √(n−1) (2 photos: exactly 1 each, sum 2.0). Large libraries are unaffected; it matters for `in:`
     searches over a small folder (the Photos filter, names and text in photos still show them). A fix needs a
