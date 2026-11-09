@@ -1068,7 +1068,7 @@ class Daemon:
     def api_preview(self, path: str, start_line: int, end_line: int | None = None, context: int = 12) -> dict:
         """Lines of an indexed text/code file around a result, for the panel's quick look (Space). Only files in
         the index can be read this way."""
-        from lantern.extractors.text import SkipFile, extract_text
+        from lantern.extractors.text import SkipFile, document_text
 
         conn = self._conn()
         row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
@@ -1076,7 +1076,7 @@ class Daemon:
         if row is None or row["kind"] not in ("text", "code"):
             raise ValueError("not an indexed text or code file")
         try:
-            lines = extract_text(Path(path)).split("\n")
+            lines = document_text(Path(path)).split("\n")  # an HTML page as its visible text, same lines
         except (SkipFile, OSError) as exc:
             raise ValueError(f"cannot read the file: {exc}") from exc
         end_line = end_line or start_line

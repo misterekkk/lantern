@@ -423,7 +423,8 @@ uv run lantern diagnostics                 # a report for a bug report, without 
   two, people are counted in the background (about a quarter of a second per photo; files waiting for your approval
   stay waiting). `lantern status` shows what is left.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
-  functions and classes), text (Markdown, txt, JSON, YAML, HTML…; text files over 2 MB and binaries are skipped),
+  functions and classes), text (Markdown, txt, JSON, YAML, HTML as the text a browser shows…; text files over 2 MB and
+  binaries are skipped),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and
   photos (jpg, png, heic, gif, webp, tiff, bmp).
 

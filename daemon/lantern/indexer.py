@@ -28,7 +28,7 @@ from lantern.extractors import language_for
 from lantern.extractors.frames import extract_frames
 from lantern.extractors.image import load_image
 from lantern.extractors.media import decode_all, iter_windows
-from lantern.extractors.text import SkipFile, extract_text
+from lantern.extractors.text import SkipFile, document_text, is_html
 from lantern.queue import jobs
 from lantern.queue.jobs import Job
 from lantern.store import db
@@ -45,6 +45,14 @@ IMAGE_BATCH = 8
 # audio/video 2 = 20 s transcript chunks; video 3 = key frames; image 1 = EmbeddingGemma (140 tokens) + SigLIP 2;
 # video 6 = text on key frames (OCR).
 PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 5, "video": 7, "image": 3}
+# HTML pages are text files with their own version (indexed as visible text since 101), so a change to either
+# re-indexes only those files. Kept far from the text numbers: the two must never be equal.
+HTML_PIPELINE_VERSION = 101
+
+
+def pipeline_version(kind: str, path: str) -> int:
+    return HTML_PIPELINE_VERSION if kind == "text" and is_html(path) else PIPELINE_VERSIONS[kind]
+
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
 
@@ -129,7 +137,7 @@ def _prepare_pdf(job: Job, row: sqlite3.Row, ocr: bool) -> _Prepared:
 
 def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
     path, rel = Path(row["path"]), _rel(row)
-    text = extract_text(path)
+    text = document_text(path)
     pieces = [p for p in chunk_file(path, row["kind"], text) if not is_blob(p.text)]  # embedded binary data
     language = language_for(path) if row["kind"] == "code" else None
     symbols = extract_symbols(text, language) if language else []
@@ -146,11 +154,13 @@ def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
 def enqueue_stale(conn: sqlite3.Connection, model_id: int) -> int:
     """Queue indexed files whose chunks come from another pipeline version or embedding model."""
     n = 0
+    html = "(lower(path) LIKE '%.html' OR lower(path) LIKE '%.htm')"
     for kind, version in PIPELINE_VERSIONS.items():
+        html_version = HTML_PIPELINE_VERSION if kind == "text" else version
         rows = conn.execute(
             "SELECT id FROM files WHERE status = 'indexed' AND kind = ? "
-            "AND (pipeline_version != ? OR model_id IS NOT ?)",
-            (kind, version, model_id),
+            f"AND (pipeline_version != CASE WHEN {html} THEN ? ELSE ? END OR model_id IS NOT ?)",
+            (kind, html_version, version, model_id),
         ).fetchall()
         for (file_id,) in rows:
             jobs.enqueue(conn, file_id, "index")
@@ -207,8 +217,8 @@ def run_queue(
     ) -> None:  # fmt: skip
         with db.transaction(conn):
             db.replace_file_chunks(
-                conn, item.file_id, item.rel, item.records, vectors, model_id, PIPELINE_VERSIONS[item.kind], kinds,
-                extra,
+                conn, item.file_id, item.rel, item.records, vectors, model_id, pipeline_version(item.kind, item.path),
+                kinds, extra,
             )  # fmt: skip
             if item.kind == "code":
                 db.replace_file_symbols(conn, item.file_id, item.symbols)

@@ -79,6 +79,50 @@ def test_pipeline_version_change_reindexes(conn, project, embedder, monkeypatch)
     assert stats.stale == 2 and stats.indexed == 2 and embedder.texts_embedded > before
 
 
+PAGE = """<!DOCTYPE html>
+<html><head><title>Zamówienia &amp; faktury</title>
+<style>.price { color: red }</style>
+<script>var hidden = "<p>skryptowezdanie</p>";</script></head>
+<body><h1>Zamówienie</h1><p>Kwota: <b>187</b>,15 zł za prąd</p>
+<table><tr><td>Licznik</td><td>320 kWh</td></tr></table>
+</body></html>
+"""
+
+
+def test_html_is_indexed_as_the_text_a_reader_sees_on_its_source_lines(conn, tmp_path, embedder):
+    from lantern.extractors.text import document_text
+
+    page = write(tmp_path / "docs", "zamowienie.html", PAGE)
+    text = document_text(page)
+    assert text.count("\n") == PAGE.count("\n")  # same lines: results open there, previews show the same text
+    lines = text.split("\n")
+    assert lines[1] == "Zamówienia & faktury" and lines[4] == "Zamówienie Kwota: 187,15 zł za prąd"
+    assert lines[5] == "Licznik 320 kWh" and lines[2] == lines[3] == ""  # style and script: nothing
+    scan_root(conn, tmp_path / "docs")
+    run_queue(conn, embedder)
+    chunks = conn.execute("SELECT text, start_line, end_line FROM chunks").fetchall()
+    joined = " ".join(c["text"] for c in chunks)
+    assert "<" not in joined and "skryptowezdanie" not in joined and "color" not in joined
+    assert any("187,15" in c["text"] and c["start_line"] <= 5 <= c["end_line"] for c in chunks)
+
+
+def test_an_html_version_change_reindexes_only_html_pages(conn, tmp_path, embedder, monkeypatch):
+    from lantern import indexer
+
+    write(tmp_path / "docs", "zamowienie.html", PAGE)
+    write(tmp_path / "docs", "notatki.txt", "Kwota za prąd do zapłacenia w piątek.")
+    scan_root(conn, tmp_path / "docs")
+    run_queue(conn, embedder)
+    assert run_queue(conn, embedder).stale == 0
+    monkeypatch.setattr(indexer, "HTML_PIPELINE_VERSION", indexer.HTML_PIPELINE_VERSION + 1)
+    stats = run_queue(conn, embedder)
+    assert stats.stale == 1 and stats.indexed == 1  # the page, not the .txt
+    # an index from before HTML had its own version: its pages carry the text version and are indexed once more
+    conn.execute("UPDATE files SET pipeline_version = ? WHERE path LIKE '%.html'", (PIPELINE_VERSIONS["text"],))
+    assert run_queue(conn, embedder).stale == 1
+    assert run_queue(conn, embedder).stale == 0
+
+
 def test_model_change_reindexes_into_new_table(conn, project, embedder):
     scan_root(conn, project)
     run_queue(conn, embedder)

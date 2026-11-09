@@ -1617,6 +1617,20 @@ nothing current showed; control queries 1/288 → 2/288. Most photos the unscope
 with a strong photo from elsewhere, and rightly disappear with `in:`. Cost: one more scoring pass, median 9.5 ms
 (p90 10.3) per scoped search. Test: `test_a_folder_scope_also_scores_its_photos_against_the_whole_library`.
 
+## HTML as the text a reader sees (2026-11-09)
+
+HTML files were indexed as raw markup: before the user excluded a javadoc folder, it filled 56% of their index, and
+tags, scripts and styles diluted every passage. Now `extractors.text.visible_html` (stdlib `html.parser`) keeps only
+visible text: scripts, styles, `noscript`, `template`, SVG and the like are dropped, entities decoded, block elements
+separate words while inline ones do not (`<b>187</b>,15` stays "187,15"). Every piece of text stays on its line in the
+source, and lines of markup become empty, so results still open at the right line and the preview (`api_preview`,
+the same `document_text`) shows the same text.
+
+HTML pages get their own pipeline version (`HTML_PIPELINE_VERSION` = 101, far from the text numbers), so upgrading
+re-indexes only them, not every text file. On the user's index: 13 HTML files (625 chunks), 1.2 M characters → 0.1 M
+visible (9%), lines kept in all, no errors, ~6 ms per file; two script-only pages index with no chunks (their names
+are still found).
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1757,3 +1771,8 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     measure that works on tiny pools (raw similarity), measured on real queries first. Found 2026-11-09 through
     `test_photo_search_ranks_the_matching_photo_first`, failing since the threshold came in (c87a951); the test
     now uses 12 photos (summed z 6.2).
+42. Whisper large-v3-turbo vs NVIDIA Parakeet TDT 0.6B v3 (2026-11-09): Parakeet covers 25 European languages
+    including Polish (CC-BY-4.0, MLX port `mlx-community/parakeet-tdt-0.6b-v3`) and is reported several times faster
+    (GPU benchmarks, not measured on a Mac). The user's rule: only a full replacement, not another model beside
+    Whisper, and Whisper's ~99 languages weigh more than the speed. Not tested; worth it only if a successor covers
+    as many languages, or the speed on a Mac turns out decisive (measure Polish WER and time on FLEURS/Common Voice).
