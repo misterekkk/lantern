@@ -2,6 +2,27 @@
 
 What changed for people using Lantern, newest first.
 
+## 0.2.4 — 2026-11-10
+
+- **New icon:** a lantern with its flame lit, in the app, on the website and in the Raycast and Alfred extensions. The
+  magnifier looked too much like macOS's own Magnifier app (Lupa) next to it in Launchpad and search results.
+- **Office documents:** Word (docx, doc), Excel (xlsx), PowerPoint (pptx), RTF (TextEdit's format) and OpenDocument
+  text (odt) are searched by their text. Spreadsheets by sheet and row, slides in order with their speaker notes;
+  ↩ opens them in their usual app and ⌘Y shows the text. Read on the Mac (Word, Excel and PowerPoint from their own
+  XML, the others through macOS's `textutil`); deleted tracked changes are not indexed.
+- **Steadier daemon:** a failing background step (a busy index, a disk error) is reported and tried again instead of
+  stopping Lantern; adding a large folder no longer blocks searches while its files are hashed; only one daemon runs
+  per data folder (the app and a LaunchAgent starting together no longer load the model twice); a damaged index found
+  while running stops background work until it is rebuilt.
+- **Settings are never lost:** an exclusion pattern with a line break or a tab no longer makes `config.toml`
+  unreadable (which reset every setting and dropped every exclusion), and settings are saved in one step.
+- **Faster photos:** large JPEGs are decoded at the size the models use instead of in full (about 2-3 times faster
+  per photo).
+- **Fixes:** a calculation too large for a number (`9^999`) no longer breaks the whole search; `2**10` is shown as
+  `2^10`; `lantern index --dry-run` counts PDFs and photos too; the clipboard history forgets items on time even when
+  nothing new is copied; the diagnostics report hides any folder path and anything quoted; the menu bar app redraws
+  only when the daemon's status changed, and counts restarts only for a daemon that keeps failing at start.
+
 ## 0.2.3 — 2026-11-09
 
 - **Raycast Store:** the extension is published as [Lantern – Semantic Search](https://www.raycast.com/kacper_piotrowski/lantern-semantic-search): install it from the Store,
