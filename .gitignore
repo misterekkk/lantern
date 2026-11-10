@@ -21,4 +21,5 @@ graphify-out/
 CLAUDE.local.md
 .claude/settings.local.json
 TASK.md
+AUDIT_REPORT.md
 /build/

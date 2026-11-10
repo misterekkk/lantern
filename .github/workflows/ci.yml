@@ -1,0 +1,44 @@
+# Lint and fast tests on every push and pull request (the release workflow runs them again before a DMG ships).
+# macOS runner: the daemon depends on MLX and PyObjC, and the app's tests need the macOS 26 SDK.
+name: CI
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-26
+    env:
+      UV_PYTHON_PREFERENCE: only-managed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.12 (uv managed, with sqlite load_extension) and dependencies
+        run: |
+          uv python install 3.12
+          uv sync --python-preference only-managed
+
+      - name: Lint
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Python tests (without the real models)
+        run: uv run pytest -q
+
+      - name: Swift tests
+        run: DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path app

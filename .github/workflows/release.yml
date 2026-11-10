@@ -18,9 +18,9 @@ jobs:
     env:
       UV_PYTHON_PREFERENCE: only-managed
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -68,14 +68,14 @@ jobs:
           done < <(find app/build/Lantern.app -type f \( -name '*.so' -o -name '*.dylib' -o -perm -u+x \) -print0)
           exit $BAD
 
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Lantern.dmg
           path: app/build/Lantern.dmg
 
       - name: Attach Lantern.dmg to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3.0.3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: app/build/Lantern.dmg
           generate_release_notes: true
