@@ -147,7 +147,7 @@ def file_skip_reason(name: str, path: Path, filters: Filters) -> str | None:
         return "hidden"
     if is_secret(name):
         return "secret"
-    if name in GENERATED_FILES:
+    if name in GENERATED_FILES or name.startswith("~$"):  # ~$: Word's and Excel's owner file of an open document
         return "generated"
     lower = name.lower()
     if any(lower.endswith(ext) for ext in filters.skip_extensions):

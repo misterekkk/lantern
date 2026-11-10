@@ -2,11 +2,11 @@
 
 Stage 1, `index` jobs:
   - text/code: extract -> chunk -> embed (chunks of several files embedded together) -> one transaction per file;
-  - audio/video: ffmpeg soundtrack -> 30 s windows (25 s hop) -> audio embeddings with timestamps; the audio tower
-    is loaded for this stage only.
+  - audio/video: soundtrack (lantern-media, ffmpeg as the fallback) -> 30 s windows (25 s hop) -> audio embeddings
+    with timestamps; the audio tower is loaded for this stage only.
   - images: EmbeddingGemma 2 vision tower + SigLIP 2 (second photo model) -> one chunk with two vectors;
   - video files also get key frames (scene changes, near-duplicates dropped) embedded by both photo models.
-Stage 2, `transcribe` jobs (audio/video, when a transcriber is given): Whisper -> ~30 s transcript chunks ->
+Stage 2, `transcribe` jobs (audio/video, when a transcriber is given): Whisper -> ~20 s transcript chunks ->
   text embeddings + FTS. Whisper is loaded for this stage only.
 A failure stays confined to its file.
 """
@@ -28,7 +28,7 @@ from lantern.extractors import language_for
 from lantern.extractors.frames import extract_frames
 from lantern.extractors.image import load_image
 from lantern.extractors.media import decode_all, iter_windows
-from lantern.extractors.text import SkipFile, document_text, is_html
+from lantern.extractors.text import HTML_SUFFIXES, OFFICE_SUFFIXES, SkipFile, document_text
 from lantern.queue import jobs
 from lantern.queue.jobs import Job
 from lantern.store import db
@@ -48,10 +48,21 @@ PIPELINE_VERSIONS = {"text": 2, "code": 3, "pdf": 2, "audio": 5, "video": 7, "im
 # HTML pages are text files with their own version (indexed as visible text since 101), so a change to either
 # re-indexes only those files. Kept far from the text numbers: the two must never be equal.
 HTML_PIPELINE_VERSION = 101
+# Office documents (docx, xlsx, pptx, rtf, doc, odt) likewise, from 201: their extraction can change on its own.
+OFFICE_PIPELINE_VERSION = 201
+
+
+def _text_variants() -> list[tuple[tuple[str, ...], int]]:
+    """Text files with a pipeline version of their own, by file suffix (read at call time: tests change them)."""
+    return [(HTML_SUFFIXES, HTML_PIPELINE_VERSION), (OFFICE_SUFFIXES, OFFICE_PIPELINE_VERSION)]
 
 
 def pipeline_version(kind: str, path: str) -> int:
-    return HTML_PIPELINE_VERSION if kind == "text" and is_html(path) else PIPELINE_VERSIONS[kind]
+    if kind == "text":
+        for suffixes, version in _text_variants():
+            if path.lower().endswith(suffixes):
+                return version
+    return PIPELINE_VERSIONS[kind]
 
 
 Progress = Callable[[str, int, int, str], None]  # (stage, done, total, path)
@@ -154,13 +165,18 @@ def _prepare_text(job: Job, row: sqlite3.Row) -> _Prepared:
 def enqueue_stale(conn: sqlite3.Connection, model_id: int) -> int:
     """Queue indexed files whose chunks come from another pipeline version or embedding model."""
     n = 0
-    html = "(lower(path) LIKE '%.html' OR lower(path) LIKE '%.htm')"
     for kind, version in PIPELINE_VERSIONS.items():
-        html_version = HTML_PIPELINE_VERSION if kind == "text" else version
+        variants = _text_variants() if kind == "text" else []
+        # suffixes are constants from this file, not user input: safe inside the SQL text
+        whens = " ".join(
+            "WHEN (" + " OR ".join(f"lower(path) LIKE '%{s}'" for s in suffixes) + ") THEN ?"
+            for suffixes, _ in variants
+        )
+        expected = f"CASE {whens} ELSE ? END" if variants else "?"
         rows = conn.execute(
             "SELECT id FROM files WHERE status = 'indexed' AND kind = ? "
-            f"AND (pipeline_version != CASE WHEN {html} THEN ? ELSE ? END OR model_id IS NOT ?)",
-            (kind, html_version, version, model_id),
+            f"AND (pipeline_version != {expected} OR model_id IS NOT ?)",
+            (kind, *[v for _, v in variants], version, model_id),
         ).fetchall()
         for (file_id,) in rows:
             jobs.enqueue(conn, file_id, "index")
@@ -179,9 +195,9 @@ def run_queue(
     image_text: bool = True,
     people: bool = False,
 ) -> IndexStats:
-    """image_text: read text in photos, screenshots and scanned PDF pages (Apple Vision OCR); people: count the people
-    in photos and guess woman/man (lantern/people.py) once the photos are indexed."""
-    """Process queued jobs; should_stop is checked between files (pause, battery, shutdown)."""
+    """Process queued jobs; should_stop is checked between files (pause, battery, shutdown). image_text: read text in
+    photos, screenshots and scanned PDF pages (Apple Vision OCR); people: count the people in photos and guess
+    woman/man (lantern/people.py) once the photos are indexed."""
     stats = IndexStats()
     dim = embedder.model_info().dim
     with db.transaction(conn):

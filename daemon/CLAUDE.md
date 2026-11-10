@@ -70,6 +70,9 @@ lockfiles are excluded (`config.py`). **Bump the kind's entry in `PIPELINE_VERSI
 its chunking rules or prompt formats change**: files store `pipeline_version` and `model_id`, and `run_queue` re-queues mismatches automatically.
 HTML pages (`.html`/`.htm`, kind text) have their own `HTML_PIPELINE_VERSION` (101+, never equal to the text number):
 `extractors.text.document_text` indexes and previews them as visible text on their source lines (`visible_html`).
+Office documents (`.docx`/`.xlsx`/`.pptx` from their XML, `.rtf`/`.doc`/`.odt` through `textutil`; kind text,
+`extractors/office.py`) likewise have `OFFICE_PIPELINE_VERSION` (201+): bump it when their extraction changes.
+`indexer._text_variants` lists these suffix-specific versions for `pipeline_version` and `enqueue_stale`.
 
 - Media decoding: `find_media_helper()` (LANTERN_MEDIA from the app, `off` forces ffmpeg; tests run both ways with
   `LANTERN_MEDIA=off uv run pytest`). Never bump a pipeline version for a decoder change unless vectors change.

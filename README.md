@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/lantern-icon.svg" width="112" height="112" alt="Lantern icon">
+  <img src="site/public/lantern-icon.svg" width="112" height="112" alt="Lantern icon">
 </p>
 
 <h1 align="center">Lantern</h1>
@@ -424,7 +424,8 @@ uv run lantern diagnostics                 # a report for a bug report, without 
   stay waiting). `lantern status` shows what is left.
 - **Indexed types:** code (Python, JS/TS, Go, Rust, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP and more, split into
   functions and classes), text (Markdown, txt, JSON, YAML, HTML as the text a browser shows…; text files over 2 MB and
-  binaries are skipped),
+  binaries are skipped), Office documents (Word docx/doc, Excel xlsx by sheet and row, PowerPoint pptx with speaker
+  notes, RTF, OpenDocument odt; up to 100 MB, read as their text),
   PDFs, audio (mp3, m4a, wav, flac, ogg, opus, aac, aiff…), video (mp4, mov, mkv, webm, avi…: sound and frames) and
   photos (jpg, png, heic, gif, webp, tiff, bmp).
 

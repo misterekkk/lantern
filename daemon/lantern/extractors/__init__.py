@@ -77,6 +77,13 @@ TEXT_EXTENSIONS = frozenset(
         ".srt",
         ".vtt",
         ".log",
+        # Office documents (extractors/office.py): read as their text
+        ".docx",
+        ".xlsx",
+        ".pptx",
+        ".rtf",
+        ".doc",
+        ".odt",
     }
 )
 

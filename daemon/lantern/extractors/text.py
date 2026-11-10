@@ -37,8 +37,21 @@ def is_html(path: Path | str) -> bool:
     return str(path).lower().endswith(HTML_SUFFIXES)
 
 
+# Word, Excel, PowerPoint, RTF, old Word and OpenDocument text (extractors/office.py); indexed as kind "text".
+OFFICE_SUFFIXES = (".docx", ".xlsx", ".pptx", ".rtf", ".doc", ".odt")
+
+
+def is_office(path: Path | str) -> bool:
+    return str(path).lower().endswith(OFFICE_SUFFIXES)
+
+
 def document_text(path: Path, max_bytes: int = MAX_TEXT_FILE_BYTES) -> str:
-    """The text Lantern indexes and previews: the file as it is, an HTML page as the text a browser shows."""
+    """The text Lantern indexes and previews: the file as it is, an HTML page as the text a browser shows, an Office
+    document as its text."""
+    if is_office(path):
+        from lantern.extractors.office import office_text
+
+        return office_text(path)
     text = extract_text(path, max_bytes)
     return visible_html(text) if is_html(path) else text
 
