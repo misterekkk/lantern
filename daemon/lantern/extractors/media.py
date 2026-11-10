@@ -8,6 +8,7 @@ ffmpeg as the fallback for what AVFoundation cannot read (MKV, WebM) when it is 
 import os
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -57,7 +58,28 @@ def _ffmpeg_decoder(path: Path) -> subprocess.Popen:
         "-i", str(path), "-map", "0:a:0", "-vn", "-ac", "1", "-ar", str(AUDIO_SAMPLE_RATE),
         "-f", "f32le", "pipe:1",
     ]  # fmt: skip
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return _spawn(cmd)
+
+
+def _spawn(cmd: list[str]) -> subprocess.Popen:
+    """A decoder whose messages go to a temporary file, not a pipe: nothing reads stderr while audio is streamed, so a
+    decoder writing more than a pipe holds (64 KB of errors from a damaged file) would block, and the worker with it,
+    until the stuck-file limit."""
+    err = tempfile.TemporaryFile()  # noqa: SIM115 - lives as long as the decoder; closed by _stderr()
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err)
+    proc.lantern_err = err  # type: ignore[attr-defined]
+    return proc
+
+
+def _stderr(proc: subprocess.Popen) -> str:
+    """What the decoder wrote to stderr (call after it exited); closes the file."""
+    err = getattr(proc, "lantern_err", None)
+    if err is None or err.closed:
+        return ""
+    err.seek(0)
+    text = err.read().decode("utf-8", "replace").strip()
+    err.close()
+    return text
 
 
 def _decoder(path: Path, first: int = 4096) -> tuple[subprocess.Popen, bytes]:
@@ -65,12 +87,13 @@ def _decoder(path: Path, first: int = 4096) -> tuple[subprocess.Popen, bytes]:
     cannot read the file (exit 2 before any audio)."""
     helper = find_media_helper()
     if helper:
-        proc = subprocess.Popen([helper, "audio", str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = _spawn([helper, "audio", str(path)])
         head = proc.stdout.read(first)
         if head:
             return proc, head
-        err = proc.stderr.read().decode("utf-8", "replace").strip() if proc.stderr else ""
-        if proc.wait() != 2:
+        code = proc.wait()
+        err = _stderr(proc)
+        if code != 2:
             raise SkipFile(f"cannot decode: {err[:200]}")
         try:
             find_ffmpeg()
@@ -81,8 +104,8 @@ def _decoder(path: Path, first: int = 4096) -> tuple[subprocess.Popen, bytes]:
 
 
 def _finish(proc: subprocess.Popen, got_audio: bool) -> None:
-    err = proc.stderr.read().decode("utf-8", "replace").strip() if proc.stderr else ""
     code = proc.wait()
+    err = _stderr(proc)
     if not got_audio:
         if "matches no streams" in err or "does not contain any stream" in err or not err:
             raise SkipFile("no audio track")
@@ -121,6 +144,7 @@ def iter_windows(
     except GeneratorExit:  # consumer stopped early: do not leave ffmpeg running
         proc.kill()
         proc.wait()
+        _stderr(proc)
         raise
     _finish(proc, got_audio)
 
@@ -134,6 +158,7 @@ def decode_all(path: Path, max_seconds: float | None = None) -> np.ndarray:
     if limit > 0 and len(data) >= limit and proc.poll() is None:
         proc.kill()  # stop decoding beyond the limit; the non-zero exit is expected
         proc.wait()
+        _stderr(proc)
     else:
         _finish(proc, bool(data))
     return np.frombuffer(data, dtype=np.float32).copy()

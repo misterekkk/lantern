@@ -67,7 +67,7 @@ def read_system() -> Memory:
 
 
 def profile(total: int | None = None) -> str:
-    """"light" (8 GB: EmbeddingGemma and what macOS does itself) or "full" (16 GB and more)."""
+    """ "light" (8 GB: EmbeddingGemma and what macOS does itself) or "full" (16 GB and more)."""
     return "light" if (total if total is not None else read().total) < LIGHT_BELOW else "full"
 
 

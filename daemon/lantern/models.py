@@ -65,10 +65,6 @@ def is_downloaded(repo: str, revision: str) -> bool:
     return snap.is_dir() and any(snap.glob("*.safetensors"))
 
 
-def required_downloaded() -> bool:
-    return all(is_downloaded(m.repo, m.revision) for m in catalogue() if m.group == "required")
-
-
 def blob_bytes(repo: str) -> int:
     """Bytes currently present in the repo's cache folder (completed blobs + `.incomplete` downloads in progress)."""
     blobs = repo_dir(repo) / "blobs"

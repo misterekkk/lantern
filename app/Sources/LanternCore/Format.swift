@@ -128,6 +128,7 @@ public enum Format {
             return String(localized: "\(a["missing"] ?? "?") of \(a["total"] ?? "?") files are missing in \(root); nothing was removed.")
         case "dates_failed": return String(localized: "Reading file dates failed: \(a["detail"] ?? "")")
         case "apps_failed": return String(localized: "Could not read the applications: \(a["detail"] ?? "")")
+        case "tick_failed": return String(localized: "Background work failed, trying again: \(a["detail"] ?? "")")
         case "download_failed":
             return String(localized: "The model download failed (code \(a["code"] ?? "?")). Details are in logs/models.log.")
         case "model_load_failed": return String(localized: "Could not load the downloaded model: \(a["detail"] ?? "")")

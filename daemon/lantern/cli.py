@@ -134,11 +134,13 @@ def cmd_index_dry_run(root: Path) -> int:
         else:
             sizes[entry.kind] += entry.size
     print(f"dry run for {root} ({time.perf_counter() - t0:.1f}s, nothing read or written):")
-    for kind in ("code", "text", "audio", "video"):
+    for kind in ("code", "text", "pdf", "image", "audio", "video"):
         if counts[kind]:
             print(f"  {kind:6s} {counts[kind]:7d} files  {sizes[kind] / 2**20:9.1f} MB")
     text_s = (sizes["code"] + sizes["text"]) / _TEXT_BYTES_PER_S
     media_s = (sizes["audio"] + sizes["video"]) / _MEDIA_BYTES_PER_S
+    # per file, as the folder estimate counts them (scanner/guard.py); a PDF's length is unknown before it is read
+    visual_s = counts["image"] * guard.SECONDS_PER_FILE["image"] + counts["pdf"] * guard.SECONDS_PER_TEXT_FILE
     print(
         f"  skipped: {report.cloud_only} iCloud items not on this disk, {len(report.unreadable)} folders without access"
     )
@@ -146,8 +148,8 @@ def cmd_index_dry_run(root: Path) -> int:
         print(f"    no access: {p}")
     if report.images:
         print(f"  photos (not indexed, switched off): {report.images}")
-    print(f"  rough first-index time: text/code ~{text_s / 3600:.1f} h, audio/video ~{media_s / 3600:.1f} h "
-          "(later runs only process changes)")  # fmt: skip
+    print(f"  rough first-index time: text/code ~{text_s / 3600:.1f} h, PDFs/photos ~{visual_s / 3600:.1f} h, "
+          f"audio/video ~{media_s / 3600:.1f} h (later runs only process changes)")  # fmt: skip
     return 0
 
 
@@ -482,10 +484,15 @@ def _local_status() -> dict:
     ratio, _ = db.free_ratio(conn)
     out = {
         "daemon": None,
-        "index": {"path": str(config.db_path()), "size_mb": round(config.db_path().stat().st_size / 2**20, 1),
-                  "free_pages": round(ratio, 3)},  # fmt: skip
-        "roots": [{"path": r["path"], "last_scan": r["last_scan"]}
-                  for r in conn.execute("SELECT path, last_scan FROM roots ORDER BY path")],  # fmt: skip
+        "index": {
+            "path": str(config.db_path()),
+            "size_mb": round(config.db_path().stat().st_size / 2**20, 1),
+            "free_pages": round(ratio, 3),
+        },  # fmt: skip
+        "roots": [
+            {"path": r["path"], "last_scan": r["last_scan"]}
+            for r in conn.execute("SELECT path, last_scan FROM roots ORDER BY path")
+        ],  # fmt: skip
         "files": {r[0]: r[1] for r in conn.execute("SELECT status, COUNT(*) FROM files GROUP BY status")},
         "chunks": conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
         "jobs": jobs.counts(conn),
@@ -705,12 +712,14 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
             old.close()
         except sqlite3.DatabaseError:
             roots = []
-    for suffix in ("", "-wal", "-shm"):
-        Path(str(config.db_path()) + suffix).unlink(missing_ok=True)
+    from lantern.store import db
+
+    db.unlink_index(config.db_path())
     code = 0
     for root in roots:
-        code |= cmd_index(argparse.Namespace(path=root, force=False, no_transcribe=False, dry_run=False, yes=True,
-                                                 rebuild=True))  # the user's folders, as they were
+        code |= cmd_index(
+            argparse.Namespace(path=root, force=False, no_transcribe=False, dry_run=False, yes=True, rebuild=True)
+        )  # the user's folders, as they were
     print(f"rebuilt: {len(roots)} folders indexed again" if roots else "rebuilt an empty index (no folders were known)")
     return code
 

@@ -42,8 +42,10 @@ def load_image(path: Path) -> Image.Image:
         try:
             with Image.open(path) as im:
                 im.seek(0)  # first frame of animated GIF/WebP
+                # Fast JPEG downscale while decoding: only before anything loads the pixels (exif_transpose does),
+                # after it this did nothing and every photo was decoded at full size (DECISIONS.md, "JPEG draft").
+                im.draft("RGB", (MAX_SIDE, MAX_SIDE))
                 im = ImageOps.exif_transpose(im)
-                im.draft("RGB", (MAX_SIDE, MAX_SIDE))  # fast JPEG downscale while decoding
                 image = flatten(im)  # transparency onto white (see extractors/vision.py)
         except (OSError, ValueError, Image.DecompressionBombError):
             image = _via_sips(path)

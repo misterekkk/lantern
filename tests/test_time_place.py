@@ -558,7 +558,7 @@ def test_place_words_know_every_city_not_only_the_indexed_ones():
 
 
 def test_people_words_with_only_a_place_put_the_photos_first(conn, embedder, tmp_path):
-    """"portugal two men": the photos are the answer even when a document has the same words (CHANGELOG.md had
+    """ "portugal two men": the photos are the answer even when a document has the same words (CHANGELOG.md had
     "men" and "Portugal": its files section outranked the photos for "men" but not for "man")."""
     _people_index(conn, tmp_path / "zdjecia")
     for q in ("paris men", "paris man", "men in lisbon", "porto women"):

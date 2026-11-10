@@ -113,14 +113,22 @@ def scan_root(
     for row in missing.values():
         missing_by_hash.setdefault(row["content_hash"], []).append(row)
 
+    # Hashes first, outside the transaction: hashing a new folder reads every file, and while the write lock was held
+    # every search (its history), the worker and the API waited for it and failed after busy_timeout.
+    digests: dict[str, str | None] = {}
+    for path, entry in disk.items():
+        row = indexed.get(path)
+        if row is None or row["size"] != entry.size or row["mtime_ns"] != entry.mtime_ns:
+            digests[path] = _hash_or_none(entry.path)
+
     with db.transaction(conn):
         for path, entry in disk.items():
             row = indexed.get(path)
             if row is not None:
-                if row["size"] == entry.size and row["mtime_ns"] == entry.mtime_ns:
+                if path not in digests:
                     result.unchanged += 1
                     continue
-                digest = _hash_or_none(entry.path)
+                digest = digests[path]
                 if digest is None:  # unreadable now (permissions, removed mid-scan): keep what is indexed
                     result.unreadable.append(path)
                     continue
@@ -137,7 +145,7 @@ def scan_root(
                     result.changed.append(path)
                 continue
 
-            digest = _hash_or_none(entry.path)
+            digest = digests[path]
             if digest is None:  # a file we may not read: skipped, reported, the rest of the folder goes on
                 result.unreadable.append(path)
                 continue

@@ -206,6 +206,12 @@ def healthy(path: Path) -> bool:
         return False
 
 
+def unlink_index(path: Path) -> None:
+    """Delete the index file with its WAL and shared-memory files."""
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(path) + suffix).unlink(missing_ok=True)
+
+
 class NewerSchemaError(RuntimeError):
     """The index was upgraded by a newer Lantern (e.g. an index worker started from updated code)."""
 
@@ -231,8 +237,11 @@ def connect(path: Path) -> sqlite3.Connection:
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     elif version > SCHEMA_VERSION:
         raise NewerSchemaError(f"index schema version {version} is newer than this Lantern ({SCHEMA_VERSION})")
-    else:
+    elif version < SCHEMA_VERSION:
         with transaction(conn):
+            # read again under the write lock: two processes starting after an update (the daemon and a CLI) would
+            # otherwise both run the same ALTER TABLE, and the second would fail on a column that exists
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
             while version < SCHEMA_VERSION:
                 for statement in _MIGRATIONS[version]:
                     statement(conn) if callable(statement) else conn.execute(statement)
@@ -290,10 +299,6 @@ def ensure_model(conn: sqlite3.Connection, info: ModelInfo, images: bool = False
     return model_id
 
 
-def all_model_ids(conn: sqlite3.Connection) -> list[int]:
-    return [r[0] for r in conn.execute("SELECT id FROM embedding_models")]
-
-
 def vector_tables(conn: sqlite3.Connection) -> list[str]:
     """All vec0 tables (text and photo tables of every model)."""
     return [
@@ -309,19 +314,23 @@ def ensure_root(conn: sqlite3.Connection, path: Path) -> int:
     return conn.execute("SELECT id FROM roots WHERE path = ?", (str(path),)).fetchone()[0]
 
 
-def _delete_chunk_rows(conn: sqlite3.Connection, chunk_ids: Sequence[int]) -> None:
+def _delete_chunk_rows(conn: sqlite3.Connection, chunk_ids: Sequence[int], tables: list[str] | None = None) -> None:
+    """tables: the vec0 tables (vector_tables), when the caller deletes many files and has them already."""
     if not chunk_ids:
         return
+    tables = vector_tables(conn) if tables is None else tables
     for start in range(0, len(chunk_ids), 500):
         batch = list(chunk_ids[start : start + 500])
         marks = ",".join("?" * len(batch))
         conn.execute(f"DELETE FROM chunks_fts WHERE rowid IN ({marks})", batch)
-        for table in vector_tables(conn):
+        for table in tables:
             conn.execute(f"DELETE FROM {table} WHERE chunk_id IN ({marks})", batch)
         conn.execute(f"DELETE FROM chunks WHERE id IN ({marks})", batch)
 
 
-def delete_file_chunks(conn: sqlite3.Connection, file_id: int, kinds: Iterable[str] | None = None) -> None:
+def delete_file_chunks(
+    conn: sqlite3.Connection, file_id: int, kinds: Iterable[str] | None = None, tables: list[str] | None = None
+) -> None:
     """Remove a file's chunks (optionally only some kinds) with their FTS rows and vectors (inside a transaction)."""
     if kinds is None:
         conn.execute("DELETE FROM symbols WHERE file_id = ?", (file_id,))
@@ -330,14 +339,15 @@ def delete_file_chunks(conn: sqlite3.Connection, file_id: int, kinds: Iterable[s
         kinds = list(kinds)
         marks = ",".join("?" * len(kinds))
         rows = conn.execute(f"SELECT id FROM chunks WHERE file_id = ? AND kind IN ({marks})", (file_id, *kinds))
-    _delete_chunk_rows(conn, [r[0] for r in rows])
+    _delete_chunk_rows(conn, [r[0] for r in rows], tables)
 
 
 def delete_files(conn: sqlite3.Connection, file_ids: Iterable[int]) -> int:
     """Remove files and everything derived from them (call inside a transaction)."""
     n = 0
+    tables = vector_tables(conn)  # once, not per file: removing a folder deletes thousands
     for file_id in file_ids:
-        delete_file_chunks(conn, file_id)
+        delete_file_chunks(conn, file_id, tables=tables)
         conn.execute("DELETE FROM files WHERE id = ?", (file_id,))  # cascades to jobs
         n += 1
     if n:  # a city no remaining file was made in goes too (with its names: ON DELETE CASCADE)

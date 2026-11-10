@@ -1,4 +1,4 @@
-"""EmbeddingGemma 2 on MLX (ADR-001): mlx-community 8-bit weights via the pinned mlx-vlm branch.
+"""EmbeddingGemma 2 on MLX (ADR-001): mlx-community 8-bit weights via the pinned mlx-vlm release.
 
 The text tower stays loaded (~275 MB). The audio tower (~0.9 GB) and the vision tower (~0.35 GB) are loaded only
 for audio / image jobs and released with unload_audio() / unload_vision(). Text is tokenised with `tokenizers`

@@ -43,6 +43,7 @@ _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, as
 _FUNCS = {"sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan, "log": math.log10, "ln": math.log,
           "abs": abs, "round": round, "exp": math.exp, "pierwiastek": math.sqrt}  # fmt: skip
 _CONSTS = {"pi": math.pi, "e": math.e}
+MAX_POWER_BITS = 4096  # a power whose result needs more bits is not computed (answers are shown as floats anyway)
 _MATH_CHARS = re.compile(r"^[\d\s.,+\-*/×÷^%()a-z]+$")
 
 
@@ -53,8 +54,10 @@ def _eval(node):
         return node.value
     if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
         left, right = _eval(node.left), _eval(node.right)
-        if isinstance(node.op, ast.Pow) and abs(right) > 1000:
-            raise ValueError("exponent too large")
+        if isinstance(node.op, ast.Pow) and (
+            abs(right) > 1000 or (abs(left) > 1 and right > 0 and math.log2(abs(left)) * right > MAX_POWER_BITS)
+        ):
+            raise ValueError("power too large")  # nested powers ((9^999)^999) would grow without limit
         return _OPS[type(node.op)](left, right)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
         value = _eval(node.operand)
@@ -83,12 +86,14 @@ def arithmetic(query: str) -> Answer | None:
     expr = re.sub(r"(\d+(?:\.\d+)?)%", r"(\1/100)", expr)  # 15% -> 0.15
     try:
         value = _eval(ast.parse(expr, mode="eval"))
+        # an int beyond the float range (9^999) raises here, not in _eval: inside the try, or the whole search failed
+        if not isinstance(value, int | float) or not math.isfinite(value):
+            return None
+        text = _format(float(value), comma=comma)
     except (SyntaxError, ValueError, TypeError, ZeroDivisionError, OverflowError, RecursionError):
         return None
-    if not isinstance(value, int | float) or not math.isfinite(value):
-        return None
-    text = _format(float(value), comma=comma)
-    return Answer("math", text, query.strip().rstrip("=").strip().replace("*", "×"), text)
+    shown = query.strip().rstrip("=").strip().replace("**", "^").replace("*", "×")
+    return Answer("math", text, shown, text)
 
 
 # ---------- units ----------
@@ -248,4 +253,7 @@ def instant_answer(query: str) -> Answer | None:
     """The first instant answer that fits the query, or None (most queries)."""
     if len(query) > 80:
         return None
-    return arithmetic(query) or conversion(query) or world_time(query)
+    try:
+        return arithmetic(query) or conversion(query) or world_time(query)
+    except Exception:  # noqa: BLE001 - an answer is an extra: a query it trips on still gets its files
+        return None

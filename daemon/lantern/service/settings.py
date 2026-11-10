@@ -1,5 +1,6 @@
 """User settings in config.toml (data directory). Missing keys fall back to defaults."""
 
+import os
 import tomllib
 from dataclasses import asdict, dataclass, field, fields  # noqa: F401 - asdict re-exported for the CLI
 from pathlib import Path
@@ -146,12 +147,29 @@ def save(settings: Settings) -> None:
             lines.append(f"{key} = [" + ", ".join(_toml_str(v) for v in value) + "]")
         else:
             lines.append(f"{key} = {value}")
-    path().parent.mkdir(parents=True, exist_ok=True)
-    path().write_text("\n".join(lines) + "\n")
+    target = path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Written beside the file and renamed over it: an interrupted save never leaves a cut file, which load() would
+    # throw away whole (exclusions included).
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text("\n".join(lines) + "\n")
+    os.replace(tmp, target)
 
 
 def _toml_str(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """A TOML basic string. Control characters are escaped: a raw newline in a pattern made the whole file unreadable,
+    and load() then fell back to the defaults, dropping every exclusion."""
+    out = []
+    for ch in value:
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append(f"\\u{ord(ch):04X}")
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
 
 
 def update(settings: Settings, key: str, raw: str) -> Settings:

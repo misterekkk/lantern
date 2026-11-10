@@ -44,6 +44,8 @@ def fusion_for(query: str) -> tuple[int, float]:
     """(RRF k, keyword weight) for this query: SENTENCE_FUSION with a function word, else KEYWORD_FUSION."""
     words = re.findall(r"[^\W\d_]+", query.lower())
     return SENTENCE_FUSION if any(w in STOPWORDS for w in words) else KEYWORD_FUSION
+
+
 CANDIDATES = 50  # files per list before fusion
 # A keyword hit counts in the fusion in proportion to the share of query terms it matches, and not at all below
 # this share: one incidental shared word (often across languages) must not outrank the top vector match.
@@ -270,10 +272,25 @@ _BROWSE_KINDS = {"photos": ("image",), "media": ("audio", "video"), "code": ("co
 # Words that name a kind of file, not its content: with a time or place ("zdjęcia z maja 2023", "videos from Paris")
 # they become that kind's filter, and the rest is browsing.
 KIND_WORDS = {
-    **dict.fromkeys(("zdjecia", "zdjecie", "zdjec", "fotki", "fotka", "fotografie", "photos", "photo", "pictures",
-                     "pics", "images"), "photos"),  # fmt: skip
-    **dict.fromkeys(("filmy", "filmiki", "film", "nagrania", "wideo", "videos", "video", "recordings", "movies"),
-                    "media"),  # fmt: skip
+    **dict.fromkeys(
+        (
+            "zdjecia",
+            "zdjecie",
+            "zdjec",
+            "fotki",
+            "fotka",
+            "fotografie",
+            "photos",
+            "photo",
+            "pictures",
+            "pics",
+            "images",
+        ),
+        "photos",
+    ),  # fmt: skip
+    **dict.fromkeys(
+        ("filmy", "filmiki", "film", "nagrania", "wideo", "videos", "video", "recordings", "movies"), "media"
+    ),  # fmt: skip
     **dict.fromkeys(("dokumenty", "documents", "docs", "notatki", "notes"), "docs"),
     **dict.fromkeys(("pdfy", "pdf", "pdfs"), "pdf"),
 }
@@ -579,8 +596,9 @@ def search(
     if (scope is not None or filters.people is not None) and not query.strip():
         if not filters.narrowed:
             return SearchResponse([], None, 0.0, 0.0, category=category)  # a folder alone is not a query
-        resp = browse(conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind,
-                      filters.people_order)
+        resp = browse(
+            conn, Scope.all(scope, filters.people), limit, lang, category or filters.kind, filters.people_order
+        )
         return replace(resp, event_id=log_search(conn, query, resp.sections())) if log else resp
     corrected = correct(conn, query, spelling) if spelling else None
     query = corrected or query

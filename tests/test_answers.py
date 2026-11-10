@@ -21,9 +21,20 @@ def test_answers(query, title):
 
 
 @pytest.mark.parametrize("query", ["2024", "dog on the beach", "def add_two(x, y):", "faktura 245,30", "1/0",
-                                   "10 kg w metrach", "9**99999"])  # fmt: skip
+                                   "10 kg w metrach", "9**99999", "9^999", "(9^999)^999",
+                                   "((9^999)^999)^999"])  # fmt: skip
 def test_no_answer(query):
     assert instant_answer(query) is None
+
+
+def test_a_huge_number_never_breaks_the_search(conn):
+    """9^999 is too big for a float: it used to raise inside the search and the query got no files at all."""
+    assert search(conn, FakeEmbedder(), "9^999", 10, log=False, lang="pl").answer is None
+
+
+def test_powers_are_shown_with_a_caret():
+    assert instant_answer("2**10").subtitle == "2^10"
+    assert instant_answer("2^64").title == "1.844674407e+19"
 
 
 def test_world_time_in_polish_and_english():

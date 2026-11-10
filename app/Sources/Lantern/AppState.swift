@@ -102,8 +102,10 @@ final class AppState: ObservableObject {
                 SearchPanelController.shared.daemonCameUp()  // a search made too early: again
                 MusicSync.shared.syncIfChanged(force: true)  // a new daemon may have an older copy of the library
             }
-            status = s
-            connectionError = nil
+            // Only a changed value is published: every assignment of a @Published property redraws every view that
+            // watches AppState (menu, Settings, panel), and this runs every 2 s.
+            if s != status { status = s }
+            if connectionError != nil { connectionError = nil }
             if settings == nil { await loadSettings() }  // the daemon was still starting when the app asked
             if s.awaitingApproval && !wasAwaiting && s.waitingForSettings != true { notifyApprovalNeeded(s) }
             showWelcomeIfNeeded()

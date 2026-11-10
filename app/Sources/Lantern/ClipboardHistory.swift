@@ -40,14 +40,17 @@ final class ClipboardHistory {
     }
 
     private func poll() {
-        let board = NSPasteboard.general
-        guard board.changeCount != lastChange else { return }
-        lastChange = board.changeCount
+        // Expired items go on every poll, not only when something new is copied: copied text never stays in memory
+        // longer than the chosen 30 minutes or 8 hours.
         guard let keep = retention else {
-            items = []
+            if !items.isEmpty { items = [] }
+            lastChange = NSPasteboard.general.changeCount
             return
         }
         prune(keep)
+        let board = NSPasteboard.general
+        guard board.changeCount != lastChange else { return }
+        lastChange = board.changeCount
         let types = Set((board.types ?? []).map(\.rawValue))
         guard types.isDisjoint(with: Self.skippedTypes),
               let text = board.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),

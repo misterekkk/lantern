@@ -473,6 +473,7 @@
 "%@ of %@ files are missing in %@; nothing was removed." = "Brakuje %@ z %@ plików w %@; nic nie zostało usunięte.";
 "Reading file dates failed: %@" = "Nie udało się odczytać dat plików: %@";
 "Could not read the applications: %@" = "Nie udało się odczytać aplikacji: %@";
+"Background work failed, trying again: %@" = "Praca w tle nie powiodła się, ponawiam: %@";
 "The model download failed (code %@). Details are in logs/models.log." = "Pobieranie modelu nie powiodło się (kod %@). Szczegóły są w logs/models.log.";
 "Could not load the downloaded model: %@" = "Nie udało się wczytać pobranego modelu: %@";
 "The index is from a newer Lantern." = "Indeks pochodzi z nowszego Lanterna.";

@@ -582,3 +582,51 @@ def test_file_api_says_whether_a_path_is_indexed(lantern_home, project):
     d = Daemon(embedder=FakeEmbedder(), power_reader=lambda: PowerState(on_battery=False))
     assert d.api_file(path)["indexed"] is True and d.api_file(path)["kind"]
     assert d.api_file("/etc/passwd") == {"indexed": False, "kind": None}
+
+
+def test_a_failing_round_of_the_control_loop_never_ends_the_daemon(start_daemon, capsys):
+    """A locked index or an I/O error in one round used to leave the loop and end the daemon (the app then restarted
+    it, reloading the model, at most five times)."""
+    d = start_daemon()
+
+    def broken(force=False):
+        raise db.sqlite3.OperationalError("database is locked")
+
+    d._refresh_apps = broken
+    assert wait_until(lambda: any(e["code"] == "tick_failed" for e in d.warning_events))
+    time.sleep(1.5)  # several more failing rounds
+    assert protocol.call("ping")["ok"]
+    assert sum(e["code"] == "tick_failed" for e in d.warning_events) == 1  # reported once a minute, not every round
+
+
+def test_a_damaged_index_stops_background_work(lantern_home):
+    """Found damaged while running: the loop does nothing (no worker, no scans) until the index is rebuilt."""
+    d = Daemon(embedder=FakeEmbedder(), watch=False, power_reader=lambda: PowerState(on_battery=False))
+    d.index_problem = "damaged"
+
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("background work ran on a damaged index")
+
+    d._manage_worker = d._check_power = d._refresh_apps = must_not_run
+    d._tick()
+
+
+def test_delete_all_data_keeps_the_worker_from_starting(lantern_home, monkeypatch):
+    d = Daemon(embedder=FakeEmbedder(), watch=False, power_reader=lambda: PowerState(on_battery=False))
+    seen = []
+    monkeypatch.setattr("lantern.service.core.delete_data", lambda: seen.append(d.manual_pause))
+    d.api_delete_all_data()
+    assert seen == [True] and d.manual_pause is False  # paused while the files went, as before afterwards
+
+
+def test_only_one_daemon_runs_per_data_folder(sock, lantern_home):
+    """Decided before the model loads: the socket appears only after the first scan, and a second start (the app and
+    the LaunchAgent at login) used to see no daemon there and run its own."""
+    first = Daemon(embedder=FakeEmbedder(), watch=False)
+    first._prepare_socket()
+    with pytest.raises(RuntimeError, match="already running"):
+        Daemon(embedder=FakeEmbedder(), watch=False)._prepare_socket()
+    first._release_instance_lock()
+    second = Daemon(embedder=FakeEmbedder(), watch=False)
+    second._prepare_socket()  # free again once the first one stopped
+    second._release_instance_lock()

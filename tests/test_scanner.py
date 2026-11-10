@@ -112,3 +112,25 @@ def test_lockfiles_are_excluded(tmp_path):
     write(root, "pnpm-lock.yaml", "lockfileVersion: 9\n")
     write(root, "uv.lock", "version = 1\n")
     assert paths(root) == {"package.json"}
+
+
+def test_hashing_holds_no_write_lock(conn, project, lantern_home, monkeypatch):
+    """Files are hashed before the scan's transaction: a long first scan used to keep every other writer (search
+    history, the worker) waiting until busy_timeout and then failing with "database is locked"."""
+    from lantern.scanner import diff
+    from lantern.store import db
+
+    other = db.connect(lantern_home / "index.db")
+    other.execute("PRAGMA busy_timeout = 0")  # any held write lock fails at once
+    real = diff._hash_or_none
+    writes = []
+
+    def hash_and_write(path):
+        other.execute("INSERT INTO search_events(ts, query, results_json) VALUES (1, 'q', '[]')")
+        writes.append(path)
+        return real(path)
+
+    monkeypatch.setattr(diff, "_hash_or_none", hash_and_write)
+    result = scan_root(conn, project)
+    other.close()
+    assert len(writes) == len(result.new) == 3

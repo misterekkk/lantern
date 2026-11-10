@@ -13,16 +13,20 @@ from lantern import __version__, config
 from lantern.service import machine
 from lantern.service import settings as settings_mod
 
-# from the start of a path to the end of the line: names may contain spaces ("Tajny projekt/umowa.txt"), and in
-# Lantern's warnings the path always comes last
-_PATH = re.compile(r"(?:~|/Users|/Volumes|/private|/tmp|/var)/[^\n]*")
+# From the start of any absolute path to the end of the line: names may contain spaces ("Tajny projekt/umowa.txt"),
+# and in Lantern's warnings the path always comes last. Any folder counts (/opt, /srv, a second disk), not only the
+# usual prefixes; a slash inside a word or a number ("1/2", "logs/worker.log") is not a path start.
+_PATH = re.compile(r"(?:~/|(?<![\w.:/~])/)(?=[^\s/])[^\n]*")
+# Quoted text: warnings quote what the user wrote (a hand-edited setting, an exclusion pattern) and file names in
+# exception messages ("No such file or directory: 'x'").
+_QUOTED = re.compile(r"'[^'\n]*'|\"[^\"\n]*\"")
 SETTINGS_SHOWN = ("index_mode", "mode", "pause_on_battery", "pause_on_low_power", "pause_on_thermal", "index_photos",
                   "index_image_text", "index_audio_video", "transcribe", "index_video_frames", "places", "people",
                   "notify")  # fmt: skip
 
 
 def redact(text: str) -> str:
-    return _PATH.sub("<path>", text)
+    return _PATH.sub("<path>", _QUOTED.sub("<text>", text))
 
 
 def _chip() -> str:
@@ -68,13 +72,24 @@ def report(status: dict | None, conn: sqlite3.Connection | None) -> str:
             lines += [
                 f"- schema: {conn.execute('PRAGMA user_version').fetchone()[0]}",
                 f"- roots: {conn.execute('SELECT count(*) FROM roots').fetchone()[0]}",
-                "- files_by_status: " + ", ".join(f"{k} {v}" for k, v in conn.execute(
-                    "SELECT status, count(*) FROM files GROUP BY status ORDER BY status")),  # fmt: skip
-                "- files_by_kind: " + ", ".join(f"{k} {v}" for k, v in conn.execute(
-                    "SELECT kind, count(*) FROM files GROUP BY kind ORDER BY kind")),  # fmt: skip
+                "- files_by_status: "
+                + ", ".join(
+                    f"{k} {v}"
+                    for k, v in conn.execute("SELECT status, count(*) FROM files GROUP BY status ORDER BY status")
+                ),  # fmt: skip
+                "- files_by_kind: "
+                + ", ".join(
+                    f"{k} {v}" for k, v in conn.execute("SELECT kind, count(*) FROM files GROUP BY kind ORDER BY kind")
+                ),  # fmt: skip
                 f"- chunks: {conn.execute('SELECT count(*) FROM chunks').fetchone()[0]}",
-                "- jobs: " + (", ".join(f"{k}/{st} {n}" for k, st, n in conn.execute(
-                    "SELECT kind, status, count(*) FROM jobs GROUP BY kind, status")) or "none"),  # fmt: skip
+                "- jobs: "
+                + (
+                    ", ".join(
+                        f"{k}/{st} {n}"
+                        for k, st, n in conn.execute("SELECT kind, status, count(*) FROM jobs GROUP BY kind, status")
+                    )
+                    or "none"
+                ),  # fmt: skip
             ]
         except sqlite3.DatabaseError as exc:
             lines.append(f"- error: {redact(str(exc))}")
@@ -93,7 +108,11 @@ def report(status: dict | None, conn: sqlite3.Connection | None) -> str:
         lines.append("- running: no")
     else:
         w = status.get("worker", {})
-        work = f"{w.get('stage', 'running')} {w.get('done', '')}/{w.get('total', '')}".strip() if w.get("running") else "idle"  # noqa: E501
+        work = (
+            f"{w.get('stage', 'running')} {w.get('done', '')}/{w.get('total', '')}".strip()
+            if w.get("running")
+            else "idle"
+        )  # noqa: E501
         lines += [
             "- running: yes",
             f"- memory_mb: {status.get('memory_mb')}",
@@ -112,4 +131,3 @@ def report(status: dict | None, conn: sqlite3.Connection | None) -> str:
         lines += ["", "## Recent warnings (paths removed)"]
         lines += [f"- {redact(w)}" for w in warnings] or ["- none"]
     return "\n".join(lines) + "\n"
-

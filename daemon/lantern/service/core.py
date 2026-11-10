@@ -7,6 +7,7 @@ is empty, so heavy models never stay resident.
 """
 
 import ctypes
+import fcntl
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, fields
@@ -55,6 +57,8 @@ WORKER_RETRY_S = 30.0  # after a worker crash with work left
 # three-hour recording may legitimately take long.
 STUCK_FILE_S = {"index": 30 * 60.0, "transcribe": 90 * 60.0}
 MIN_FREE_BYTES = 2 * 1024**3  # indexing pauses below this much free space on the index's disk (low_disk)
+TICK_FAILURE_WARN_S = 60.0  # a control-loop round that keeps failing is reported at most this often
+REQUEST_TIMEOUT_S = 30.0  # an API client must send its request (and take the reply) within this
 
 
 def footprint_mb() -> float:
@@ -75,9 +79,7 @@ def logs_dir() -> Path:
 
 def delete_data() -> None:
     """The index, the settings and the logs (`delete_all_data`; the CLI without a daemon)."""
-    for suffix in ("", "-wal", "-shm"):
-        with suppress(FileNotFoundError):
-            Path(str(config.db_path()) + suffix).unlink()
+    db.unlink_index(config.db_path())
     with suppress(FileNotFoundError):
         settings_mod.path().unlink()
     shutil.rmtree(logs_dir(), ignore_errors=True)
@@ -143,7 +145,9 @@ class Daemon:
         self.stopping = threading.Event()
         self.watcher = None
         self.server: socketserver.ThreadingUnixStreamServer | None = None
+        self._instance_lock = None  # open daemon.lock, flocked while this daemon runs (_prepare_socket)
         self._last_power_check = 0.0
+        self._tick_warned_at = -1e9
         self.power_state = power_mod.PowerState()
         # Started by the menu bar app: exit if the app goes away (crash, force quit) instead of staying orphaned.
         self.parent_pid = os.getppid() if os.environ.get("LANTERN_EXIT_WITH_PARENT") == "1" else None
@@ -160,14 +164,28 @@ class Daemon:
             self.stopping.set()
             raise
 
+    @contextmanager
+    def _db(self):
+        """A connection closed on the way out, also when the handler raises."""
+        conn = self._conn()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
     def _warn(self, message: str, code: str = "", **args) -> None:
         """message: English, for the CLI and logs. code + args: the same warning for the app, which words it in its own
         language (LanternCore Format.warning); an unknown code falls back to the message."""
         stamp = time.strftime("%H:%M:%S")
         with self.lock:
             self.warnings = (self.warnings + [f"{stamp} {message}"])[-20:]
-            event = {"time": stamp, "ts": time.time(), "code": code, "args": {k: str(v) for k, v in args.items()},
-                     "message": message}  # ts: the app hides old events (Format.currentWarning)
+            event = {
+                "time": stamp,
+                "ts": time.time(),
+                "code": code,
+                "args": {k: str(v) for k, v in args.items()},
+                "message": message,
+            }  # ts: the app hides old events (Format.currentWarning)
             self.warning_events = (self.warning_events + [event])[-20:]
 
     def _notify(self, message: str) -> None:
@@ -201,8 +219,13 @@ class Daemon:
             return False
         if "fake" in (self.worker_env.get("LANTERN_EMBEDDER"), os.environ.get("LANTERN_EMBEDDER")):
             return True  # tests: the worker uses a fake transcriber
+        return self._whisper_downloaded()
+
+    def _whisper_downloaded(self) -> bool:
+        """Whisper in the model cache, looked up at most every 30 s: the control loop asks every tick and the app's
+        status poll every 2 s (a finished download clears it, _read_downloader)."""
         now = time.monotonic()
-        if now - self._whisper_checked[0] > 30:  # a cheap local lookup, not repeated on every control-loop tick
+        if now - self._whisper_checked[0] > 30:
             from lantern.transcription import whisper
 
             self._whisper_checked = (now, whisper.available())
@@ -232,33 +255,40 @@ class Daemon:
         with self.scan_lock:
             conn = self._conn()
             try:
-                result = scan_root(conn, Path(root), force=force, **settings_mod.walk_options(self.settings))
-            except RootUnavailable as exc:
-                self._warn(f"{exc}; nothing removed", "root_unavailable", root=root)
-                return {"root": root, "error": "unavailable"}
-            except MassDeletionRefused as exc:
-                self._warn(f"{root}: {exc}", "mass_deletion", root=root, missing=exc.missing, total=exc.total)
-                self._notify(
-                    f"{exc.missing} files missing in {Path(root).name}; nothing removed. Use `lantern index --force`."
-                )
-                return {"root": root, "error": "mass_deletion_refused", "missing": exc.missing, "total": exc.total}
-            if result.unreadable:
-                self._warn(
-                    f"no access to {len(result.unreadable)} folder(s) in {root} (e.g. {result.unreadable[0]}); "
-                    "their indexed files are kept. Grant access in System Settings > Privacy & Security.",
-                    "no_access", count=len(result.unreadable), root=root,
-                )
-            if result.deleted and db.maybe_compact(conn):
-                self._warn(f"compacted the index after removing {len(result.deleted)} files", "compacted",
-                           count=len(result.deleted))  # fmt: skip
-            summary = {
-                "root": root, "new": len(result.new), "changed": len(result.changed), "moved": len(result.moved),
-                "removed": len(result.deleted), "unchanged": result.unchanged + len(result.touched),
-                "unreadable": result.unreadable[:20], "cloud_only": result.cloud_only,
-            }  # fmt: skip
-            self._after_scan(conn, bool(result.new or result.changed))
-            conn.close()
-            return summary
+                return self._scan(conn, root, force)
+            finally:
+                conn.close()
+
+    def _scan(self, conn: sqlite3.Connection, root: str, force: bool) -> dict:
+        try:
+            result = scan_root(conn, Path(root), force=force, **settings_mod.walk_options(self.settings))
+        except RootUnavailable as exc:
+            self._warn(f"{exc}; nothing removed", "root_unavailable", root=root)
+            return {"root": root, "error": "unavailable"}
+        except MassDeletionRefused as exc:
+            self._warn(f"{root}: {exc}", "mass_deletion", root=root, missing=exc.missing, total=exc.total)
+            self._notify(
+                f"{exc.missing} files missing in {Path(root).name}; nothing removed. Use `lantern index --force`."
+            )
+            return {"root": root, "error": "mass_deletion_refused", "missing": exc.missing, "total": exc.total}
+        if result.unreadable:
+            self._warn(
+                f"no access to {len(result.unreadable)} folder(s) in {root} (e.g. {result.unreadable[0]}); "
+                "their indexed files are kept. Grant access in System Settings > Privacy & Security.",
+                "no_access",
+                count=len(result.unreadable),
+                root=root,
+            )
+        if result.deleted and db.maybe_compact(conn):
+            self._warn(f"compacted the index after removing {len(result.deleted)} files", "compacted",
+                       count=len(result.deleted))  # fmt: skip
+        summary = {
+            "root": root, "new": len(result.new), "changed": len(result.changed), "moved": len(result.moved),
+            "removed": len(result.deleted), "unchanged": result.unchanged + len(result.touched),
+            "unreadable": result.unreadable[:20], "cloud_only": result.cloud_only,
+        }  # fmt: skip
+        self._after_scan(conn, bool(result.new or result.changed))
+        return summary
 
     def scan_all(self) -> list[dict]:
         conn = self._conn()
@@ -426,7 +456,7 @@ class Daemon:
         self._reap_worker()
         with self.lock:
             running = self.worker is not None
-            paused = self._paused() or self.stopping.is_set() or self.models_missing
+            paused = self._paused() or self.stopping.is_set() or self.models_missing or self.index_problem
             holding = self._holding()
             want = (self.approved or self.settings.index_mode == "auto") and not holding
         if running and (paused or holding):
@@ -458,12 +488,12 @@ class Daemon:
         return n > 0
 
     def _release_when_idle(self) -> bool:
-        """"on_demand" always; "battery" only while the Mac runs on battery (on the charger it stays ready)."""
+        """ "on_demand" always; "battery" only while the Mac runs on battery (on the charger it stays ready)."""
         mode = self.settings.mode
         return mode == "on_demand" or (mode == "battery" and bool(getattr(self.power_state, "on_battery", False)))
 
     def _release_idle_search_model(self) -> None:
-        """"On demand" mode: the search model (~0.5 GB) is released after MODEL_IDLE_S without a search; apps and
+        """ "On demand" mode: the search model (~0.5 GB) is released after MODEL_IDLE_S without a search; apps and
         settings still answer without it, and the next search by meaning loads it again (time in status)."""
         e = self.embedder
         if (self._release_when_idle() and e is not None and getattr(e, "loaded", False)
@@ -568,8 +598,7 @@ class Daemon:
             enriching = {"dates_pending": filemeta.pending(conn), "people_pending": people.pending(conn)}
         finally:
             conn.close()
-        from lantern.transcription import whisper
-
+        whisper_downloaded = self._whisper_downloaded()
         with self.lock:
             worker = {"running": self.worker is not None, **self.progress} if self.worker else {"running": False}
             return {
@@ -583,7 +612,7 @@ class Daemon:
                 "search_mode": self.settings.mode, "model_loaded": bool(getattr(self.embedder, "loaded", True)),
                 "model_reload_ms": self.model_reload_ms,
                 "photo_model_loaded": bool(getattr(self.query_embedder, "loaded", False)),
-                "whisper_downloaded": whisper.available(),
+                "whisper_downloaded": whisper_downloaded,
                 "models_missing": self.models_missing, "model_download": self._download_status(),
                 "warnings": self.warnings[-5:], "warning_events": self.warning_events[-5:],
             }  # fmt: skip
@@ -738,16 +767,13 @@ class Daemon:
 
     def api_remove(self, path: str) -> dict:
         root = str(Path(path).expanduser().resolve())
-        with self.worker_suspended(), self.scan_lock:
-            conn = self._conn()
+        with self.worker_suspended(), self.scan_lock, self._db() as conn:
             row = conn.execute("SELECT id FROM roots WHERE path = ?", (root,)).fetchone()
             if row is None:
-                conn.close()
                 raise KeyError(f"{root} is not an indexed folder")
             with db.transaction(conn):
                 n = db.remove_root(conn, row["id"])
             db.compact(conn)
-            conn.close()
         if self.watcher:
             self.watcher.unwatch(root)
         return {"root": root, "files": n}
@@ -789,8 +815,14 @@ class Daemon:
         with self.lock:
             settings_mod.update(self.settings, key, str(value))
             settings_mod.save(self.settings)
-            if key in ("pause_on_battery", "pause_on_low_power", "pause_on_thermal", "schedule", "night_from",
-                       "night_to"):
+            if key in (
+                "pause_on_battery",
+                "pause_on_low_power",
+                "pause_on_thermal",
+                "schedule",
+                "night_from",
+                "night_to",
+            ):
                 self._last_power_check = 0.0
         if key in ("index_photos", "index_audio_video"):  # files join or leave the index at the next scan: now
             self._scan_all_soon()
@@ -861,9 +893,8 @@ class Daemon:
 
         from lantern.extractors import known_extensions
 
-        conn = self._conn()
-        counts = Counter(Path(r[0]).suffix.lower() for r in conn.execute("SELECT path FROM files"))
-        conn.close()
+        with self._db() as conn:
+            counts = Counter(Path(r[0]).suffix.lower() for r in conn.execute("SELECT path FROM files"))
         known = known_extensions()
         items = [
             {"ext": e, "kind": known.get(e), "indexed": counts.get(e, 0)} for e in sorted(set(known) | set(counts))
@@ -1047,9 +1078,8 @@ class Daemon:
         (lantern/thumbnails.py); {"path": None} for other files."""
         from lantern import thumbnails
 
-        conn = self._conn()
-        row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
-        conn.close()
+        with self._db() as conn:
+            row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
         if row is None:
             raise ValueError("not an indexed file")
         out = thumbnails.make(path, row["kind"], start_ms, size)
@@ -1070,9 +1100,8 @@ class Daemon:
         the index can be read this way."""
         from lantern.extractors.text import SkipFile, document_text
 
-        conn = self._conn()
-        row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
-        conn.close()
+        with self._db() as conn:
+            row = conn.execute("SELECT kind FROM files WHERE path = ?", (path,)).fetchone()
         if row is None or row["kind"] not in ("text", "code"):
             raise ValueError("not an indexed text or code file")
         try:
@@ -1161,6 +1190,7 @@ class Daemon:
                     self.download_state = {"running": True, **{k: v for k, v in event.items() if k != "event"}}
         code = proc.wait()
         self.perf._sizes = None  # refresh downloaded flags and sizes in Settings → Performance
+        self._whisper_checked = (-1e9, False)  # and whether Whisper is there, at the next status
         if code != 0:
             self._warn(f"model download failed (code {code}); see logs/models.log", "download_failed", code=code)
             with self.lock:
@@ -1185,11 +1215,9 @@ class Daemon:
         self._enqueue_missing_transcripts()
 
     def api_compact(self) -> dict:
-        with self.worker_suspended(), self.scan_lock:
-            conn = self._conn()
+        with self.worker_suspended(), self.scan_lock, self._db() as conn:
             before = config.db_path().stat().st_size
             db.compact(conn)
-            conn.close()
         return {"before": before, "after": config.db_path().stat().st_size}
 
     def api_clear_history(self) -> dict:
@@ -1227,8 +1255,8 @@ class Daemon:
         """Everything Lantern stored: the index (files, text, vectors, places, people, music, search history), the
         settings and the logs. Downloaded models stay (they hold nothing of the user's; `lantern models` lists them).
         Lantern then starts as on the first day, with no folders."""
-        self._stop_worker(wait=True)
-        with self.scan_lock:
+        # suspended, not only stopped: the control loop must not start a worker on the file being deleted
+        with self.worker_suspended(), self.scan_lock:
             conn = self._conn()
             roots = [r[0] for r in conn.execute("SELECT path FROM roots")]
             conn.close()
@@ -1246,8 +1274,6 @@ class Daemon:
     def api_shutdown(self) -> dict:
         self.stopping.set()
         return {"stopping": True}
-
-    # ---------- lifecycle ----------
 
     # ---------- index health ----------
 
@@ -1279,24 +1305,52 @@ class Daemon:
     def api_rebuild_index(self) -> dict:
         """Start again with an empty index: the folders stay (read from the old file when it can still be read), the
         damaged or newer file is deleted, and everything is indexed again."""
-        self._stop_worker(wait=True)
         path = config.db_path()
         roots: list[str] = []
-        with suppress(sqlite3.DatabaseError):
-            if path.exists():
-                old = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-                roots = [r[0] for r in old.execute("SELECT path FROM roots")]
-                old.close()
-        for suffix in ("", "-wal", "-shm"):
-            with suppress(FileNotFoundError):
-                Path(str(path) + suffix).unlink()
-        db.connect(path).close()  # a fresh, empty index of this version
-        with self.lock:
-            self.index_problem = None
-        for root in roots:
-            with suppress(FileNotFoundError):
-                self._index(root, check=False)  # the user's folders, as they were
+        with self.worker_suspended():  # no worker may start on the old file or on the new one before it is ready
+            with self.scan_lock:
+                with suppress(sqlite3.DatabaseError):
+                    if path.exists():
+                        old = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+                        roots = [r[0] for r in old.execute("SELECT path FROM roots")]
+                        old.close()
+                db.unlink_index(path)
+                db.connect(path).close()  # a fresh, empty index of this version
+            with self.lock:
+                self.index_problem = None
+            for root in roots:
+                with suppress(FileNotFoundError):
+                    self._index(root, check=False)  # the user's folders, as they were
         return {"rebuilt": True, "roots": roots}
+
+    def _tick(self) -> None:
+        """One round of the control loop."""
+        if self.index_problem:  # found damaged while running: only the API answers until the index is rebuilt
+            return
+        if self.watcher:
+            for root in self.watcher.take_quiet(self.settings.debounce_s):
+                self.scan(root)
+        self._check_power()
+        self._check_memory()
+        self._refresh_apps()
+        self._manage_worker()
+        self._refresh_meta()
+        self._release_idle_query_model()
+        self._release_idle_search_model()
+        with self.lock:
+            worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)
+        self.perf.tick(worker_pid, progress)
+
+    def _tick_failed(self, exc: Exception) -> None:
+        """A round failed: warned (at most once a minute, the loop runs every TICK_S) with the traceback in the log, and
+        the next round tries again."""
+        now = time.monotonic()
+        if now - self._tick_warned_at < TICK_FAILURE_WARN_S:
+            return
+        self._tick_warned_at = now
+        traceback.print_exc()  # daemon.log
+        self._warn(f"background work failed ({type(exc).__name__}: {exc}); trying again", "tick_failed",
+                   detail=f"{type(exc).__name__}: {exc}")  # fmt: skip
 
     def _shutdown(self, path: Path) -> None:
         if self.server:
@@ -1305,6 +1359,12 @@ class Daemon:
         self.model_thread.shutdown(wait=False)
         with suppress(FileNotFoundError):
             path.unlink()
+        self._release_instance_lock()
+
+    def _release_instance_lock(self) -> None:
+        if self._instance_lock is not None:
+            self._instance_lock.close()  # releases the flock: the next daemon may start
+            self._instance_lock = None
 
     def _serve(self, path: Path) -> None:
         daemon = self
@@ -1312,6 +1372,9 @@ class Daemon:
         class Handler(socketserver.StreamRequestHandler):
             def handle(self):
                 msg_id = None
+                # A client that connects and sends nothing (or stops mid-request) no longer holds a thread forever.
+                # Only reads and writes wait for it: a long call (remove, rebuild) is not cut short.
+                self.request.settimeout(REQUEST_TIMEOUT_S)
                 try:
                     msg = protocol.read_message(self.request)
                     msg_id = msg.get("id")
@@ -1341,6 +1404,15 @@ class Daemon:
         home.mkdir(parents=True, exist_ok=True)
         os.chmod(home, 0o700)  # index, settings and the default socket: user-only
         path.parent.mkdir(parents=True, exist_ok=True)  # a custom LANTERN_SOCKET directory is left as it is
+        # One daemon per data folder, decided at once: the socket only appears after the model loads and the first
+        # scan, and until then a second start (the app and the LaunchAgent at login) saw no daemon and ran its own.
+        lock = open(home / "daemon.lock", "a")  # noqa: SIM115 - held until the daemon stops (_shutdown)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.close()
+            raise RuntimeError(f"another Lantern daemon is already running ({home})") from None
+        self._instance_lock = lock
         if path.exists():
             if protocol.running():
                 raise RuntimeError(f"another Lantern daemon is already running ({path})")
@@ -1348,6 +1420,12 @@ class Daemon:
         return path
 
     def run(self) -> int:
+        try:
+            return self._run()
+        finally:
+            self._release_instance_lock()  # also when the start failed (a model that cannot load)
+
+    def _run(self) -> int:
         path = self._prepare_socket()
         if self.embedder is None:
             from lantern.service.worker import make_embedder
@@ -1408,40 +1486,19 @@ class Daemon:
                 if self.parent_pid is not None and os.getppid() != self.parent_pid:
                     self._warn("parent app exited; stopping", "parent_exited")
                     break
-                if self.watcher:
-                    for root in self.watcher.take_quiet(self.settings.debounce_s):
-                        self.scan(root)
-                self._check_power()
-                self._check_memory()
-                self._refresh_apps()
-                self._manage_worker()
-                self._refresh_meta()
-                self._release_idle_query_model()
-                self._release_idle_search_model()
-                with self.lock:
-                    worker_pid, progress = (self.worker.pid if self.worker else None), dict(self.progress)
-                self.perf.tick(worker_pid, progress)
+                try:
+                    self._tick()
+                except db.NewerSchemaError:
+                    pass  # _conn() asked to stop: the app starts the daemon again from the new code
+                except Exception as exc:  # noqa: BLE001 - one bad round (a locked index, an I/O error) never ends the daemon
+                    self._tick_failed(exc)
                 self.stopping.wait(TICK_S)
         finally:
             self._stop_worker(wait=True)
             if self.watcher:
                 self.watcher.stop()
-            if self.server:
-                self.server.shutdown()
-                self.server.server_close()
-            self.model_thread.shutdown(wait=False)
-            with suppress(FileNotFoundError):
-                path.unlink()
+            self._shutdown(path)
         return 0
-
-
-def wait_for_socket(timeout: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if protocol.running():
-            return True
-        time.sleep(0.1)
-    return False
 
 
 def _free_bytes(path: Path) -> int:

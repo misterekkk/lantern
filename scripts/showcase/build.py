@@ -42,8 +42,16 @@ EASE_OUT = "cubic-bezier(.2,.8,.2,1)"
 EASE_IN = "cubic-bezier(.6,0,.8,.2)"
 
 
-def show(el_id: str, t_in: float, t_out: float, fade: float = 0.35, enter: str = "", exit: str = "",
-         rest: str = "translate(0px,0px) scale(1)", moves: list[tuple[float, str]] | None = None) -> None:
+def show(
+    el_id: str,
+    t_in: float,
+    t_out: float,
+    fade: float = 0.35,
+    enter: str = "",
+    exit: str = "",
+    rest: str = "translate(0px,0px) scale(1)",
+    moves: list[tuple[float, str]] | None = None,
+) -> None:
     """Visible from t_in to t_out; enter/exit are the transforms it comes from and leaves to; moves: (t, transform)
     while visible."""
     enter = enter or rest
@@ -71,8 +79,9 @@ def blink(el_id: str, times: list[tuple[float, float]]) -> None:
     keyframes(el_id, frames)
 
 
-def typing(prefix_id: str, text: str, t0: float, cps: float, until: float, x: float, y: float, attrs: str,
-           caret: bool = True) -> str:
+def typing(
+    prefix_id: str, text: str, t0: float, cps: float, until: float, x: float, y: float, attrs: str, caret: bool = True
+) -> str:
     """One <text> per prefix, each shown for its slot; the last one stays until `until`."""
     out = []
     n = len(text)
@@ -119,10 +128,15 @@ panel_narrow = f"""<g id="panel1" style="transform-box:fill-box;transform-origin
 </g>"""
 parts.append(panel_narrow)
 show("panel1", S1, S1_END, enter="translate(0px,14px) scale(.97)", exit="translate(-90px,0px) scale(.96)")
-parts.append(f'<text id="ph1" x="{px + 62}" y="{py + 44}" font-family="{SANS}" font-size="22" fill="#9aa0aa">Search Lantern</text>')
+parts.append(
+    f'<text id="ph1" x="{px + 62}" y="{py + 44}" font-family="{SANS}" font-size="22" fill="#9aa0aa">Search Lantern</text>'
+)
 blink("ph1", [(S1 + 0.3, S1 + 0.8)])
-parts.append(typing("q1_", q1, S1 + 0.8, 17, S1_END - 0.3, px + 62, py + 44,
-                    f'font-family="{SANS}" font-size="22" fill="#14181f"'))
+parts.append(
+    typing(
+        "q1_", q1, S1 + 0.8, 17, S1_END - 0.3, px + 62, py + 44, f'font-family="{SANS}" font-size="22" fill="#14181f"'
+    )
+)
 # results
 rx0, ry0 = px + 14, py + 86
 r1 = f"""<g id="res1">
@@ -164,8 +178,15 @@ preview = f"""<g id="prev1" style="transform-box:fill-box;transform-origin:50% 5
 </g>"""
 parts.append(preview)
 show("prev1", S1 + 4.35, S1_END, fade=0.4, enter="scale(.9)", exit="translate(-120px,0px) scale(.94)")
-keyframes("prog1", [(0, f"transform:scaleX({prog_from})", "linear"), (S1 + 4.6, f"transform:scaleX({prog_from})", "linear"),
-                    (S1_END, f"transform:scaleX({prog_from + 0.03})", "linear"), (T, f"transform:scaleX({prog_from})", "linear")])
+keyframes(
+    "prog1",
+    [
+        (0, f"transform:scaleX({prog_from})", "linear"),
+        (S1 + 4.6, f"transform:scaleX({prog_from})", "linear"),
+        (S1_END, f"transform:scaleX({prog_from + 0.03})", "linear"),
+        (T, f"transform:scaleX({prog_from})", "linear"),
+    ],
+)
 
 # Scene 2: Raycast, photos
 S2, S2_END = 10.2, 17.6
@@ -182,9 +203,15 @@ for i in range(4):
     cid = f"t{i}"
     x = gx + i * (tw + gap)
     defs.append(clip_rect(cid, x, gy, tw, th, 8))
-    sel = f'<rect x="{x - 4}" y="{gy - 4}" width="{tw + 8}" height="{th + 8}" rx="11" fill="none" stroke="#ff6363" stroke-width="3"/>' if i == 0 else ""
-    thumbs.append(f'{beach(x, gy, tw, th, cid, i)}{sel}<text x="{x + 2}" y="{gy + th + 22}" font-family="{SANS}" font-size="13" fill="#e5e5e7">{names[i]}</text>'
-                  f'<text x="{x + 2}" y="{gy + th + 40}" font-family="{SANS}" font-size="12" fill="#8e8e93">{["Lisbon · Jul 2025", "Porto · Aug 2024", "Gdańsk · Jun 2023", "Lisbon · Jul 2025"][i]}</text>')
+    sel = (
+        f'<rect x="{x - 4}" y="{gy - 4}" width="{tw + 8}" height="{th + 8}" rx="11" fill="none" stroke="#ff6363" stroke-width="3"/>'
+        if i == 0
+        else ""
+    )
+    thumbs.append(
+        f'{beach(x, gy, tw, th, cid, i)}{sel}<text x="{x + 2}" y="{gy + th + 22}" font-family="{SANS}" font-size="13" fill="#e5e5e7">{names[i]}</text>'
+        f'<text x="{x + 2}" y="{gy + th + 40}" font-family="{SANS}" font-size="12" fill="#8e8e93">{["Lisbon · Jul 2025", "Porto · Aug 2024", "Gdańsk · Jun 2023", "Lisbon · Jul 2025"][i]}</text>'
+    )
 for i in range(4):  # second row, other photos further down the list
     cid = f"u{i}"
     x = gx + i * (tw + gap)
@@ -205,8 +232,11 @@ raycast = f"""<g id="ray" filter="url(#shadow)">
 </g>"""
 parts.append(raycast)
 show("ray", S2, S2_END, enter="translate(140px,0px) scale(.96)", exit="scale(1.04)")
-parts.append(typing("q2_", q2, S2 + 0.7, 15, S2_END - 0.3, rx + 52, ry + 49,
-                    f'font-family="{SANS}" font-size="21" fill="#f2f2f7"'))
+parts.append(
+    typing(
+        "q2_", q2, S2 + 0.7, 15, S2_END - 0.3, rx + 52, ry + 49, f'font-family="{SANS}" font-size="21" fill="#f2f2f7"'
+    )
+)
 parts.append(f'<g id="grid">{"".join(thumbs)}</g>')
 show("grid", S2 + 1.95, S2_END, fade=0.3, enter="translate(0px,10px)")
 parts.append(keycap("key2", 1090, 610, "⌘Y"))
@@ -254,7 +284,9 @@ out1 = [
 for i, (col, line) in enumerate(out1):
     el = f"o1_{i}"
     style = ' font-weight="700"' if i == 1 else ""
-    parts.append(f'<text id="{el}" x="{lx}" y="{l0 + L * (i + 1)}" {mono} fill="{col}"{style} xml:space="preserve">{escape(line)}</text>')
+    parts.append(
+        f'<text id="{el}" x="{lx}" y="{l0 + L * (i + 1)}" {mono} fill="{col}"{style} xml:space="preserve">{escape(line)}</text>'
+    )
     show(el, S3 + 2.2 + i * 0.12, S3_END, fade=0.15)
 l1 = l0 + L * 7
 parts.append(f'<text id="pr2" x="{lx}" y="{l1}" {mono} fill="#7ee0a8">$</text>')
@@ -265,7 +297,9 @@ for i, line in enumerate(["/Users/me/Documents/Rachunki/faktura_prad_pazdziernik
     el = f"o2_{i}"
     parts.append(f'<text id="{el}" x="{lx}" y="{l1 + L * (i + 1)}" {mono} fill="#f2b84b">{escape(line)}</text>')
     show(el, t_done + i * 0.12, S3_END, fade=0.15)
-parts.append(f'<text id="note3" x="{lx}" y="{l1 + L * 3}" font-family="{SANS}" font-size="15" fill="#8a909c">An English question found a Polish invoice: search goes by meaning, across languages.</text>')
+parts.append(
+    f'<text id="note3" x="{lx}" y="{l1 + L * 3}" font-family="{SANS}" font-size="15" fill="#8a909c">An English question found a Polish invoice: search goes by meaning, across languages.</text>'
+)
 show("note3", t_done + 0.5, S3_END, fade=0.3)
 
 # Outro
@@ -278,8 +312,8 @@ css.append("#outro{transform-box:view-box;transform-origin:50% 50%}")
 
 svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Lantern in action: its search panel, Raycast and the command line">
 <title>Lantern in action</title>
-<style>{''.join(css)}</style>
-{''.join(parts)}
+<style>{"".join(css)}</style>
+{"".join(parts)}
 </svg>
 """
 OUT.write_text(svg)

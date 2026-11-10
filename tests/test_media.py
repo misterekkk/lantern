@@ -137,3 +137,22 @@ def test_audio_window_match_shows_transcript_of_the_same_time_range(conn, tmp_pa
     audio_chunk = conn.execute("SELECT id FROM chunks WHERE kind = 'audio'").fetchone()[0]
     hit = _hits(conn, [(audio_chunk, 0.9)])[0]
     assert hit.kind == "audio" and "tekst z nagrania" in hit.preview
+
+
+def test_a_decoder_writing_a_lot_of_errors_does_not_block(tmp_path, monkeypatch):
+    """stderr went to a pipe nobody read while audio streamed: a decoder writing more than the pipe holds (a damaged
+    file, thousands of messages) blocked, and the worker with it, until the 30-minute stuck-file limit."""
+    import threading
+
+    from lantern.extractors import media
+
+    helper = tmp_path / "noisy-media"
+    helper.write_text("#!/bin/sh\nhead -c 300000 /dev/zero | tr '\\0' 'x' >&2\nhead -c 128000 /dev/zero\n")
+    helper.chmod(0o755)
+    monkeypatch.setenv("LANTERN_MEDIA", str(helper))
+    got = []
+    t = threading.Thread(target=lambda: got.extend(media.iter_windows(tmp_path / "x.m4a")), daemon=True)
+    t.start()
+    t.join(timeout=20)
+    assert not t.is_alive(), "the decoder blocked on a full stderr pipe"
+    assert len(got) == 1 and got[0][1].shape == (32_000,)  # 2 s of silence: one window

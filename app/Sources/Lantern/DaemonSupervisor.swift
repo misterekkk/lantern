@@ -12,6 +12,10 @@ final class DaemonSupervisor {
     private var process: Process?
     private var quitting = false
     private var restarts = 0
+    private var launchedAt = Date.distantPast
+    /// A daemon that ran this long counts as healthy: its exit starts the restart count again (the count is for a
+    /// daemon that keeps crashing at start, not for five unrelated exits over weeks).
+    private static let stableRun: TimeInterval = 120
     private let client = DaemonClient()
 
     /// Python runtime: LANTERN_PYTHON override, then the standalone Python bundled inside Lantern.app
@@ -70,6 +74,7 @@ final class DaemonSupervisor {
         }
         do {
             try p.run()
+            launchedAt = Date()
             process = p
             mode = .child
         } catch {
@@ -80,6 +85,7 @@ final class DaemonSupervisor {
     private func terminated(status: Int32) {
         process = nil
         guard !quitting else { return }
+        if Date().timeIntervalSince(launchedAt) >= Self.stableRun { restarts = 0 }
         restarts += 1
         if restarts > 5 {
             mode = .failed(String(localized: "The daemon keeps exiting with an error (code \(status)). Details: logs/daemon.log"))
@@ -88,7 +94,9 @@ final class DaemonSupervisor {
         let delay = UInt64(min(30, 1 << restarts)) * 1_000_000_000
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: delay)
-            if !self.quitting { self.launch() }
+            // start(), not launch(): a daemon may have come up meanwhile (the LaunchAgent at login), and a second
+            // one refuses to run beside it (one per data folder)
+            if !self.quitting { await self.start() }
         }
     }
 

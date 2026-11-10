@@ -1631,6 +1631,14 @@ re-indexes only them, not every text file. On the user's index: 13 HTML files (6
 visible (9%), lines kept in all, no errors, ~6 ms per file; two script-only pages index with no chunks (their names
 are still found).
 
+## JPEG draft (2026-11-10)
+
+`extractors/image.load_image` asked Pillow for a reduced JPEG decode (`draft`) after `ImageOps.exif_transpose`, which
+already loads the pixels, so `draft` did nothing and every photo was decoded at full size (a 8000×6000 JPEG stayed
+8000×6000). Now `draft` comes first. Measured on a 6000×4500 JPEG: 80-108 ms → 38-39 ms per photo, the 1024 px image
+the models get differs by 0.7/255 on average (at most 5) from the full decode. Too small to matter for the vectors, so
+no pipeline version bump: photos indexed before keep their vectors.
+
 ## ADR-001: Embedding backend, MLX 8-bit (mlx-vlm), with a sentence-transformers fallback
 
 **Status:** accepted (2026-10-15), confirmed in Phases 2–5
@@ -1776,3 +1784,8 @@ embeddings. Whisper is loaded only for transcription (~1.8 GB), never together w
     (GPU benchmarks, not measured on a Mac). The user's rule: only a full replacement, not another model beside
     Whisper, and Whisper's ~99 languages weigh more than the speed. Not tested; worth it only if a successor covers
     as many languages, or the speed on a Mac turns out decisive (measure Polish WER and time on FLEURS/Common Voice).
+43. Office documents (2026-11-10): `textutil` (rtf/doc/odt) is macOS's local converter; its network traffic was not
+    measured with `spikes/phase0/probe_network.py` (the Python part, `zipfile` + ElementTree, opens no connections).
+    Also open: real-world Word/Excel/PowerPoint files from Microsoft Office and Google Docs exports (tested on files
+    built in the tests and on docx/odt/doc/rtf written by `textutil`), and whether `.pages`/`.numbers`/`.key` (bundles,
+    skipped today) are worth reading.

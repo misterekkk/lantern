@@ -92,6 +92,16 @@ def test_wrong_values_are_corrected_one_by_one(lantern_home):
     assert settings.load() == s and settings.problems == []
 
 
+def test_any_exclusion_survives_a_save(lantern_home):
+    """A pattern with a newline, a tab or a quote used to write a file TOML cannot read: load() then dropped every
+    exclusion and Lantern read the folders the user had left out."""
+    s = settings.Settings()
+    s.exclude = ["~/Private", "a\nb", 'quote"d\\', "tab\there", "\x7f"]
+    settings.save(s)
+    assert settings.load().exclude == s.exclude and settings.problems == []
+    assert not (lantern_home / "config.toml.tmp").exists()
+
+
 def test_daemon_reports_corrected_settings(lantern_home):
     from lantern.embedding.fake import FakeEmbedder
     from lantern.service.core import Daemon

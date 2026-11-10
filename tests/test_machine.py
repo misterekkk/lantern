@@ -232,3 +232,13 @@ def test_mlx_limit_follows_free_memory_within_floor_and_cap():
     assert machine.mlx_limit(full(5)) == machine.MLX_FLOOR  # almost nothing free: the floor, never zero
     assert machine.mlx_limit(light(60)) == 1 * gb  # an 8 GB Mac never above 1 GB
     assert machine.mlx_limit(light(10)) == machine.MLX_FLOOR
+
+
+def test_diagnostics_hide_any_path_and_anything_quoted():
+    from lantern.service.diagnostics import redact
+
+    assert redact("no access to 2 folder(s) in /opt/Klienci/Kowalski") == "no access to 2 folder(s) in <path>"
+    assert redact("settings: exclude: ['Tajny projekt'] is not valid") == "settings: exclude: [<text>] is not valid"
+    assert redact("index worker exited with code 1; see logs/worker.log") == (
+        "index worker exited with code 1; see logs/worker.log"
+    )
