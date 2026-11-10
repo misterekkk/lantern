@@ -42,7 +42,7 @@ fi
 sed -e "s#__PYTHON__#$PYTHON_PLIST#" -e "s#__VERSION__#$VERSION#" -e "s#__BUILD__#$(date +%Y%m%d%H%M)#" \
     Resources/Info.plist.template > "$APP/Contents/Info.plist"
 cp -R Resources/*.lproj "$APP/Contents/Resources/"   # localizations (the system language picks one)
-cp Resources/AppIcon.icns "$APP/Contents/Resources/"  # from brand/lantern-icon.svg (brand/make-icons.sh)
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"  # from scripts/icon/lantern-icon.svg (scripts/icon/make-icons.sh)
 /usr/bin/python3 ../integrations/alfred/build.py "$APP/Contents/Resources" >/dev/null  # Settings → Search from: Alfred
 
 if (( STANDALONE )); then

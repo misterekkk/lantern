@@ -235,7 +235,7 @@ private struct StatusRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(nsImage: NSApp.applicationIconImage)  // the app icon (brand/lantern-icon.svg), with its own margin
+            Image(nsImage: NSApp.applicationIconImage)  // the app icon (scripts/icon/lantern-icon.svg), with its own margin
                 .resizable()
                 .frame(width: 46, height: 46)
                 .padding(-4)

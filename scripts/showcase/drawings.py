@@ -22,21 +22,39 @@ def wallpaper() -> str:
 """
 
 
+_icon_ids = iter(range(1, 1000))
+
+
 def lantern_icon(x: float, y: float, s: float) -> str:
-    """Lantern's mark, drawn here (graphite tile, magnifier, amber spark)."""
+    """Lantern's mark, drawn here: the app icon's lantern (scripts/icon/lantern-icon.svg) on a graphite tile, its
+    1024 pt coordinates scaled into a 100-unit square. Each use gets its own gradient id (one SVG holds several)."""
     k = s / 100
+    glow = f"lglow{next(_icon_ids)}"
     return f"""<g transform="translate({x},{y}) scale({k})">
   <rect width="100" height="100" rx="23" fill="#1d2027"/><rect x=".75" y=".75" width="98.5" height="98.5" rx="22.3" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="1.5"/>
-  <circle cx="44" cy="44" r="23" fill="none" stroke="#f4f4f6" stroke-width="8"/>
-  <line x1="61" y1="61" x2="78" y2="78" stroke="#f4f4f6" stroke-width="10" stroke-linecap="round"/>
-  <path d="M44 31 L47.5 40.5 L57 44 L47.5 47.5 L44 57 L40.5 47.5 L31 44 L40.5 40.5 Z" fill="#f2b84b"/>
+  <g transform="scale({100 / 824}) translate(-100 -54.5)">
+    <defs><radialGradient id="{glow}" cx="512" cy="560" r="150" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f2b84b" stop-opacity="0.55"/><stop offset="1" stop-color="#f2b84b" stop-opacity="0"/></radialGradient></defs>
+    <path d="M452 250 A60 60 0 0 1 572 250" fill="none" stroke="#f4f4f6" stroke-width="34" stroke-linecap="round"/>
+    <path d="M432 262 L592 262 L656 336 L368 336 Z" fill="#f4f4f6" stroke="#f4f4f6" stroke-width="24" stroke-linejoin="round"/>
+    <rect x="392" y="360" width="240" height="330" rx="52" fill="url(#{glow})" stroke="#f4f4f6" stroke-width="34"/>
+    <path d="M512 430 C560 494 572 536 572 566 C572 604 546 630 512 630 C478 630 452 604 452 566 C452 536 464 494 512 430 Z" fill="#f2b84b"/>
+    <rect x="368" y="712" width="288" height="48" rx="24" fill="#f4f4f6"/>
+  </g>
 </g>"""
 
 
 def pitch(x: float, y: float, w: float, h: float, clip: str) -> str:
     """A video frame: a football match seen from the stand."""
-    players = [(.22, .42, "#e4572e"), (.35, .6, "#e4572e"), (.48, .35, "#e4572e"), (.58, .55, "#2e86de"),
-               (.7, .4, "#2e86de"), (.8, .62, "#2e86de"), (.42, .75, "#e4572e"), (.64, .25, "#2e86de")]
+    players = [
+        (0.22, 0.42, "#e4572e"),
+        (0.35, 0.6, "#e4572e"),
+        (0.48, 0.35, "#e4572e"),
+        (0.58, 0.55, "#2e86de"),
+        (0.7, 0.4, "#2e86de"),
+        (0.8, 0.62, "#2e86de"),
+        (0.42, 0.75, "#e4572e"),
+        (0.64, 0.25, "#2e86de"),
+    ]
     dots = "".join(f'<g><ellipse cx="{x + w * px}" cy="{y + h * py + 7}" rx="7" ry="2.5" fill="#000" opacity=".25"/>'
                    f'<rect x="{x + w * px - 4}" y="{y + h * py - 12}" width="8" height="18" rx="4" fill="{c}"/>'
                    f'<circle cx="{x + w * px}" cy="{y + h * py - 15}" r="4" fill="#f1c9a5"/></g>'
@@ -45,12 +63,12 @@ def pitch(x: float, y: float, w: float, h: float, clip: str) -> str:
                       for i in range(8))  # fmt: skip
     return f"""<g clip-path="url(#{clip})">
   <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#2f8a43"/>{stripes}
-  <rect x="{x}" y="{y}" width="{w}" height="{h * .16}" fill="#1b3a4b"/>
-  <rect x="{x}" y="{y + h * .16}" width="{w}" height="3" fill="#ffffff" opacity=".7"/>
-  <line x1="{x + w / 2}" y1="{y + h * .16}" x2="{x + w / 2}" y2="{y + h}" stroke="#fff" stroke-opacity=".75" stroke-width="2.5"/>
-  <ellipse cx="{x + w / 2}" cy="{y + h * .58}" rx="{w * .12}" ry="{h * .14}" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="2.5"/>
+  <rect x="{x}" y="{y}" width="{w}" height="{h * 0.16}" fill="#1b3a4b"/>
+  <rect x="{x}" y="{y + h * 0.16}" width="{w}" height="3" fill="#ffffff" opacity=".7"/>
+  <line x1="{x + w / 2}" y1="{y + h * 0.16}" x2="{x + w / 2}" y2="{y + h}" stroke="#fff" stroke-opacity=".75" stroke-width="2.5"/>
+  <ellipse cx="{x + w / 2}" cy="{y + h * 0.58}" rx="{w * 0.12}" ry="{h * 0.14}" fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="2.5"/>
   {dots}
-  <circle cx="{x + w * .53}" cy="{y + h * .5}" r="4" fill="#fff"/>
+  <circle cx="{x + w * 0.53}" cy="{y + h * 0.5}" r="4" fill="#fff"/>
 </g>"""
 
 
@@ -78,8 +96,8 @@ def beach(x: float, y: float, w: float, h: float, clip: str, variant: int = 0) -
   <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="url(#{gid})"/>
   <circle cx="{x + w * (0.78 - variant * 0.12)}" cy="{y + h * 0.22}" r="{h * 0.08}" fill="#fff6d5" opacity=".9"/>
   <rect x="{x}" y="{y + h * 0.5}" width="{w}" height="{h * 0.14}" fill="#2a9dbd"/>
-  <path d="M{x} {y + h * 0.62} Q{x + w * .25} {y + h * 0.58} {x + w * .5} {y + h * 0.63} T{x + w} {y + h * 0.62} V{y + h} H{x} Z" fill="#f1d39b"/>
-  <path d="M{x} {y + h * 0.63} Q{x + w * .25} {y + h * 0.6} {x + w * .5} {y + h * 0.645} T{x + w} {y + h * 0.63}" stroke="#fff" stroke-opacity=".8" stroke-width="2" fill="none"/>
+  <path d="M{x} {y + h * 0.62} Q{x + w * 0.25} {y + h * 0.58} {x + w * 0.5} {y + h * 0.63} T{x + w} {y + h * 0.62} V{y + h} H{x} Z" fill="#f1d39b"/>
+  <path d="M{x} {y + h * 0.63} Q{x + w * 0.25} {y + h * 0.6} {x + w * 0.5} {y + h * 0.645} T{x + w} {y + h * 0.63}" stroke="#fff" stroke-opacity=".8" stroke-width="2" fill="none"/>
   {dog}
 </g>"""
 
@@ -95,10 +113,9 @@ def keycap(el_id: str, x: float, y: float, label: str) -> str:
 
 
 def caption(el_id: str, title: str, sub: str) -> str:
-    return f"""<g id="{el_id}"><text x="64" y="72" font-family="{SANS}" font-size="15" font-weight="600" fill="#f2b84b" letter-spacing="1.5">{escape(sub.upper())}</text>
-  <text x="64" y="104" font-family="{SANS}" font-size="28" font-weight="700" fill="#fff">{escape(title)}</text></g>"""
-
-
+    # In the top-left corner, clear of the windows below it (at y 104 the title touched the terminal's title bar)
+    return f"""<g id="{el_id}"><text x="44" y="54" font-family="{SANS}" font-size="15" font-weight="600" fill="#f2b84b" letter-spacing="1.5">{escape(sub.upper())}</text>
+  <text x="44" y="86" font-family="{SANS}" font-size="28" font-weight="700" fill="#fff">{escape(title)}</text></g>"""
 
 
 def park(x: float, y: float, w: float, h: float, clip: str) -> str:
@@ -109,8 +126,8 @@ def park(x: float, y: float, w: float, h: float, clip: str) -> str:
   <defs><linearGradient id="psky{clip}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd3f5"/><stop offset="1" stop-color="#e6f4fb"/></linearGradient></defs>
   <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="url(#psky{clip})"/>
   <circle cx="{x + w * 0.2}" cy="{y + h * 0.2}" r="{h * 0.07}" fill="#fff6d5"/>
-  <path d="M{x} {y + h * 0.6} Q{x + w * .35} {y + h * 0.5} {x + w * .7} {y + h * 0.58} T{x + w} {y + h * 0.55} V{y + h} H{x} Z" fill="#7cc36a"/>
-  <path d="M{x} {y + h * 0.72} Q{x + w * .4} {y + h * 0.64} {x + w} {y + h * 0.72} V{y + h} H{x} Z" fill="#5fae52"/>
+  <path d="M{x} {y + h * 0.6} Q{x + w * 0.35} {y + h * 0.5} {x + w * 0.7} {y + h * 0.58} T{x + w} {y + h * 0.55} V{y + h} H{x} Z" fill="#7cc36a"/>
+  <path d="M{x} {y + h * 0.72} Q{x + w * 0.4} {y + h * 0.64} {x + w} {y + h * 0.72} V{y + h} H{x} Z" fill="#5fae52"/>
   <rect x="{x + w * 0.8}" y="{y + h * 0.36}" width="{w * 0.035}" height="{h * 0.3}" fill="#7a4a24"/>
   <circle cx="{x + w * 0.82}" cy="{y + h * 0.32}" r="{h * 0.16}" fill="#3f8f3a"/>
   <g transform="translate({cx},{base}) scale({s})">
